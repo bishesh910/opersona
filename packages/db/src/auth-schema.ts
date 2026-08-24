@@ -21,6 +21,15 @@ export const user = pgTable("user", {
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+  twoFactorEnabled: boolean("two_factor_enabled"),
+});
+
+// better-auth twoFactor plugin store (additive — TOTP secret + backup codes per user).
+export const twoFactor = pgTable("twoFactor", {
+  id: text("id").primaryKey(),
+  secret: text("secret").notNull(),
+  backupCodes: text("backup_codes").notNull(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
 });
 
 export const session = pgTable(

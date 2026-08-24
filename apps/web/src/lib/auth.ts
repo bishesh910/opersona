@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { organization } from 'better-auth/plugins';
+import { organization, twoFactor } from 'better-auth/plugins';
 import { nextCookies } from 'better-auth/next-js';
 import { and, eq, gt } from 'drizzle-orm';
 import { db, authSchema } from '@opersona/db';
@@ -62,7 +62,11 @@ export const auth = betterAuth({
     ...(SOCIAL.google ? { google: { clientId: process.env.GOOGLE_CLIENT_ID!, clientSecret: process.env.GOOGLE_CLIENT_SECRET! } } : {}),
     ...(SOCIAL.apple ? { apple: { clientId: process.env.APPLE_CLIENT_ID!, clientSecret: process.env.APPLE_CLIENT_SECRET!, appBundleIdentifier: process.env.APPLE_APP_BUNDLE_IDENTIFIER } } : {}),
   },
-  plugins: [organization({ allowUserToCreateOrganization: (user) => isPlatformAdmin(user.email) }), nextCookies()],
+  plugins: [
+    organization({ allowUserToCreateOrganization: (user) => isPlatformAdmin(user.email) }),
+    twoFactor({ issuer: 'opersona' }),
+    nextCookies(),
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session;

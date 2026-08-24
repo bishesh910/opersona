@@ -4,11 +4,13 @@ import { requireOrg, isOrgAdmin } from '@/lib/session';
 import { InviteCard } from '@/components/settings/InviteCard';
 import { SettingsForm } from '@/components/settings/SettingsForm';
 import { ApiKeyForm } from '@/components/settings/ApiKeyForm';
+import { TwoFactorCard } from '@/components/settings/TwoFactorCard';
 import { engineFetch } from '@/lib/engine';
 
 export default async function SettingsPage() {
   const ctx = await requireOrg();
   const [row] = await db.select().from(schema.orgSettings).where(eq(schema.orgSettings.orgId, ctx.orgId)).limit(1);
+  const [userRow] = await db.select({ twoFactorEnabled: authSchema.user.twoFactorEnabled }).from(authSchema.user).where(eq(authSchema.user.id, ctx.userId)).limit(1);
   const admin = isOrgAdmin(ctx);
   const mode = await engineFetch<{ mode: string }>('/auth/mode').then((j) => j.mode).catch(() => 'api-key');
   const hostLogin = mode === 'host-login';
@@ -53,6 +55,7 @@ export default async function SettingsPage() {
           pending={pendingInvites.map((i) => ({ id: i.id, email: i.email, expiresAt: i.expiresAt.toISOString() }))}
         />
       )}
+      <TwoFactorCard enabled={!!userRow?.twoFactorEnabled} />
       <section className="card space-y-2">
         <h2 className="font-medium">Models &amp; defaults</h2>
         <SettingsForm
