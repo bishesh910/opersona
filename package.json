@@ -1,0 +1,42 @@
+{
+  "name": "opersona",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter ./apps/* dev",
+    "dev:engine": "pnpm --filter @opersona/engine dev",
+    "dev:web": "pnpm --filter @opersona/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @opersona/db generate",
+    "db:migrate": "pnpm --filter @opersona/db migrate",
+    "db:push": "pnpm --filter @opersona/db push",
+    "set-org-key": "tsx scripts/set-org-key.mts",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@better-auth/cli": "^1.4.21",
+    "@opersona/db": "workspace:^",
+    "@opersona/shared": "workspace:^",
+    "@playwright/test": "^1.62.1",
+    "@types/pg": "^8.15.0",
+    "better-auth": "^1.7.1",
+    "dotenv": "^17.0.0",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.23.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss@<8.5.23": ">=8.5.23",
+      "esbuild@<0.25.0": ">=0.25.0",
+      "sharp@<0.35.0": ">=0.35.0"
+    }
+  }
+}

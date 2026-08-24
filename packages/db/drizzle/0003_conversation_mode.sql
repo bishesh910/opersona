@@ -1,0 +1,1 @@
+ALTER TABLE "conversations" ADD COLUMN "mode" text DEFAULT 'claude' NOT NULL;

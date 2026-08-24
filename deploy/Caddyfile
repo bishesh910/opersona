@@ -1,0 +1,30 @@
+# opersona — TLS terminator + reverse proxy.
+# The domain block gets a real Let's Encrypt certificate automatically once
+# opersona.beezlab.xyz resolves to this box and ports 80/443 are forwarded.
+opersona.beezlab.xyz {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	request_body {
+		max_size 100MB
+	}
+	reverse_proxy 127.0.0.1:3000 {
+		flush_interval -1
+	}
+	log
+}
+
+# LAN access keeps working during/after the transition (self-signed).
+192.168.50.20 {
+	tls internal
+	encode zstd gzip
+	header -Server
+	request_body {
+		max_size 100MB
+	}
+	reverse_proxy 127.0.0.1:3000 {
+		flush_interval -1
+	}
+}

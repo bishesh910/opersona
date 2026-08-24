@@ -1,0 +1,81 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html, body { height: 100%; }
+body {
+  @apply bg-white text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+}
+
+/* Small hand-written component utilities (no UI lib). */
+@utility btn-base {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+  @apply border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-700 dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300;
+}
+@utility btn-secondary {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+  @apply border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800;
+}
+@utility btn-danger {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+  @apply border-red-600 bg-red-600 text-white hover:bg-red-700;
+}
+@utility btn-sm {
+  @apply px-2 py-1 text-xs;
+}
+@utility input {
+  @apply w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-neutral-900 shadow-xs outline-none focus:border-neutral-500 focus:ring-2 focus:ring-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:focus:border-neutral-400 dark:focus:ring-neutral-700;
+}
+@utility label {
+  @apply mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-400;
+}
+@utility card {
+  @apply rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900;
+}
+@utility muted {
+  @apply text-neutral-500 dark:text-neutral-400;
+}
+@utility chip {
+  @apply inline-flex items-center gap-1 rounded-full border border-neutral-300 bg-neutral-50 px-2 py-0.5 text-xs text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200;
+}
+
+/* ── Markdown in chat bubbles ───────────────────────────────────────────────── */
+.md { overflow-wrap: anywhere; }
+.md pre code { display: block; background: transparent; padding: 0; font-size: inherit; }
+.md input[type='checkbox'] { margin-right: 0.4rem; vertical-align: middle; }
+
+/* Minimal highlight.js theme (light + dark). Only the token classes hljs commonly emits. */
+.hljs { color: #24292e; }
+.hljs-comment, .hljs-quote { color: #6a737d; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-doctag, .hljs-meta .hljs-keyword, .hljs-template-tag { color: #d73a49; }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-attr, .hljs-template-variable, .hljs-selector-attr, .hljs-selector-pseudo { color: #032f62; }
+.hljs-number, .hljs-literal, .hljs-variable, .hljs-selector-id, .hljs-selector-class, .hljs-symbol, .hljs-bullet, .hljs-link, .hljs-meta { color: #005cc5; }
+.hljs-title, .hljs-title.function_, .hljs-title.class_, .hljs-section, .hljs-name { color: #6f42c1; }
+.hljs-type, .hljs-built_in, .hljs-builtin-name, .hljs-attribute, .hljs-property { color: #e36209; }
+.hljs-deletion { color: #b31d28; background: #ffeef0; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+@media (prefers-color-scheme: dark) {
+  .hljs { color: #e6edf3; }
+  .hljs-comment, .hljs-quote { color: #8b949e; }
+  .hljs-keyword, .hljs-selector-tag, .hljs-doctag, .hljs-meta .hljs-keyword, .hljs-template-tag { color: #ff7b72; }
+  .hljs-string, .hljs-regexp, .hljs-addition, .hljs-attr, .hljs-template-variable, .hljs-selector-attr, .hljs-selector-pseudo { color: #a5d6ff; }
+  .hljs-number, .hljs-literal, .hljs-variable, .hljs-selector-id, .hljs-selector-class, .hljs-symbol, .hljs-bullet, .hljs-link, .hljs-meta { color: #79c0ff; }
+  .hljs-title, .hljs-title.function_, .hljs-title.class_, .hljs-section, .hljs-name { color: #d2a8ff; }
+  .hljs-type, .hljs-built_in, .hljs-builtin-name, .hljs-attribute, .hljs-property { color: #ffa657; }
+  .hljs-deletion { color: #ffa198; background: #67060c; }
+}
+
+/* Small square icon button used across the chat surface. */
+@utility icon-btn {
+  @apply inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100;
+}
+/* Markdown inside the dark user bubble: keep code/tables legible. */
+.md-on-dark code { @apply bg-white/15 dark:bg-neutral-900/10; }
+.md-on-dark a { @apply text-inherit; }
