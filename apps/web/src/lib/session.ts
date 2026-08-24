@@ -10,6 +10,7 @@ export interface SessionCtx {
   userId: string;
   user: { id: string; name: string; email: string };
   activeOrganizationId: string | null;
+  twoFactorEnabled: boolean;
 }
 
 export interface OrgCtx extends SessionCtx {
@@ -26,7 +27,14 @@ export async function getSessionCtx(): Promise<SessionCtx | null> {
     userId: s.user.id,
     user: { id: s.user.id, name: s.user.name, email: s.user.email },
     activeOrganizationId: active,
+    twoFactorEnabled: (s.user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled === true,
   };
+}
+
+/** Two-factor is MANDATORY: any signed-in user without it is sent to set it up.
+ *  Call at the top of the (app) layout; the /setup-2fa page is exempt. */
+export async function require2FA(s: SessionCtx): Promise<void> {
+  if (!s.twoFactorEnabled) redirect('/setup-2fa');
 }
 
 /** Redirects to /sign-in when unauthenticated. */

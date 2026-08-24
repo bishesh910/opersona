@@ -18,7 +18,7 @@ function secretFromUri(uri: string): string {
   }
 }
 
-export function TwoFactorCard({ enabled }: { enabled: boolean }) {
+export function TwoFactorCard({ enabled, redirectTo }: { enabled: boolean; redirectTo?: string }) {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>({ step: 'idle' });
   const [password, setPassword] = useState('');
@@ -57,6 +57,7 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
     if (res.error) { setError(res.error.message ?? 'Invalid code — try again'); return; }
     setCode('');
     setStage({ step: 'done-enabled' });
+    if (redirectTo) { router.push(redirectTo); router.refresh(); return; }
     router.refresh();
   }
 

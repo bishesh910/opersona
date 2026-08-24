@@ -1,9 +1,10 @@
-import { requireOrg } from '@/lib/session';
+import { requireOrg, require2FA } from '@/lib/session';
 import { SideNav } from '@/components/shell/SideNav';
 import { UserMenu } from '@/components/shell/UserMenu';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireOrg();
+  await require2FA(ctx);
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-56 shrink-0 border-r border-neutral-200 bg-neutral-50 p-4 md:block dark:border-neutral-800 dark:bg-neutral-900/40">
