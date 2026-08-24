@@ -1,7 +1,8 @@
 /**
- * Claude Code session transcripts → reasoning observations.
+ * Coding-session transcripts (Claude Code or Codex CLI) → reasoning observations.
  *
- * Claude Code writes one JSONL per session under ~/.claude/projects/<encoded-cwd>/<id>.jsonl.
+ * Claude Code writes one JSONL per session under ~/.claude/projects/<encoded-cwd>/<id>.jsonl;
+ * Codex CLI (OpenAI) writes one under ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl.
  * We turn it into the same human/assistant transcript the extractor already understands:
  *  - HUMAN turns: the person's typed prompts (not tool results, not slash-command noise,
  *    not system reminders). This is where the reasoning moves live.
@@ -65,11 +66,83 @@ export function parseClaudeCodeSession(jsonl: string): { sessionId: string | nul
   return { sessionId, cwd, transcript: out, humanTurns: out.filter((t) => t.role === 'human').length };
 }
 
+// ─── Codex CLI sessions (~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl) ──────
+interface CodexPayload {
+  id?: string; cwd?: string; type?: string; role?: string; name?: string; arguments?: unknown;
+  message?: string; content?: { type?: string; text?: string }[]; action?: { command?: unknown };
+}
+interface CodexLine { type?: string; payload?: CodexPayload }
+
+/** Codex records its instruction/environment wrappers as synthetic "user" messages — not the person. */
+const CODEX_NOISE = /^\s*(<(user_instructions|environment_context|ENVIRONMENT|INSTRUCTIONS)\b|#\s*AGENTS\.md)/i;
+
+/** Same output shape as parseClaudeCodeSession so both feed the same ingest path. */
+export function parseCodexSession(jsonl: string): { sessionId: string | null; cwd: string | null; transcript: TranscriptTurn[]; humanTurns: number } {
+  let sessionId: string | null = null, cwd: string | null = null;
+  const out: TranscriptTurn[] = [];
+  const pushHuman = (raw: string) => {
+    const text = raw.trim();
+    if (!text || CODEX_NOISE.test(text)) return;
+    // Some Codex versions record the same user message twice (response_item + event_msg): keep one.
+    for (let i = out.length - 1; i >= 0; i--) if (out[i]!.role === 'human') { if (out[i]!.text === text) return; break; }
+    out.push({ role: 'human', text });
+  };
+  const pushAssistant = (text: string) => {
+    if (!text) return;
+    const last = out[out.length - 1];
+    if (last && last.role === 'assistant') last.text += '\n' + text; else out.push({ role: 'assistant', text });
+  };
+  for (const raw of jsonl.split('\n')) {
+    if (!raw.trim()) continue;
+    let d: CodexLine; try { d = JSON.parse(raw) as CodexLine; } catch { continue; }
+    const p = d.payload ?? {};
+    if (d.type === 'session_meta') {
+      if (!sessionId && typeof p.id === 'string') sessionId = p.id;
+      if (!cwd && typeof p.cwd === 'string') cwd = p.cwd;
+    } else if (d.type === 'response_item') {
+      if (p.type === 'message' && Array.isArray(p.content)) {
+        const text = p.content.filter((b) => b && (b.type === 'input_text' || b.type === 'output_text' || b.type === 'text') && typeof b.text === 'string').map((b) => b.text!).join('\n');
+        if (p.role === 'user') pushHuman(text);
+        else if (p.role === 'assistant') pushAssistant(text.trim());
+      } else if (p.type === 'function_call') {
+        const args = typeof p.arguments === 'string' ? p.arguments : p.arguments != null ? JSON.stringify(p.arguments) : '';
+        pushAssistant(`[used ${p.name ?? 'tool'}${args ? `: ${args.slice(0, 160).replace(/\s+/g, ' ')}` : ''}]`);
+      } else if (p.type === 'local_shell_call') {
+        const cmd = Array.isArray(p.action?.command) ? (p.action!.command as unknown[]).filter((x) => typeof x === 'string').join(' ') : '';
+        pushAssistant(`[used shell${cmd ? `: ${cmd.slice(0, 160).replace(/\s+/g, ' ')}` : ''}]`);
+      } // reasoning / function_call_output / unknown item types: skip
+    } else if (d.type === 'event_msg' && p.type === 'user_message' && typeof p.message === 'string') {
+      pushHuman(p.message);
+    } // unknown line types: skip (be liberal in what we accept)
+  }
+  return { sessionId, cwd, transcript: out, humanTurns: out.filter((t) => t.role === 'human').length };
+}
+
+export type SessionFormat = 'claude-code' | 'codex';
+
+/** Sniff which CLI wrote a .jsonl transcript: Claude Code lines carry sessionId+message;
+ *  Codex lines are {type, payload} envelopes. Defaults to claude-code (the historical behaviour). */
+export function detectSessionFormat(jsonl: string): SessionFormat {
+  const CODEX_TYPES = new Set(['session_meta', 'response_item', 'event_msg', 'turn_context', 'compacted']);
+  let checked = 0;
+  for (const raw of jsonl.split('\n')) {
+    if (!raw.trim() || checked++ > 50) continue;
+    let d: Record<string, unknown>; try { d = JSON.parse(raw) as Record<string, unknown>; } catch { continue; }
+    if (!d || typeof d !== 'object') continue;
+    if ('sessionId' in d && 'message' in d) return 'claude-code';
+    if (typeof d.type === 'string' && ('payload' in d || CODEX_TYPES.has(d.type))) return 'codex';
+  }
+  return 'claude-code';
+}
+
 export type IngestResult = { status: 'done' | 'skipped' | 'failed'; sessionId: string | null; observations: number; note: string };
 
-/** Learn from one session transcript (idempotent per clone+session). */
-export async function ingestClaudeCodeSession(args: { orgId: string; cloneId: string; jsonl: string; source: 'local' | 'hook' | 'upload'; sessionIdHint?: string; project?: string }): Promise<IngestResult> {
-  const parsed = parseClaudeCodeSession(args.jsonl);
+/** Learn from one coding-session transcript, Claude Code or Codex (idempotent per clone+session).
+ *  Format is auto-detected per file unless passed explicitly. */
+export async function ingestClaudeCodeSession(args: { orgId: string; cloneId: string; jsonl: string; source: 'local' | 'hook' | 'upload'; sessionIdHint?: string; project?: string; format?: SessionFormat }): Promise<IngestResult> {
+  const format = args.format ?? detectSessionFormat(args.jsonl);
+  const sourcePrefix = format === 'codex' ? 'codex' : 'claude-code';
+  const parsed = format === 'codex' ? parseCodexSession(args.jsonl) : parseClaudeCodeSession(args.jsonl);
   const sessionId = parsed.sessionId ?? args.sessionIdHint ?? null;
   if (!sessionId) return { status: 'failed', sessionId: null, observations: 0, note: 'no session id in transcript' };
   const [seen] = await db.select({ status: claudeCodeSessions.status, bytes: claudeCodeSessions.bytes }).from(claudeCodeSessions)
@@ -78,7 +151,7 @@ export async function ingestClaudeCodeSession(args: { orgId: string; cloneId: st
   // is re-learned from scratch: old observations for it are replaced, never double-counted.
   const grown = seen && seen.status === 'done' && args.jsonl.length > seen.bytes * 1.15;
   if (seen && seen.status !== 'failed' && !grown) return { status: 'skipped', sessionId, observations: 0, note: 'already learned from this session' };
-  if (grown) await db.delete(reasoningObservations).where(and(eq(reasoningObservations.cloneId, args.cloneId), eq(reasoningObservations.sourceRef, `claude-code:${sessionId}`)));
+  if (grown) await db.delete(reasoningObservations).where(and(eq(reasoningObservations.cloneId, args.cloneId), eq(reasoningObservations.sourceRef, `${sourcePrefix}:${sessionId}`)));
 
   const humanChars = parsed.transcript.filter((t) => t.role === 'human').reduce((n, t) => n + t.text.length, 0);
   const base = { orgId: args.orgId, cloneId: args.cloneId, sessionId, source: args.source, project: args.project ?? parsed.cwd ?? null, bytes: args.jsonl.length, humanTurns: parsed.humanTurns };
@@ -88,7 +161,7 @@ export async function ingestClaudeCodeSession(args: { orgId: string; cloneId: st
   }
   await db.insert(claudeCodeSessions).values({ ...base, status: 'queued' }).onConflictDoUpdate({ target: [claudeCodeSessions.cloneId, claudeCodeSessions.sessionId], set: { status: 'queued', bytes: base.bytes, humanTurns: base.humanTurns } });
   try {
-    const out = await extractFromTranscript({ orgId: args.orgId, cloneId: args.cloneId, transcript: parsed.transcript, sourceKind: 'import', sourceRef: `claude-code:${sessionId}` });
+    const out = await extractFromTranscript({ orgId: args.orgId, cloneId: args.cloneId, transcript: parsed.transcript, sourceKind: 'import', sourceRef: `${sourcePrefix}:${sessionId}` });
     await db.update(claudeCodeSessions).set({ status: 'done', observations: out.observations.length, note: out.note, extractedAt: new Date() })
       .where(and(eq(claudeCodeSessions.cloneId, args.cloneId), eq(claudeCodeSessions.sessionId, sessionId)));
     await recomputeFingerprint(args.orgId, args.cloneId);

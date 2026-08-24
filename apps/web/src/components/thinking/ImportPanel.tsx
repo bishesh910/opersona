@@ -72,11 +72,13 @@ export function ImportPanel({ cloneId, initialJobs, readOnly }: { cloneId: strin
     <section className="card space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-2xl space-y-1">
-          <h2 className="font-medium">Import your Claude history</h2>
+          <h2 className="font-medium">Import your Claude or ChatGPT history</h2>
           <p className="muted text-sm">
-            claude.ai → Settings → Privacy → Export data. When the email arrives, upload the <code>manifest-…json</code> here and click the download button it shows you (in the browser where you’re signed in to claude.ai — each link works once), then upload the zip you get.</p>
+            <strong>claude.ai</strong> → Settings → Privacy → Export data. When the email arrives, upload the <code>manifest-…json</code> here and click the download button it shows you (in the browser where you’re signed in to claude.ai — each link works once), then upload the zip you get.</p>
           <p className="muted text-sm">
-            Accepted: the export zip or its <code>conversations.json</code>. Processed in the background, newest first, up to 300 conversations; chats already learned from are skipped. Max 200 MB.
+            <strong>ChatGPT</strong>: chatgpt.com → Settings → Data controls → Export data — OpenAI emails you a zip; upload it here.</p>
+          <p className="muted text-sm">
+            Accepted: either export zip or its <code>conversations.json</code>. Processed in the background, newest first, up to 300 conversations; chats already learned from are skipped. Max 200 MB.
           </p>
         </div>
         {!readOnly && (

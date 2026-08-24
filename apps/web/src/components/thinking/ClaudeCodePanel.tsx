@@ -129,9 +129,9 @@ export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readO
   return (
     <section className="card space-y-4" data-panel="claude-code">
       <div className="max-w-2xl space-y-1">
-        <h2 className="font-medium">Learn from Claude Code</h2>
+        <h2 className="font-medium">Learn from coding sessions (Claude Code · Codex)</h2>
         <p className="muted text-sm">
-          Most real work happens in Claude Code. Your persona can learn from those sessions the same way it learns from chats — your prompts, your pushbacks, what you accept.
+          Most real work happens in a coding agent. Your persona can learn from those sessions the same way it learns from chats — your prompts, your pushbacks, what you accept.
         </p>
       </div>
       {msg && <p className={'text-sm ' + (msg.kind === 'ok' ? 'text-green-700 dark:text-green-400' : 'text-red-600')}>{msg.text}</p>}
@@ -193,7 +193,7 @@ export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readO
             <div className="max-w-2xl space-y-1">
               <h3 className="text-sm font-medium">Upload sessions</h3>
               <p className="muted text-sm">
-                Claude Code keeps one <code>.jsonl</code> per session in <code>~/.claude/projects/&lt;project&gt;/&lt;session&gt;.jsonl</code> (macOS/Linux) or <code>%USERPROFILE%\.claude\projects\</code> (Windows). Pick as many as you like (up to 50 at a time); sessions already learned from are skipped.
+                Upload <code>.jsonl</code> session files from Claude Code (<code>~/.claude/projects/&lt;project&gt;/&lt;session&gt;.jsonl</code>) or Codex CLI (<code>~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl</code>) — the format is detected per file. Pick as many as you like (up to 50 at a time); sessions already learned from are skipped.
               </p>
             </div>
             <label className={'btn-primary cursor-pointer ' + (uploading ? 'pointer-events-none opacity-50' : '')}>

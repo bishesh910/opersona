@@ -48,11 +48,12 @@ export default async function SourcesPage() {
         <div className="flex items-start gap-3">
           <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white dark:bg-neutral-100 dark:text-neutral-900">2</span>
           <div className="min-w-0 flex-1">
-            <h2 className="font-medium">Import your claude.ai history</h2>
+            <h2 className="font-medium">Import your claude.ai or ChatGPT history</h2>
             <p className="muted mt-1 text-sm">The fastest way to a real fingerprint — months of your actual thinking in one upload:</p>
             <ol className="muted mt-2 list-decimal space-y-1 pl-5 text-sm">
               <li>On <span className="font-medium text-neutral-800 dark:text-neutral-200">claude.ai</span>: Settings → Privacy → <span className="font-medium text-neutral-800 dark:text-neutral-200">Export data</span></li>
-              <li>Anthropic emails you a <code>.zip</code> (usually within minutes)</li>
+              <li>Or on <span className="font-medium text-neutral-800 dark:text-neutral-200">chatgpt.com</span>: Settings → Data controls → <span className="font-medium text-neutral-800 dark:text-neutral-200">Export data</span></li>
+              <li>You get a <code>.zip</code> by email (usually within minutes)</li>
               <li>Upload that zip here — nothing is stored except the extracted reasoning patterns</li>
             </ol>
             <div className="mt-4"><ImportPanel cloneId={id} initialJobs={jobs} readOnly={false} /></div>
@@ -64,8 +65,8 @@ export default async function SourcesPage() {
         <div className="flex items-start gap-3">
           <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white dark:bg-neutral-100 dark:text-neutral-900">3</span>
           <div className="min-w-0 flex-1">
-            <h2 className="font-medium">Use Claude Code? Add the hook</h2>
-            <p className="muted mt-1 text-sm">Every coding session you finish is sent here automatically — your persona learns from how you debug and build, hands-free.</p>
+            <h2 className="font-medium">Learn from coding sessions (Claude Code · Codex)</h2>
+            <p className="muted mt-1 text-sm">With the Claude Code hook, every session you finish is sent here automatically — and you can upload <code>.jsonl</code> sessions from Claude Code or Codex CLI any time. Your persona learns from how you debug and build.</p>
             <div className="mt-4">
               <ClaudeCodePanel
                 cloneId={id}
