@@ -1,8 +1,8 @@
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="card py-3" title={hint}>
+    <div className="card min-w-[7.25rem] shrink-0 px-3 py-2 sm:min-w-0 sm:shrink sm:py-3" title={hint}>
       <div className="text-lg font-semibold leading-tight">{value}</div>
-      <div className="muted text-xs">{label}</div>
+      <div className="muted text-[11px] leading-tight sm:text-xs">{label}</div>
     </div>
   );
 }
@@ -13,7 +13,7 @@ export function StatStrip({ confirmed, emerging, chats, imported, claudeCode, ac
   accuracyPct: number | null;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+    <div className="-mx-3 flex flex-nowrap gap-2 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 lg:grid-cols-7">
       <Stat label="confirmed patterns" value={String(confirmed)} />
       <Stat label="emerging patterns" value={String(emerging)} />
       <Stat label="chats learned from" value={String(chats)} />

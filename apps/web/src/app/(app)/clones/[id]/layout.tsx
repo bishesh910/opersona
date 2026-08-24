@@ -12,15 +12,17 @@ export default async function CloneLayout({ children, params }: { children: Reac
   const id = access.clone.id;
   const { clone, canWrite } = access;
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
-      <div className="flex items-center gap-3">
+    <div className="mx-auto max-w-5xl space-y-3 sm:space-y-4">
+      <div className="flex items-center gap-2.5 sm:gap-3">
         <AvatarThumb recipe={clone.avatarRecipe} name={clone.name} scale={2} />
-        <div>
-          <h1 className="text-xl font-semibold leading-tight">{clone.name}</h1>
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-semibold leading-tight sm:text-xl">{clone.name}</h1>
           <div className="muted text-xs">{canWrite ? 'Your persona' : 'Read-only (org admin view)'}</div>
         </div>
       </div>
-      <CloneTabs cloneId={clone.id} isOwner={access.isOwner} />
+      <div className="sticky top-0 z-10 -mx-3 bg-white/95 px-3 backdrop-blur-sm md:static md:mx-0 md:bg-transparent md:px-0 md:backdrop-blur-none dark:bg-neutral-950/95 md:dark:bg-transparent">
+        <CloneTabs cloneId={clone.id} isOwner={access.isOwner} />
+      </div>
       <div>{children}</div>
     </div>
   );
