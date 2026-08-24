@@ -79,3 +79,25 @@ body {
 /* Markdown inside the dark user bubble: keep code/tables legible. */
 .md-on-dark code { @apply bg-white/15 dark:bg-neutral-900/10; }
 .md-on-dark a { @apply text-inherit; }
+
+
+/* ── MOBILE POLISH ─────────────────────────────────────────────── */
+/* iOS: inputs must be ≥16px or Safari auto-zooms on focus. */
+@media (max-width: 640px) {
+  input.input, textarea.input, select.input, input[type="text"], input[type="email"],
+  input[type="password"], input[type="number"], textarea, select {
+    font-size: 16px;
+  }
+  /* Comfortable tap targets for buttons/links on phones. */
+  .btn-primary, .btn-secondary, .btn-danger { min-height: 40px; }
+  .icon-btn { min-width: 40px; min-height: 40px; }
+}
+/* Momentum scrolling + no tap-highlight flash on iOS. */
+* { -webkit-tap-highlight-color: transparent; }
+.scroll-touch { -webkit-overflow-scrolling: touch; }
+/* Honour the iPhone home-indicator safe area on sticky bottom bars. */
+.safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); }
+/* Horizontal nav must never wrap — scroll instead. */
+.nav-scroll { display: flex; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.nav-scroll::-webkit-scrollbar { display: none; }
+.nav-scroll > * { flex: 0 0 auto; }

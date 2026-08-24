@@ -350,7 +350,7 @@ export function ChatView({
       onModel={(m) => changeSettings({ model: m })}
       onEffort={(e) => changeSettings({ effort: e })}
       hideModelMenu={visitorView}
-      placeholder={mode === 'clone' ? `Message ${cloneName}… (Enter to send, Shift+Enter for newline)` : 'Message Claude… (Enter to send, Shift+Enter for newline)'}
+      placeholder={mode === 'clone' ? `Message ${cloneName}…` : 'Message Claude…'}
     />
   );
 
@@ -365,7 +365,7 @@ export function ChatView({
 
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-neutral-200 dark:border-neutral-800">
+      <div className="flex min-h-0 flex-1 flex-col border-neutral-200 sm:rounded-lg sm:border dark:border-neutral-800">
         <div className={`flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2 text-xs ${mode === 'clone' && !visitorView ? 'border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/30' : 'border-neutral-200 dark:border-neutral-800'}`}>
           <div className="flex items-center gap-2">
             {mode === 'clone' ? (<><AvatarThumb recipe={avatar} name={cloneName} scale={1.5} state={(() => { const last = items[items.length - 1]; return last && last.kind === 'assistant' && last.streaming && last.text.length > 0 ? 'talking' : replying ? 'thinking' : 'idle'; })()} /><span className="font-medium">{cloneName}</span>{visitorView
@@ -387,7 +387,7 @@ export function ChatView({
           )}
         </div>
 
-        <div ref={scrollRef} onScroll={onScroll} className="flex-1 space-y-2 overflow-y-auto p-3">
+        <div ref={scrollRef} onScroll={onScroll} className="scroll-touch flex-1 space-y-2 overflow-y-auto px-3 py-3">
           {empty && <p className="muted text-sm">{visitorView ? `Ask ${cloneName}'s persona anything — it answers the way ${cloneName} would, from what they chose to share.` : mode === 'clone' ? 'Ask anything — see whether the answer sounds like you. Test chats are never learned from.' : 'Say hello. Ask anything, or walk through a problem the way you would — your persona learns from it.'}</p>}
           {items.map((it) => {
             switch (it.kind) {

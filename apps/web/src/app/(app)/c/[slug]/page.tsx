@@ -27,11 +27,11 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
   const authMode = await engineFetch<{ mode: string }>('/auth/mode').then((j) => j.mode).catch(() => 'api-key');
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col md:h-[calc(100vh-3.25rem)]">
+    <div className="flex h-[calc(100dvh-6.5rem)] flex-col sm:h-[calc(100dvh-3.5rem)]">
       <div className="flex items-center gap-2 px-1 pb-2">
         <Link href="/me/chat" className="muted text-xs hover:underline">← chats</Link>
       </div>
-      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col">
+      <div className="safe-b mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col">
         <ChatView
           key={conv.id}
           mode={conv.mode}

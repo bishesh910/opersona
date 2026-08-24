@@ -16,7 +16,7 @@ const TABS: { key: string; label: string }[] = [
 export function CloneTabs({ cloneId, isOwner = false }: { cloneId: string; isOwner?: boolean }) {
   const path = usePathname();
   return (
-    <div className="flex gap-1 overflow-x-auto border-b border-neutral-200 dark:border-neutral-800">
+    <div className="nav-scroll gap-1 border-b border-neutral-200 dark:border-neutral-800">
       {TABS.map((t) => {
         const short = t.key === 'documents' ? 'docs' : t.key;
         const href = isOwner ? (t.key === 'thinking' ? '/me' : `/me/${short}`) : `/clones/${cloneId}/${t.key}`;
@@ -29,7 +29,7 @@ export function CloneTabs({ cloneId, isOwner = false }: { cloneId: string; isOwn
             key={t.key}
             href={href}
             className={
-              '-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm ' +
+              '-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm ' +
               (active
                 ? 'border-neutral-900 font-medium text-neutral-900 dark:border-neutral-100 dark:text-neutral-100'
                 : 'border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200')
