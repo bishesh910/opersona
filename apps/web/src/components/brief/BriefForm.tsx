@@ -1,11 +1,15 @@
 'use client';
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { saveBriefAction, type ActionResult } from '@/actions/brief';
 
 export interface BriefValues { displayName: string; roleTitle: string; team: string; briefMd: string; operatingRules: string }
 
 export function BriefForm({ cloneId, initial, readOnly }: { cloneId: string; initial: BriefValues; readOnly: boolean }) {
+  const router = useRouter();
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(saveBriefAction, null);
+  // React 19 resets uncontrolled fields after a form action — refresh so the reset value is the SAVED one, not the stale page-load one.
+  useEffect(() => { if (state?.ok) router.refresh(); }, [state, router]);
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="cloneId" value={cloneId} />
