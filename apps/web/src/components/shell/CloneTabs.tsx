@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 const TABS: { key: string; label: string }[] = [
   { key: 'brief', label: 'Brief' },
@@ -15,15 +15,36 @@ const TABS: { key: string; label: string }[] = [
 
 export function CloneTabs({ cloneId, isOwner = false }: { cloneId: string; isOwner?: boolean }) {
   const path = usePathname();
+  const router = useRouter();
+  const hrefFor = (t: { key: string }) => {
+    const short = t.key === 'documents' ? 'docs' : t.key;
+    return isOwner ? (t.key === 'thinking' ? '/me' : `/me/${short}`) : `/clones/${cloneId}/${t.key}`;
+  };
+  const isActive = (t: { key: string }) => {
+    const href = hrefFor(t);
+    return t.key === 'thinking'
+      ? path === href || path === '/me/thinking' || path === `/clones/${cloneId}/thinking`
+      : path === href || path.startsWith(href + '/') || (t.key === 'chat' && path.startsWith('/c/'));
+  };
+  const current = TABS.find(isActive)?.key ?? 'thinking';
   return (
+    <>
+    {/* phones: native picker (iOS wheel) instead of a sliding tab strip */}
+    <div className="py-1 md:hidden">
+      <select
+        aria-label="Persona section"
+        className="input w-full font-medium"
+        value={current}
+        onChange={(e) => { const t = TABS.find((x) => x.key === e.target.value); if (t) router.push(hrefFor(t)); }}
+      >
+        {TABS.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+      </select>
+    </div>
+    <div className="hidden md:block">
     <div className="nav-scroll gap-1 border-b border-neutral-200 dark:border-neutral-800">
       {TABS.map((t) => {
-        const short = t.key === 'documents' ? 'docs' : t.key;
-        const href = isOwner ? (t.key === 'thinking' ? '/me' : `/me/${short}`) : `/clones/${cloneId}/${t.key}`;
-        // '/me' is a prefix of every short URL, so the thinking tab matches exactly; the rest keep prefix matching.
-        const active = t.key === 'thinking'
-          ? path === href || path === '/me/thinking' || path === `/clones/${cloneId}/thinking`
-          : path === href || path.startsWith(href + '/') || (t.key === 'chat' && path.startsWith('/c/'));
+        const href = hrefFor(t);
+        const active = isActive(t);
         return (
           <Link
             key={t.key}
@@ -40,5 +61,7 @@ export function CloneTabs({ cloneId, isOwner = false }: { cloneId: string; isOwn
         );
       })}
     </div>
+    </div>
+    </>
   );
 }

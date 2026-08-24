@@ -22,7 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <nav className="nav-scroll gap-2 border-b border-neutral-200 px-3 py-2 md:hidden dark:border-neutral-800">
           <SideNav horizontal />
         </nav>
-        <main className="min-w-0 flex-1 px-3 py-3 md:px-6 md:py-4">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-clip px-3 py-3 md:px-6 md:py-4">{children}</main>
       </div>
     </div>
   );
