@@ -13,7 +13,7 @@
     "@opersona/db": "workspace:*",
     "@opersona/pixel-avatar": "workspace:*",
     "@opersona/shared": "workspace:*",
-    "better-auth": "^1.7.1",
+    "better-auth": "1.4.21",
     "drizzle-orm": "^0.45.2",
     "highlight.js": "^11.12.0",
     "next": "^15.5.23",
