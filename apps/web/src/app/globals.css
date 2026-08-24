@@ -1,5 +1,7 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -61,16 +63,14 @@ body {
 .hljs-deletion { color: #b31d28; background: #ffeef0; }
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: 600; }
-@media (prefers-color-scheme: dark) {
-  .hljs { color: #e6edf3; }
-  .hljs-comment, .hljs-quote { color: #8b949e; }
-  .hljs-keyword, .hljs-selector-tag, .hljs-doctag, .hljs-meta .hljs-keyword, .hljs-template-tag { color: #ff7b72; }
-  .hljs-string, .hljs-regexp, .hljs-addition, .hljs-attr, .hljs-template-variable, .hljs-selector-attr, .hljs-selector-pseudo { color: #a5d6ff; }
-  .hljs-number, .hljs-literal, .hljs-variable, .hljs-selector-id, .hljs-selector-class, .hljs-symbol, .hljs-bullet, .hljs-link, .hljs-meta { color: #79c0ff; }
-  .hljs-title, .hljs-title.function_, .hljs-title.class_, .hljs-section, .hljs-name { color: #d2a8ff; }
-  .hljs-type, .hljs-built_in, .hljs-builtin-name, .hljs-attribute, .hljs-property { color: #ffa657; }
-  .hljs-deletion { color: #ffa198; background: #67060c; }
-}
+.dark .hljs { color: #e6edf3; }
+.dark .hljs-comment, .hljs-quote { color: #8b949e; }
+.dark .hljs-keyword, .hljs-selector-tag, .hljs-doctag, .hljs-meta .hljs-keyword, .hljs-template-tag { color: #ff7b72; }
+.dark .hljs-string, .hljs-regexp, .hljs-addition, .hljs-attr, .hljs-template-variable, .hljs-selector-attr, .hljs-selector-pseudo { color: #a5d6ff; }
+.dark .hljs-number, .hljs-literal, .hljs-variable, .hljs-selector-id, .hljs-selector-class, .hljs-symbol, .hljs-bullet, .hljs-link, .hljs-meta { color: #79c0ff; }
+.dark .hljs-title, .hljs-title.function_, .hljs-title.class_, .hljs-section, .hljs-name { color: #d2a8ff; }
+.dark .hljs-type, .hljs-built_in, .hljs-builtin-name, .hljs-attribute, .hljs-property { color: #ffa657; }
+.dark .hljs-deletion { color: #ffa198; background: #67060c; }
 
 /* Small square icon button used across the chat surface. */
 @utility icon-btn {

@@ -2,8 +2,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from '@/lib/auth-client';
+import { ThemeToggle } from './ThemeToggle';
+import { AvatarThumb } from '@/components/avatar/AvatarThumb';
+import type { AvatarRecipe } from '@opersona/shared';
 
-export function UserMenu({ name, email }: { name: string; email: string }) {
+export function UserMenu({ name, email, avatarRecipe }: { name: string; email: string; avatarRecipe?: AvatarRecipe | null }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -17,8 +20,9 @@ export function UserMenu({ name, email }: { name: string; email: string }) {
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" className="btn-secondary btn-sm" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>
-        {name}
+      <button type="button" className="flex items-center gap-2 rounded-lg border border-neutral-200 py-1 pl-1 pr-2.5 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-800/60" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>
+        <AvatarThumb recipe={avatarRecipe} name={name} scale={1.5} />
+        <span className="hidden sm:inline">{name}</span>
       </button>
       {open && (
         <div role="menu" className="card absolute right-0 z-20 mt-1 w-56 p-2 shadow-lg">
@@ -26,10 +30,11 @@ export function UserMenu({ name, email }: { name: string; email: string }) {
             <div className="font-medium">{name}</div>
             <div className="muted truncate">{email}</div>
           </div>
+          <div className="mt-2 px-2"><ThemeToggle /></div>
           <button
             type="button"
             role="menuitem"
-            className="mt-1 block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="mt-2 block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
             onClick={async () => { await signOut(); router.push('/sign-in'); router.refresh(); }}
           >
             Sign out

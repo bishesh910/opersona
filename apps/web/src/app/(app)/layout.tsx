@@ -1,10 +1,13 @@
 import { requireOrg, require2FA } from '@/lib/session';
+import { eq } from 'drizzle-orm';
+import { db, schema } from '@opersona/db';
 import { SideNav } from '@/components/shell/SideNav';
 import { UserMenu } from '@/components/shell/UserMenu';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireOrg();
   await require2FA(ctx);
+  const [own] = await db.select({ r: schema.clones.avatarRecipe }).from(schema.clones).where(eq(schema.clones.ownerUserId, ctx.userId)).limit(1);
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-56 shrink-0 border-r border-neutral-200 bg-neutral-50 p-4 md:block dark:border-neutral-800 dark:bg-neutral-900/40">
@@ -17,7 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span className="font-medium">{ctx.orgName}</span>
             <span className="chip">{ctx.role}</span>
           </div>
-          <UserMenu name={ctx.user.name} email={ctx.user.email} />
+          <UserMenu name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} />
         </header>
         <nav className="nav-scroll gap-2 border-b border-neutral-200 px-3 py-2 md:hidden dark:border-neutral-800">
           <SideNav horizontal />
