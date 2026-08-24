@@ -95,6 +95,8 @@ body {
 /* Momentum scrolling + no tap-highlight flash on iOS. */
 * { -webkit-tap-highlight-color: transparent; }
 .scroll-touch { -webkit-overflow-scrolling: touch; }
+/* Long inline paths/tokens must wrap, never widen the page. */
+code, kbd { overflow-wrap: anywhere; }
 /* Honour the iPhone home-indicator safe area on sticky bottom bars. */
 .safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); }
 /* Horizontal nav must never wrap — scroll instead. */

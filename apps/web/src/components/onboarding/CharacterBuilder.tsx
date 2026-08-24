@@ -358,7 +358,7 @@ function ReadyStep({ displayName, roleTitle, mbtiType, orgName }: {
       </dl>
       <div className="flex flex-wrap gap-2">
         <Link href="/chat" className="btn-primary">Start chatting</Link>
-        <Link href="/me#sources" className="btn-secondary">Add learning sources</Link>
+        <Link href="/onboarding/sources" className="btn-secondary">Add learning sources</Link>
       </div>
     </div>
   );
