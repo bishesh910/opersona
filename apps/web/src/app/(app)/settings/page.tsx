@@ -5,6 +5,7 @@ import { InviteCard } from '@/components/settings/InviteCard';
 import { SettingsForm } from '@/components/settings/SettingsForm';
 import { ApiKeyForm } from '@/components/settings/ApiKeyForm';
 import { TwoFactorCard } from '@/components/settings/TwoFactorCard';
+import { NamesCard } from '@/components/settings/NamesCard';
 import { engineFetch } from '@/lib/engine';
 
 export default async function SettingsPage() {
@@ -56,6 +57,7 @@ export default async function SettingsPage() {
         />
       )}
       <TwoFactorCard enabled={!!userRow?.twoFactorEnabled} />
+      <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg={isOrgAdmin(ctx)} />
       <section className="card space-y-2">
         <h2 className="font-medium">Models &amp; defaults</h2>
         <SettingsForm
