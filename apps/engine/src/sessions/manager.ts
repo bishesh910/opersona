@@ -10,6 +10,7 @@
  * - Isolation: per-clone cwd/HOME/CLAUDE_CONFIG_DIR; host Claude Code env vars are
  *   stripped so the subprocess never thinks it is nested inside another session.
  */
+import { resolve, isAbsolute } from 'node:path';
 import { query, type Options, type SDKMessage, type SDKUserMessage, type Query, type HookCallback } from '@anthropic-ai/claude-agent-sdk';
 import { and, eq } from 'drizzle-orm';
 import { db, clones, conversations, turns, sessionCosts } from '@opersona/db';
@@ -136,8 +137,13 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
   const input = new InputQueue();
 
   const canUseTool: Options['canUseTool'] = async (toolName, toolInput, opts) => {
-    // Persona MCP tools and read-only built-ins are free; everything else needs the human.
-    if (toolName.startsWith(`mcp__${PERSONA_SERVER}__`) || toolName === 'Read' || toolName === 'Glob' || toolName === 'Grep') return { behavior: 'allow', updatedInput: toolInput };
+    // Persona MCP tools are free; read-only built-ins are jailed to the per-clone workspace.
+    if (toolName.startsWith(`mcp__${PERSONA_SERVER}__`)) return { behavior: 'allow', updatedInput: toolInput };
+    if (toolName === 'Read' || toolName === 'Glob' || toolName === 'Grep') {
+      return readToolInWorkspace(toolName, toolInput as Record<string, unknown>, ws.cwd)
+        ? { behavior: 'allow', updatedInput: toolInput }
+        : { behavior: 'deny', message: 'outside this persona\'s workspace' };
+    }
     if (!cloneMode) return { behavior: 'deny', message: 'not available in this chat' };
     const r = await requestApproval({ ...ctx, kind: 'tool', tool: toolName, input: toolInput, signal: opts.signal });
     return r.behavior === 'allow' ? { behavior: 'allow', updatedInput: (r.updatedInput as Record<string, unknown> | undefined) ?? toolInput } : { behavior: 'deny', message: r.message ?? 'denied by owner' };
@@ -249,3 +255,24 @@ async function consume(s: Live): Promise<void> {
 
 export function liveCount(): number { return live.size; }
 export async function shutdown(): Promise<void> { for (const id of [...live.keys()]) await endSession(id); }
+
+
+/** Workspace jail for the read-only built-ins: every path (and glob base) must resolve
+ *  inside the per-clone workspace. Nothing under the host HOME, /etc, the repo, or the
+ *  engine's own data dir is reachable from a chat — prompt injection included. */
+export function readToolInWorkspace(tool: string, input: Record<string, unknown>, wsCwd: string): boolean {
+  const root = resolve(wsCwd);
+  const inside = (p: string) => {
+    if (p.startsWith('~')) return false;
+    const abs = resolve(root, p);
+    return abs === root || abs.startsWith(root + '/');
+  };
+  const val = (k: string) => (typeof input[k] === 'string' ? (input[k] as string) : null);
+  if (tool === 'Read') { const f = val('file_path'); return !!f && inside(f); }
+  // Glob/Grep: optional base path defaults to cwd (= the workspace); patterns must stay relative.
+  const base = val('path');
+  if (base && !inside(base)) return false;
+  const pattern = val('pattern');
+  if (pattern && (isAbsolute(pattern) || pattern.startsWith('~') || pattern.includes('..'))) return false;
+  return true;
+}
