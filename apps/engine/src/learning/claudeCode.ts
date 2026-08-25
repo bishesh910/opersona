@@ -135,6 +135,21 @@ export function detectSessionFormat(jsonl: string): SessionFormat {
   return 'claude-code';
 }
 
+const MAX_TRANSCRIPT_BYTES = 6 * 1024 * 1024;
+
+/** A session transcript that outgrew the cap is learned from its newest tail (cut at a line boundary):
+ *  the extractor's evidence stays intact and re-learns of ever-growing sessions stop re-chewing megabytes. */
+export function tailTranscript(jsonl: string): string {
+  if (jsonl.length <= MAX_TRANSCRIPT_BYTES) return jsonl;
+  // keep the head line (session meta often lives there), then the newest tail
+  const headEnd = jsonl.indexOf('\n');
+  const head = headEnd > 0 ? jsonl.slice(0, headEnd + 1) : '';
+  let tail = jsonl.slice(-MAX_TRANSCRIPT_BYTES);
+  const firstBreak = tail.indexOf('\n');
+  if (firstBreak >= 0) tail = tail.slice(firstBreak + 1); // drop the partial first line
+  return head + tail;
+}
+
 export type IngestResult = { status: 'done' | 'skipped' | 'failed'; sessionId: string | null; observations: number; note: string };
 
 /** Learn from one coding-session transcript, Claude Code or Codex (idempotent per clone+session).
@@ -142,14 +157,15 @@ export type IngestResult = { status: 'done' | 'skipped' | 'failed'; sessionId: s
 export async function ingestClaudeCodeSession(args: { orgId: string; cloneId: string; jsonl: string; source: 'local' | 'hook' | 'upload'; sessionIdHint?: string; project?: string; format?: SessionFormat }): Promise<IngestResult> {
   const format = args.format ?? detectSessionFormat(args.jsonl);
   const sourcePrefix = format === 'codex' ? 'codex' : 'claude-code';
-  const parsed = format === 'codex' ? parseCodexSession(args.jsonl) : parseClaudeCodeSession(args.jsonl);
+  const capped = tailTranscript(args.jsonl);
+  const parsed = format === 'codex' ? parseCodexSession(capped) : parseClaudeCodeSession(capped);
   const sessionId = parsed.sessionId ?? args.sessionIdHint ?? null;
   if (!sessionId) return { status: 'failed', sessionId: null, observations: 0, note: 'no session id in transcript' };
   const [seen] = await db.select({ status: claudeCodeSessions.status, bytes: claudeCodeSessions.bytes }).from(claudeCodeSessions)
     .where(and(eq(claudeCodeSessions.cloneId, args.cloneId), eq(claudeCodeSessions.sessionId, sessionId))).limit(1);
   // A session that has grown substantially since we learned from it (resumed / long-running)
   // is re-learned from scratch: old observations for it are replaced, never double-counted.
-  const grown = seen && seen.status === 'done' && args.jsonl.length > seen.bytes * 1.15;
+  const grown = seen && seen.status === 'done' && args.jsonl.length > seen.bytes * 1.15 && args.jsonl.length - seen.bytes > 100_000;
   if (seen && seen.status !== 'failed' && !grown) return { status: 'skipped', sessionId, observations: 0, note: 'already learned from this session' };
   if (grown) await db.delete(reasoningObservations).where(and(eq(reasoningObservations.cloneId, args.cloneId), eq(reasoningObservations.sourceRef, `${sourcePrefix}:${sessionId}`)));
 
@@ -221,7 +237,7 @@ export async function scanLocalSessions(opts: { all?: boolean } = {}): Promise<{
     if (!k) return true;
     if (k.st === 'failed') return true;
     let size = 0; try { size = statSync(f.path).size; } catch { return false; }
-    return k.st === 'done' && size > k.b * 1.15;
+    return k.st === 'done' && size > k.b * 1.15 && size - k.b > 100_000;
   });
   stats.scanned = todo.length;
   let i = 0;
