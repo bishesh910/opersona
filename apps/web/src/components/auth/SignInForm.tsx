@@ -1,4 +1,5 @@
 'use client';
+import { PasswordInput } from './PasswordInput';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -85,7 +86,7 @@ export function SignInForm({ social = { google: false, apple: false }, next }: {
       </div>
       <div>
         <label className="label" htmlFor="password">Password</label>
-        <input id="password" className="input" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="current-password" />
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button className="btn-primary w-full" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
