@@ -12,12 +12,26 @@ import { randomRecipe } from '@/components/onboarding/random-recipe';
 const GEAR = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="3" /><path d="M12 2.8v2.4M12 18.8v2.4M4.2 12H1.8M22.2 12h-2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7" /></svg>;
 const OUT = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" /><path d="M10 8 6 12l4 4M6 12h10" /></svg>;
 
+/** One cropped Pixie head in a ringed tile — the zoom that stays legible at icon size. */
+function HeadTile({ recipe, name, size = 22, className = '' }: { recipe: AvatarRecipe | null; name: string; size?: number; className?: string }) {
+  // AvatarThumb at scale 2 renders a 36×56 CSS-px canvas; the head lives in a
+  // ~24×24 window at (6,3). Center that window inside a `size` tile.
+  const off = (24 - size) / 2;
+  return (
+    <span className={'overflow-hidden rounded-[6px] ring-2 ring-neutral-50 dark:ring-neutral-900 ' + className} style={{ width: size, height: size }}>
+      <span className="block" style={{ marginLeft: -(6 + off), marginTop: -(3 + off) }}>
+        <AvatarThumb recipe={recipe} name={name} scale={2} />
+      </span>
+    </span>
+  );
+}
+
 export function SidebarFooter({ name, email, avatarRecipe }: {
   name: string; email: string; avatarRecipe?: AvatarRecipe | null;
 }) {
   // decorative random strangers for the Opersonas button (fresh faces each visit, nobody's real Pixie)
   const [crowd, setCrowd] = useState<AvatarRecipe[]>([]);
-  useEffect(() => { setCrowd([randomRecipe(), randomRecipe(), randomRecipe()]); }, []);
+  useEffect(() => { setCrowd([randomRecipe(), randomRecipe(), randomRecipe(), randomRecipe(), randomRecipe()]); }, []);
   const path = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -37,24 +51,20 @@ export function SidebarFooter({ name, email, avatarRecipe }: {
       {/* you → Me */}
       <Link href="/me" title={`${name} — your persona`} aria-label="Me" className={pad(path.startsWith('/me'))} onClick={() => setPop((n) => n + 1)}>
         <span key={pop} className={pop ? 'pixie-pop inline-block' : 'inline-block'}>
-          <AvatarThumb recipe={avatarRecipe} name={name} scale={1.25} />
+          {avatarRecipe
+            ? <HeadTile recipe={avatarRecipe} name={name} size={26} className="block" />
+            : <AvatarThumb recipe={avatarRecipe} name={name} scale={1.25} />}
         </span>
       </Link>
       {/* the others → Opersonas */}
       <Link href="/clones" title="Opersonas" aria-label="Opersonas" className={pad(path.startsWith('/clones'))}>
-        {/* facepile: three cropped heads in ringed tiles — two back, one front-centre.
-            Full bodies mush into a blob at this size; heads stay legible. */}
-        <span className="relative block h-8 w-10">
-          {crowd.slice(0, 2).map((r, i) => (
-            <span key={i} className={'absolute top-0 h-[22px] w-[22px] overflow-hidden rounded-[6px] ring-2 ring-neutral-50 dark:ring-neutral-900 ' + (i === 0 ? 'left-0' : 'right-0')}>
-              <span className="absolute -left-[7px] -top-[2px]"><AvatarThumb recipe={r} name="?" scale={2} /></span>
-            </span>
-          ))}
-          {crowd[2] && (
-            <span className="absolute bottom-0 left-1/2 z-10 h-[22px] w-[22px] -translate-x-1/2 overflow-hidden rounded-[6px] ring-2 ring-neutral-50 dark:ring-neutral-900">
-              <span className="absolute -left-[7px] -top-[2px]"><AvatarThumb recipe={crowd[2]} name="?" scale={2} /></span>
-            </span>
-          )}
+        {/* a little crowd: three heads in back, two in front, tightly packed */}
+        <span className="relative block h-8 w-11">
+          {crowd[0] && <HeadTile recipe={crowd[0]} name="?" size={18} className="absolute left-0 top-0" />}
+          {crowd[1] && <HeadTile recipe={crowd[1]} name="?" size={18} className="absolute left-1/2 top-0 -translate-x-1/2" />}
+          {crowd[2] && <HeadTile recipe={crowd[2]} name="?" size={18} className="absolute right-0 top-0" />}
+          {crowd[3] && <HeadTile recipe={crowd[3]} name="?" size={19} className="absolute bottom-0 left-[5px] z-10" />}
+          {crowd[4] && <HeadTile recipe={crowd[4]} name="?" size={19} className="absolute bottom-0 right-[5px] z-10" />}
         </span>
       </Link>
       <ChatSearch anchorToContainer />
