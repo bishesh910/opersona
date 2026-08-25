@@ -3,7 +3,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { SideNav } from '@/components/shell/SideNav';
 import { UserMenu } from '@/components/shell/UserMenu';
-import { ChatSearch } from '@/components/shell/ChatSearch';
+import { SidebarFooter } from '@/components/shell/SidebarFooter';
 import { SidebarChats } from '@/components/shell/SidebarChats';
 import { TalkToPersona } from '@/components/shell/TalkToPersona';
 
@@ -48,10 +48,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <SideNav include={['/approvals']} />
         </div>
         <div className="relative mt-auto -mx-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800">
-          <div className="flex items-center justify-between">
-            <UserMenu name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} dropUp compact />
-            <ChatSearch anchorToContainer />
-          </div>
+          <SidebarFooter
+            name={ctx.user.name}
+            email={ctx.user.email}
+            avatarRecipe={own?.r ?? null}
+            roster={personaOptions.filter((o) => !o.mine).map((o) => ({ name: o.name, recipe: o.recipe ?? null }))}
+          />
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
