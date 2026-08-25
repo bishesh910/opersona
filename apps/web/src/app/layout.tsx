@@ -18,7 +18,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-full bg-white font-sans text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
         {/* Only when no explicit choice: follow the system, live. Explicit themes are server-stamped above. */}
         {!theme && (
-          <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "(function(){try{var m=matchMedia('(prefers-color-scheme: dark)');var f=function(){document.documentElement.classList.toggle('dark',m.matches)};f();m.addEventListener('change',f);}catch(e){}})()" }} />
+          <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light'){localStorage.removeItem('theme');document.cookie='theme='+t+'; max-age=31536000; path=/; samesite=lax'+(location.protocol==='https:'?'; secure':'');document.documentElement.classList.toggle('dark',t==='dark');return;}var m=matchMedia('(prefers-color-scheme: dark)');var f=function(){document.documentElement.classList.toggle('dark',m.matches)};f();m.addEventListener('change',f);}catch(e){}})()" }} />
         )}
         {children}
       </body>
