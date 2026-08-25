@@ -10,6 +10,7 @@ function readMode(): Mode {
 
 function apply(mode: Mode) {
   const secure = location.protocol === 'https:' ? '; secure' : '';
+  try { localStorage.removeItem('theme'); } catch { /* legacy value must never resurrect a cookie */ }
   if (mode === 'auto') document.cookie = `theme=; max-age=0; path=/; samesite=lax${secure}`;
   else document.cookie = `theme=${mode}; max-age=31536000; path=/; samesite=lax${secure}`;
   const dark = mode === 'dark' || (mode === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
