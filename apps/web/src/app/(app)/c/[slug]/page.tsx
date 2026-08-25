@@ -31,7 +31,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
     .from(schema.conversations)
     .where(and(eq(schema.conversations.cloneId, access.clone.id), eq(schema.conversations.userId, ctx.userId)))
     .orderBy(desc(schema.conversations.lastActivityAt)).limit(6);
-  const recent = recentRows.map((r) => ({ slug: r.slug, title: r.title, when: r.at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }));
+  const recent = recentRows.map((r) => ({ slug: r.slug, title: /^(New chat|Persona test)/.test(r.title) ? 'Untitled' : r.title, when: r.at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }));
 
   return (
     <div className="flex h-[calc(100dvh-7.85rem)] flex-col md:h-[calc(100dvh-2rem)]">

@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         .from(schema.conversations)
         .where(and(eq(schema.conversations.cloneId, own.id), eq(schema.conversations.userId, ctx.userId)))
         .orderBy(desc(schema.conversations.pinned), desc(schema.conversations.lastActivityAt)).limit(20))
-        .map((c) => ({ id: c.id, slug: c.slug, pinned: c.pinned, title: /^(New chat|Persona test)/.test(c.title) ? 'New chat' : c.title }))
+        .map((c) => ({ id: c.id, slug: c.slug, pinned: c.pinned, title: /^(New chat|Persona test)/.test(c.title) ? 'Untitled' : c.title }))
     : [];
   return (
     <div className="flex min-h-screen">
