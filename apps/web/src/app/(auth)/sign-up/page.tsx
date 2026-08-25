@@ -20,17 +20,17 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
   if (await getSessionCtx()) redirect(next ?? '/chat');
   if (!SIGNUP_OPEN && !invited) {
     return (
-      <div className="card space-y-2 text-sm">
-        <h1 className="text-lg font-semibold">Sign-ups are closed</h1>
-        <p className="muted">Ask your organization&apos;s owner for an invitation.</p>
-        <Link href="/sign-in" className="underline">Sign in</Link>
+      <div className="space-y-2 text-sm">
+        <h1 className="text-xl font-semibold tracking-tight text-white">Sign-ups are closed</h1>
+        <p className="text-neutral-400">Ask your organization&apos;s owner for an invitation.</p>
+        <Link href="/sign-in" className="rounded-sm font-medium text-amber-300 underline decoration-amber-300/40 underline-offset-[3px] hover:text-amber-200">Sign in</Link>
       </div>
     );
   }
   return (
     <>
       <SignUpForm social={SOCIAL} next={next} prefillEmail={inv?.email} lockEmail={invited} />
-      <p className="muted mt-4 text-center text-xs">Sign up and build your persona — face, story, mind.</p>
+      <p className="mt-4 text-center text-xs text-neutral-500">Sign up and build your persona — face, story, mind.</p>
     </>
   );
 }

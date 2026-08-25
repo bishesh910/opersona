@@ -1,10 +1,12 @@
 'use client';
 import { PasswordInput } from './PasswordInput';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signUp } from '@/lib/auth-client';
 import { SocialButtons } from './SocialButtons';
+import { NIGHT, ErrorNote } from './auth-styles';
+import { usePixieMood } from './AuthPixie';
 
 export function SignUpForm({ social = { google: false, apple: false }, next, prefillEmail, lockEmail = false }: { social?: { google: boolean; apple: boolean }; next?: string; prefillEmail?: string; lockEmail?: boolean }) {
   const router = useRouter();
@@ -14,6 +16,9 @@ export function SignUpForm({ social = { google: false, apple: false }, next, pre
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const setMood = usePixieMood();
+  useEffect(() => { setMood(busy ? 'thinking' : 'idle'); }, [busy, setMood]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,29 +33,35 @@ export function SignUpForm({ social = { google: false, apple: false }, next, pre
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
-      <h1 className="text-lg font-semibold">Create your account</h1>
+    <form onSubmit={onSubmit} className="animate-[card-in_0.3s_ease-out] space-y-4 motion-reduce:animate-none">
+      <header>
+        <h1 className="text-xl font-semibold tracking-tight text-white">Make yourself at home</h1>
+        <p className="mt-1 text-sm text-neutral-400">Your Pixie is waiting to meet you.</p>
+      </header>
       <SocialButtons google={social.google} apple={social.apple} label="Sign up" />
       <div>
-        <label className="label" htmlFor="name">Name</label>
-        <input id="name" className="input" required autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
+        <label className={NIGHT.LABEL} htmlFor="name">Name</label>
+        <input id="name" className={NIGHT.FIELD} required autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <div>
-        <label className="label" htmlFor="email">Email</label>
-        <input id="email" className="input read-only:opacity-70" type="email" required autoComplete="email" value={email} readOnly={lockEmail} onChange={(e) => setEmail(e.target.value)} />
+        <label className={NIGHT.LABEL} htmlFor="email">Email</label>
+        <input id="email" className={NIGHT.FIELD + ' read-only:opacity-70'} type="email" required autoComplete="email" value={email} readOnly={lockEmail} onChange={(e) => setEmail(e.target.value)} />
       </div>
       <div>
-        <label className="label" htmlFor="password">Password</label>
-        <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="new-password" minLength={8} />
+        <label className={NIGHT.LABEL} htmlFor="password">Password</label>
+        <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="new-password" minLength={8} inputClassName={NIGHT.FIELD + ' pr-11'} buttonClassName={NIGHT.EYE} />
       </div>
       <div>
-        <label className="label" htmlFor="confirm">Confirm password</label>
-        <PasswordInput id="confirm" value={confirm} onChange={setConfirm} autoComplete="new-password" minLength={8} />
-        {confirm.length > 0 && confirm !== password && <p className="mt-1 text-xs text-red-600">Passwords don&apos;t match yet.</p>}
+        <label className={NIGHT.LABEL} htmlFor="confirm">Confirm password</label>
+        <PasswordInput id="confirm" value={confirm} onChange={setConfirm} autoComplete="new-password" minLength={8} inputClassName={NIGHT.FIELD + ' pr-11'} buttonClassName={NIGHT.EYE} />
+        {confirm.length > 0 && confirm !== password && <p className="mt-1.5 text-xs text-red-300">Passwords don&apos;t match yet.</p>}
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <button className="btn-primary w-full" disabled={busy}>{busy ? 'Creating…' : 'Sign up'}</button>
-      <p className="muted text-center text-sm">Have an account? <Link className="underline" href={next ? `/sign-in?next=${encodeURIComponent(next)}` : '/sign-in'}>Sign in</Link></p>
+      {error && <ErrorNote>{error}</ErrorNote>}
+      <button className={NIGHT.BTN} disabled={busy}>{busy ? 'Setting up your desk…' : 'Create account'}</button>
+      <p className="pt-1 text-center text-sm text-neutral-400">
+        Already have a Pixie?{' '}
+        <Link className={NIGHT.LINK} href={next ? `/sign-in?next=${encodeURIComponent(next)}` : '/sign-in'}>Sign in</Link>
+      </p>
     </form>
   );
 }

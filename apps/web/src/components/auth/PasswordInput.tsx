@@ -18,17 +18,22 @@ function EyeClosed() {
   );
 }
 
-/** Password field with its own eye toggle. */
-export function PasswordInput({ id, value, onChange, autoComplete = 'current-password', minLength, required = true, placeholder }: {
+/** Password field with its own eye toggle. The two className props are additive —
+ *  their defaults are the exact pre-existing strings, so non-auth consumers are untouched. */
+export function PasswordInput({ id, value, onChange, autoComplete = 'current-password', minLength, required = true, placeholder,
+  inputClassName = 'input pr-11',
+  buttonClassName = 'absolute inset-y-0 right-1 my-auto flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200',
+}: {
   id: string; value: string; onChange: (v: string) => void; autoComplete?: string; minLength?: number; required?: boolean; placeholder?: string;
+  inputClassName?: string; buttonClassName?: string;
 }) {
   const [show, setShow] = useState(false);
   return (
     <div className="relative">
-      <input id={id} className="input pr-11" type={show ? 'text' : 'password'} required={required} minLength={minLength} autoComplete={autoComplete} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
+      <input id={id} className={inputClassName} type={show ? 'text' : 'password'} required={required} minLength={minLength} autoComplete={autoComplete} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
       <button
         type="button"
-        className="absolute inset-y-0 right-1 my-auto flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+        className={buttonClassName}
         // pointerdown + preventDefault: iOS Safari swallows the first tap's click while it
         // negotiates input focus — this toggles on the tap itself and never steals focus.
         onPointerDown={(e) => { e.preventDefault(); setShow((v) => !v); }}
