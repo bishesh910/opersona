@@ -29,16 +29,28 @@ export function CloneTabs({ cloneId, isOwner = false }: { cloneId: string; isOwn
   const current = TABS.find(isActive)?.key ?? 'thinking';
   return (
     <>
-    {/* phones: native picker (iOS wheel) instead of a sliding tab strip */}
-    <div className="py-1 md:hidden">
-      <select
-        aria-label="Persona section"
-        className="input w-full font-medium"
-        value={current}
-        onChange={(e) => { const t = TABS.find((x) => x.key === e.target.value); if (t) router.push(hrefFor(t)); }}
-      >
-        {TABS.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-      </select>
+    {/* phones: every section visible as a pill — nothing hidden behind a popup */}
+    <div className="flex flex-wrap gap-1.5 py-1 md:hidden" role="tablist" aria-label="Persona sections">
+      {TABS.map((t) => {
+        const active = isActive(t);
+        return (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => router.push(hrefFor(t))}
+            className={
+              'rounded-full border px-3 py-1.5 text-sm transition-colors ' +
+              (active
+                ? 'border-neutral-900 bg-neutral-900 font-medium text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+                : 'border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300')
+            }
+          >
+            {t.label}
+          </button>
+        );
+      })}
     </div>
     <div className="hidden md:block">
     <div className="nav-scroll gap-1 border-b border-neutral-200 dark:border-neutral-800">
