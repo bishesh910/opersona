@@ -13,7 +13,7 @@ const I = {
 const ITEMS = [
   { href: '/chat', label: 'New chat', icon: I.plus },
   { href: '/me', label: 'Me', icon: I.persona },
-  { href: '/clones', label: 'opersonas', icon: I.users },
+  { href: '/clones', label: 'Opersonas', icon: I.users },
   { href: '/approvals', label: 'Approvals', icon: I.check },
   { href: '/settings', label: 'Settings', icon: I.gear },
 ];
