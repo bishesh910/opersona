@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { DEFAULT_RECIPE, type AvatarRecipe } from '@opersona/shared';
 import { saveAvatarAction } from '@/actions/avatar';
@@ -20,10 +20,21 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
   function save() {
     start(async () => {
       const res = await saveAvatarAction(cloneId, recipe);
-      setMsg(res.ok ? { kind: 'ok', text: 'Pixie saved.' } : { kind: 'err', text: res.error ?? 'Failed' });
+      setMsg(res.ok ? { kind: 'ok', text: 'Saved ✓' } : { kind: 'err', text: res.error ?? 'Failed' });
       if (res.ok) router.refresh();
     });
   }
+
+  // Autosave: 1.2s after the last change (never on mount, never in choose mode).
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
+    if (readOnly || mode !== 'edit') return;
+    setMsg(null);
+    const t = setTimeout(save, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipe, mode]);
 
   return (
     <div className="grid gap-6 md:grid-cols-[auto_1fr]">
@@ -59,9 +70,10 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
             <RecipeEditor recipe={recipe} onChange={(r) => { setRecipe(r); setMsg(null); }} disabled={readOnly} />
             {!readOnly && (
               <div className="flex items-center gap-3">
-                <button type="button" className="btn-primary" onClick={save} disabled={pending}>{pending ? 'Saving…' : 'Save Pixie'}</button>
                 <button type="button" className="btn-secondary" onClick={() => { setRecipe(DEFAULT_RECIPE); setConfidence(null); }}>Reset</button>
-                {msg && <span className={'text-sm ' + (msg.kind === 'ok' ? 'text-green-700 dark:text-green-400' : 'text-red-600')}>{msg.text}</span>}
+                <span className={'text-sm ' + (pending ? 'muted' : msg?.kind === 'err' ? 'text-red-600' : 'text-green-700 dark:text-green-400')} aria-live="polite">
+                  {pending ? 'Saving…' : msg ? msg.text : 'Changes save automatically'}
+                </span>
               </div>
             )}
           </>
