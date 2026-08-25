@@ -1,8 +1,9 @@
 import { eq, inArray } from 'drizzle-orm';
 import { db, schema, authSchema } from '@opersona/db';
+import { MemberMenu } from './MemberMenu';
 
 /** Who's in the org: email, role, joined, and how far they got (persona built? 2FA on?). */
-export async function MembersCard({ orgId }: { orgId: string }) {
+export async function MembersCard({ orgId, selfUserId }: { orgId: string; selfUserId: string }) {
   const members = await db
     .select({ role: authSchema.member.role, joined: authSchema.member.createdAt, uid: authSchema.user.id, name: authSchema.user.name, email: authSchema.user.email, tfa: authSchema.user.twoFactorEnabled })
     .from(authSchema.member)
@@ -26,6 +27,7 @@ export async function MembersCard({ orgId }: { orgId: string }) {
             <span className="chip">{m.role}</span>
             <span className={`chip ${hasClone.has(m.uid) ? 'border-green-500 text-green-700 dark:text-green-400' : 'border-amber-400 text-amber-700 dark:text-amber-400'}`}>{hasClone.has(m.uid) ? 'persona ✓' : 'no persona yet'}</span>
             <span className={`chip ${m.tfa ? 'border-green-500 text-green-700 dark:text-green-400' : 'border-amber-400 text-amber-700 dark:text-amber-400'}`}>{m.tfa ? '2FA ✓' : 'no 2FA'}</span>
+            {m.uid !== selfUserId && <MemberMenu userId={m.uid} email={m.email} />}
           </li>
         ))}
       </ul>

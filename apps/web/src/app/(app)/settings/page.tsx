@@ -59,7 +59,7 @@ export default async function SettingsPage() {
       )}
       <TwoFactorCard enabled={!!userRow?.twoFactorEnabled} />
       <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg={isOrgAdmin(ctx)} />
-      {admin && <MembersCard orgId={ctx.orgId} />}
+      {admin && <MembersCard orgId={ctx.orgId} selfUserId={ctx.userId} />}
       <section className="card space-y-2">
         <h2 className="font-medium">Models &amp; defaults</h2>
         <SettingsForm
