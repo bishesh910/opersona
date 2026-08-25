@@ -2,12 +2,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CLAUDE_RECIPE } from '@opersona/shared';
 import type { AvatarRecipe, EngineEvent } from '@opersona/shared';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
 import { renameConversationAction, deleteChatAction } from '@/actions/conversations';
 import { ApprovalCard, type ApprovalItem } from './ApprovalCard';
 import { ToolChip, type ToolItem } from './ToolChip';
+import { ClaudeGlyph } from './ClaudeGlyph';
 import { Markdown } from './Markdown';
 import { Composer, type PendingAttachmentView } from './Composer';
 import { MODEL_LABEL, EFFORT_LABEL, type EffortValue } from './ModelMenu';
@@ -374,7 +374,7 @@ export function ChatView({
             {mode === 'clone' ? (<><AvatarThumb recipe={avatar} name={cloneName} scale={1.5} state={(() => { const last = items[items.length - 1]; return last && last.kind === 'assistant' && last.streaming && last.text.length > 0 ? 'talking' : replying ? 'thinking' : 'idle'; })()} /><span className="font-medium">{cloneName}</span>{visitorView
               ? <span className="chip border-blue-400 text-blue-700 dark:border-blue-700 dark:text-blue-400" data-visitor-chip>{cloneName}&rsquo;s persona</span>
               : <span className="chip border-amber-400 text-amber-700 dark:text-amber-400">persona test — replies as you; your ratings teach it</span>}</>)
-              : (<><AvatarThumb recipe={CLAUDE_RECIPE} name="Claude" scale={1.5} state={(() => { const last = items[items.length - 1]; return last && last.kind === 'assistant' && last.streaming && last.text.length > 0 ? 'talking' : replying ? 'thinking' : 'idle'; })()} /><span className="font-medium">Claude</span><span className="muted hidden sm:inline">· learns how you think, automatically</span></>)}
+              : (<><ClaudeGlyph scale={2} state={(() => { const last = items[items.length - 1]; return last && last.kind === 'assistant' && last.streaming && last.text.length > 0 ? 'talking' : replying ? 'thinking' : 'idle'; })()} /><span className="font-medium">Claude</span><span className="muted hidden sm:inline">· learns how you think, automatically</span></>)}
             <span className={'inline-block h-1.5 w-1.5 rounded-full ' + (connected === 'open' ? 'bg-green-500' : connected === 'connecting' ? 'animate-pulse bg-amber-500' : 'bg-red-500')} title={`stream ${connected}`} />
             {pendingApprovals > 0 && <span className="chip border-amber-400">{pendingApprovals} awaiting approval</span>}
           </div>
