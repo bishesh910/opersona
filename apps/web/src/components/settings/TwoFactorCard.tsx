@@ -1,4 +1,5 @@
 'use client';
+import { takePassword } from '@/lib/pw-relay';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import QRCode from 'qrcode';
@@ -27,19 +28,32 @@ export function TwoFactorCard({ enabled, redirectTo, email }: { enabled: boolean
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  /** Start enrollment with a given password; returns false when the password was wrong. */
+  async function beginEnable(pw: string): Promise<boolean> {
+    setBusy(true); setError(null);
+    const res = await authClient.twoFactor.enable({ password: pw });
+    setBusy(false);
+    if (res.error) { setError(res.error.message ?? 'Could not start two-factor setup'); return false; }
+    const totpURI = res.data.totpURI;
+    const qrDataUrl = await QRCode.toDataURL(totpURI, { margin: 1, width: 192 });
+    setPassword('');
+    setStage({ step: 'verify', totpURI, secret: secretFromUri(totpURI), qrDataUrl, backupCodes: res.data.backupCodes });
+    return true;
+  }
+
+  /** The password typed at sign-in moments ago is reused silently; ask only if absent/stale. */
+  async function startEnable() {
+    setError(null);
+    const relayed = takePassword();
+    if (relayed && (await beginEnable(relayed))) return;
+    setStage({ step: 'password', mode: 'enable' });
+  }
+
   async function onPasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (stage.step !== 'password') return;
-    setBusy(true); setError(null);
     if (stage.mode === 'enable') {
-      const res = await authClient.twoFactor.enable({ password });
-      setBusy(false);
-      if (res.error) { setError(res.error.message ?? 'Could not start two-factor setup'); return; }
-      const totpURI = res.data.totpURI;
-      const qrDataUrl = await QRCode.toDataURL(totpURI, { margin: 1, width: 192 });
-      setPassword('');
-      setStage({ step: 'verify', totpURI, secret: secretFromUri(totpURI), qrDataUrl, backupCodes: res.data.backupCodes });
-    } else {
+      await beginEnable(password);
       const res = await authClient.twoFactor.disable({ password });
       setBusy(false);
       if (res.error) { setError(res.error.message ?? 'Could not disable two-factor'); return; }
@@ -137,7 +151,7 @@ export function TwoFactorCard({ enabled, redirectTo, email }: { enabled: boolean
       ) : (
         <>
           <p className="muted text-sm">Protect your account with a one-time code from an authenticator app at sign-in.</p>
-          <button type="button" className="btn-primary" onClick={() => { setStage({ step: 'password', mode: 'enable' }); setError(null); }}>Add an authenticator app</button>
+          <button type="button" className="btn-primary" disabled={busy} onClick={startEnable}>{busy ? 'Starting…' : 'Add an authenticator app'}</button>
         </>
       )}
     </section>

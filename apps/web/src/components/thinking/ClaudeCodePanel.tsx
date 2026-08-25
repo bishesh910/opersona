@@ -45,8 +45,10 @@ function shortProject(p: string | null): string {
   return parts.length > 3 ? '…' + parts.slice(-3).join('-') : p;
 }
 
-export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readOnly }: {
+export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readOnly, showLocalScan = false }: {
   cloneId: string; initialTokens: IngestTokenRow[]; initialSessions: ClaudeCodeSessionRow[]; readOnly: boolean;
+  /** Pilot-only: the host machine's own Claude Code folder — shown ONLY to the persona pinned as this server's local clone. */
+  showLocalScan?: boolean;
 }) {
   const router = useRouter();
   const base = `/api/engine/clones/${cloneId}/claude-code`;
@@ -213,7 +215,7 @@ export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readO
         </div>
       )}
 
-      {!readOnly && (
+      {!readOnly && showLocalScan && (
         <div className="space-y-2 border-t border-neutral-200 pt-3 dark:border-neutral-800">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="max-w-2xl space-y-1">

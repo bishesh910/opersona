@@ -1,4 +1,5 @@
 'use client';
+import { stashPassword } from '@/lib/pw-relay';
 import { PasswordInput } from './PasswordInput';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -25,6 +26,7 @@ export function SignInForm({ social = { google: false, apple: false }, next }: {
     e.preventDefault();
     setBusy(true); setError(null);
     const res = await signIn.email({ email, password });
+    if (!res.error) stashPassword(password);
     setBusy(false);
     if (res.error) { setError(res.error.message ?? 'Sign-in failed'); return; }
     if ((res.data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect) {
