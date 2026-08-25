@@ -23,11 +23,11 @@ export function UserMenu({ name, email, avatarRecipe, dropUp = false, compact = 
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className={compact ? "static" : "relative"}>
       <button
         type="button"
         className={compact
-          ? 'block rounded-md transition-opacity hover:opacity-80'
+          ? 'flex items-center justify-center rounded-lg p-1 transition-colors hover:bg-neutral-200/60 dark:hover:bg-neutral-800'
           : 'flex items-center gap-2 rounded-lg border border-neutral-200 py-1 pl-1 pr-2.5 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-800/60'}
         onClick={() => { setOpen((o) => !o); setPop((n) => n + 1); }}
         aria-haspopup="menu"
@@ -40,7 +40,7 @@ export function UserMenu({ name, email, avatarRecipe, dropUp = false, compact = 
         {!compact && <span className="hidden sm:inline">{initials(name)}</span>}
       </button>
       {open && (
-        <div role="menu" className={"card absolute z-20 w-56 p-2 shadow-lg " + (dropUp ? (compact ? "bottom-full right-0 mb-1" : "bottom-full left-0 mb-1") : "right-0 mt-1")}>
+        <div role="menu" className={"card absolute z-20 w-56 p-2 shadow-lg " + (dropUp ? (compact ? "bottom-full inset-x-0 mb-2" : "bottom-full left-0 mb-1") : "right-0 mt-1")}>
           <div className="px-2 py-1 text-xs">
             <div className="font-medium">{name}</div>
             <div className="muted truncate">{email}</div>

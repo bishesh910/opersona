@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <aside className="hidden w-56 shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 p-4 md:flex dark:border-neutral-800 dark:bg-neutral-900/40">
         <div className="mb-6 px-2 text-lg font-semibold tracking-tight">opersona</div>
         <SideNav />
-        <div className="mt-auto border-t border-neutral-200 pt-3 dark:border-neutral-800">
+        <div className="relative mt-auto -mx-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800">
           <div className="flex items-center justify-between">
             <ChatSearch />
             <UserMenu name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} dropUp compact />
