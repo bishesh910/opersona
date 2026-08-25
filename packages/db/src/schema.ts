@@ -305,6 +305,7 @@ export const documentChunks = pgTable('document_chunks', {
 
 // ─── conversations ──────────────────────────────────────────────────────────
 export const conversations = pgTable('conversations', {
+  pinned: boolean('pinned').notNull().default(false),
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: text('org_id').notNull(),
   cloneId: uuid('clone_id').notNull(),

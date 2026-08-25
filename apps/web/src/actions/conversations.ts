@@ -1,5 +1,6 @@
 'use server';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
@@ -72,4 +73,12 @@ export async function askPersonaAction(form: FormData) {
     .values({ orgId: ctx.orgId, cloneId, userId: ctx.userId, title: `Asked by ${first}`, mode: 'clone' })
     .returning({ slug: schema.conversations.slug });
   redirect(`/ask/${cloneId}/${row!.slug}`);
+}
+
+/** Pin/unpin one of your own conversations (pinned sort first in the sidebar). */
+export async function pinChatAction(conversationId: string, pinned: boolean): Promise<void> {
+  const ctx = await requireOrg();
+  await db.update(schema.conversations).set({ pinned })
+    .where(and(eq(schema.conversations.id, conversationId), eq(schema.conversations.userId, ctx.userId), eq(schema.conversations.orgId, ctx.orgId)));
+  revalidatePath('/', 'layout');
 }

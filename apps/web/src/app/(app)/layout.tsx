@@ -11,11 +11,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   await require2FA(ctx);
   const [own] = await db.select({ id: schema.clones.id, r: schema.clones.avatarRecipe }).from(schema.clones).where(eq(schema.clones.ownerUserId, ctx.userId)).limit(1);
   const recentChats = own
-    ? (await db.select({ slug: schema.conversations.slug, title: schema.conversations.title })
+    ? (await db.select({ id: schema.conversations.id, slug: schema.conversations.slug, title: schema.conversations.title, pinned: schema.conversations.pinned })
         .from(schema.conversations)
         .where(and(eq(schema.conversations.cloneId, own.id), eq(schema.conversations.userId, ctx.userId)))
-        .orderBy(desc(schema.conversations.lastActivityAt)).limit(20))
-        .map((c) => ({ slug: c.slug, title: /^(New chat|Persona test)/.test(c.title) ? 'New chat' : c.title }))
+        .orderBy(desc(schema.conversations.pinned), desc(schema.conversations.lastActivityAt)).limit(20))
+        .map((c) => ({ id: c.id, slug: c.slug, pinned: c.pinned, title: /^(New chat|Persona test)/.test(c.title) ? 'New chat' : c.title }))
     : [];
   return (
     <div className="flex min-h-screen">
