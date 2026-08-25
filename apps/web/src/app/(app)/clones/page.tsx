@@ -13,6 +13,13 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
   const admin = isOrgAdmin(ctx);
   // Everyone sees the org roster (to ask a colleague's persona); only owner/admin get the tab links.
   const all = await db.select().from(schema.clones).where(eq(schema.clones.orgId, ctx.orgId)).orderBy(desc(schema.clones.createdAt));
+  // Members who joined but haven't built their persona yet — visible so the org roster tells the truth.
+  const memberRows = await db
+    .select({ uid: authSchema.user.id, name: authSchema.user.name, email: authSchema.user.email })
+    .from(authSchema.member).innerJoin(authSchema.user, eq(authSchema.user.id, authSchema.member.userId))
+    .where(eq(authSchema.member.organizationId, ctx.orgId));
+  const builders = new Set(all.map((c) => c.ownerUserId));
+  const notBuilt = memberRows.filter((m) => !builders.has(m.uid));
   const mine = all.find((c) => c.ownerUserId === ctx.userId);
   const ownerIds = [...new Set(all.map((c) => c.ownerUserId))];
   const owners = ownerIds.length
@@ -78,6 +85,22 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
             );
           })}
         </ul>
+      )}
+      {notBuilt.length > 0 && (
+        <div>
+          <h2 className="muted text-sm font-medium">Joined, persona not built yet</h2>
+          <ul className="mt-2 space-y-2">
+            {notBuilt.map((m) => (
+              <li key={m.uid} className="card flex items-center gap-3 py-2.5">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded bg-neutral-200 text-sm font-semibold text-neutral-500 dark:bg-neutral-800">{m.name.slice(0, 1).toUpperCase()}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{m.name}</div>
+                  <div className="muted truncate text-xs">{m.email} — signed up, hasn&apos;t built their persona yet. Nudge them to log in and finish setup.</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

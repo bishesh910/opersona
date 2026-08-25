@@ -3,6 +3,8 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/lib/auth';
+import { and, eq, gt, sql } from 'drizzle-orm';
+import { db, authSchema } from '@opersona/db';
 import { requireOrg, isOrgAdmin } from '@/lib/session';
 
 export interface InviteResult {
@@ -24,6 +26,17 @@ export async function createInviteAction(_prev: InviteResult | null, form: FormD
   if (!isOrgAdmin(ctx)) return { ok: false, error: 'Org owner/admin only' };
   const email = String(form.get('email') ?? '').trim().toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: 'A valid email is required — the invite only works for an account with that address' };
+  const base0 = (process.env.BETTER_AUTH_URL ?? '').replace(/\/$/, '');
+  // Already a member? Say so instead of minting a dead link.
+  const [existingMember] = await db.select({ id: authSchema.member.id }).from(authSchema.member)
+    .innerJoin(authSchema.user, eq(authSchema.user.id, authSchema.member.userId))
+    .where(and(eq(authSchema.member.organizationId, ctx.orgId), sql`lower(${authSchema.user.email}) = ${email}`)).limit(1);
+  if (existingMember) return { ok: false, error: 'Already a member — they can just sign in.' };
+  // A live pending invite for this email keeps its link — re-creating would kill the one you already sent.
+  const [pending] = await db.select({ id: authSchema.invitation.id }).from(authSchema.invitation)
+    .where(and(eq(authSchema.invitation.organizationId, ctx.orgId), sql`lower(${authSchema.invitation.email}) = ${email}`,
+      eq(authSchema.invitation.status, 'pending'), gt(authSchema.invitation.expiresAt, new Date()))).limit(1);
+  if (pending) return { ok: true, url: `${base0}/accept-invite/${pending.id}`, email };
   try {
     const inv = await auth.api.createInvitation({
       body: { email, role: 'member' as const, organizationId: ctx.orgId, resend: true },
