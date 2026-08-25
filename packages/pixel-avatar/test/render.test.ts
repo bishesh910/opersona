@@ -118,7 +118,7 @@ describe('validateRecipe', () => {
 
 // ── detail fields (eyes/earrings/freckles/hairTip/clothAccent/headwear) ──────
 import { EARRINGS, HEADWEAR, GLASSES_STYLES, type RGB as RGBT } from '@opersona/shared';
-import { avatarStateFrames, shades, upscale2x } from '../src/index.js';
+import { avatarStateFrames, shades, upscale2x, renderPortraitLegacy } from '../src/index.js';
 import LEGACY from './fixtures/legacy-buffers.json' with { type: 'json' };
 
 // ─── Pixie HD bounded-diff regression ────────────────────────────────────────
@@ -197,7 +197,7 @@ describe('legacy regression: HD render = 2x upscale of the pre-HD snapshot excep
     // pre-detail-fields recipe must still parse.
     it(`${name} portrait is the bounded-refined 2x upscale of the snapshot`, () => {
       const recipe = validateRecipe(snap.recipe);
-      expectBoundedDiff(renderPortrait(recipe), snap.portrait, 18, 28, recipe.hairc, true, `${name} portrait`);
+      expectBoundedDiff(renderPortraitLegacy(recipe), snap.portrait, 18, 28, recipe.hairc, true, `${name} portrait`);
     });
     it(`${name} scene frames are the bounded-refined 2x upscale of the snapshot`, () => {
       const recipe = validateRecipe(snap.recipe);

@@ -1,5 +1,6 @@
 import { AvatarRecipe } from '@opersona/shared';
 import { PORTRAIT_W, PORTRAIT_H, SCENE_W, SCENE_H, compose, composeScene, glassesCoverEyes } from './engine.js';
+import { renderPortraitV2, V2_EYES } from './v2.js';
 import { toPNG } from './png.js';
 
 export { PORTRAIT_W, PORTRAIT_H, SCENE_W, SCENE_H, effectiveGlassesStyle, glassesCoverEyes, shades, upscale2x } from './engine.js';
@@ -9,8 +10,14 @@ export type { AvatarRecipe, RGB } from '@opersona/shared';
 
 export interface SceneFrames { front: Uint8ClampedArray[]; back: Uint8ClampedArray[]; }
 
-/** 36×56 RGBA portrait bust (fine grid). */
+/** 36×56 RGBA portrait bust — Pixie v2 flat style (see v2.ts). */
 export function renderPortrait(recipe: AvatarRecipe): Uint8ClampedArray {
+  return renderPortraitV2(recipe);
+}
+
+/** The pre-v2 outlined HD portrait. Kept for the scene sprites' regression contract
+ *  and as the art base for The Office walk frames. */
+export function renderPortraitLegacy(recipe: AvatarRecipe): Uint8ClampedArray {
   return compose(recipe);
 }
 
@@ -50,7 +57,7 @@ export function validateRecipe(input: unknown): AvatarRecipe {
 /** Square head crop (36×36 from the top of the 36×56 portrait) — for favicons / tiny avatars. */
 export function headPNG(recipe: AvatarRecipe, scale = 4): Buffer {
   const src = renderPortrait(recipe);
-  const W = PORTRAIT_W, H = 36, top = 2;
+  const W = PORTRAIT_W, H = 36, top = 0;
   const out = new Uint8ClampedArray(W * H * 4);
   for (let y = 0; y < H; y++) out.set(src.subarray((y + top) * W * 4, (y + top + 1) * W * 4), y * W * 4);
   return toPNG(out, W, H, scale);
@@ -64,19 +71,22 @@ export function talkingFrames(recipe: AvatarRecipe): [Uint8ClampedArray, Uint8Cl
   return [closed, open];
 }
 
-/** Cartoon eyes sit on fine rows 18-20 at x 10-13 and 20-23 (see fine.ts
- *  cartoonEyes). A blink paints them over with the cheek colour sampled beneath
- *  each eye (fine rows 24-25) plus a darkened closed-lid line. */
+/** v2 eyes are two 2x2 blocks (see V2_EYES). A blink paints them with the cheek
+ *  colour sampled beneath each eye, plus a darkened closed-lid pixel pair. */
 function blinkFrame(open: Uint8ClampedArray): Uint8ClampedArray {
   const b = new Uint8ClampedArray(open);
-  for (const x of [10, 11, 12, 13, 20, 21, 22, 23]) {
-    // cover the (now 3-row) eye with cheek colour, then a closed-lid line at y19
-    for (const [dy, sy] of [[18, 24], [19, 25], [20, 25]] as const) {
-      const src = (sy * PORTRAIT_W + x) * 4, dst = (dy * PORTRAIT_W + x) * 4;
+  for (const eye of V2_EYES) {
+    const sx = eye[0]!.x < 18 ? 11 : 24; // plain cheek column beside this eye
+    const src = (19 * PORTRAIT_W + sx) * 4;
+    for (const { x, y } of eye) {
+      const dst = (y * PORTRAIT_W + x) * 4;
       b[dst] = open[src]!; b[dst + 1] = open[src + 1]!; b[dst + 2] = open[src + 2]!; b[dst + 3] = open[src + 3]!;
     }
-    const lid = (19 * PORTRAIT_W + x) * 4;
-    b[lid] = b[lid]! * 0.45; b[lid + 1] = b[lid + 1]! * 0.45; b[lid + 2] = b[lid + 2]! * 0.45;
+    for (const { x, y } of eye) {
+      if (y !== eye[0]!.y + 1) continue; // bottom row of the block → closed lid line
+      const i = (y * PORTRAIT_W + x) * 4;
+      b[i] = b[i]! * 0.45; b[i + 1] = b[i + 1]! * 0.45; b[i + 2] = b[i + 2]! * 0.45;
+    }
   }
   return b;
 }
