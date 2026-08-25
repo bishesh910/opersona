@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AvatarRecipe } from '@opersona/shared';
 
 const MAX_EDGE = 512;
@@ -45,10 +45,27 @@ async function downscale(file: File): Promise<{ base64: string; mime: string }> 
   return { base64: btoa(bin), mime: file.type || 'application/octet-stream' };
 }
 
+const BUSY_MESSAGES = [
+  'Looking at your selfie…',
+  'Counting your pixels…',
+  'Matching your hair, pixel by pixel…',
+  'Mixing the exact skin tone…',
+  'Judging your outfit (kindly)…',
+  'Consulting the pixel artist…',
+  'Assembling your Pixie…',
+  'Placing the final pixels…',
+];
+
 export function SelfieUpload({ onRecipe, disabled }: { onRecipe: (r: AvatarRecipe, confidence: Record<string, number>) => void; disabled?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [msgIdx, setMsgIdx] = useState(0);
+  useEffect(() => {
+    if (!busy) { setMsgIdx(0); return; }
+    const t = setInterval(() => setMsgIdx((i) => (i + 1) % BUSY_MESSAGES.length), 2500);
+    return () => clearInterval(t);
+  }, [busy]);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -87,7 +104,7 @@ export function SelfieUpload({ onRecipe, disabled }: { onRecipe: (r: AvatarRecip
           disabled={busy || disabled}
           onClick={() => fileRef.current?.click()}
         >
-          {busy ? 'Looking at your selfie…' : 'Upload a selfie'}
+          {busy ? (<span className="inline-flex items-center gap-2"><span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-400 border-t-transparent" aria-hidden />{BUSY_MESSAGES[msgIdx]}</span>) : 'Upload a selfie'}
         </button>
         {!busy && !disabled && (
           <input
