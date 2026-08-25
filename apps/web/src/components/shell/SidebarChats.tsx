@@ -85,11 +85,11 @@ function Section({ label, storageKey, chats, path, first }: { label: string; sto
         type="button"
         aria-expanded={open}
         onClick={toggle}
-        className={'muted flex w-full items-center gap-1 px-2 pb-1 text-[11px] font-medium uppercase tracking-wide hover:text-neutral-700 dark:hover:text-neutral-300 ' + (first ? '' : 'mt-4')}
+        className={'muted flex w-full items-center gap-1.5 px-2 pb-1 text-xs font-medium hover:text-neutral-700 dark:hover:text-neutral-300 ' + (first ? '' : 'mt-4')}
       >
-        <span aria-hidden className={'inline-block text-[9px] ' + (open ? '' : 'opacity-50')}>▶</span>
         {label}
-        {!open && <span className="ml-auto normal-case tracking-normal">{chats.length}</span>}
+        <span aria-hidden className={'text-sm leading-none ' + (open ? '' : 'opacity-50')}>›</span>
+        {!open && <span className="ml-auto">{chats.length}</span>}
       </button>
       {open && <div className="space-y-0.5">{chats.map((c) => <Item key={c.id} c={c} active={path === c.href} />)}</div>}
     </>
