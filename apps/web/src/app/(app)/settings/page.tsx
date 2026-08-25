@@ -10,6 +10,13 @@ import { ChangePasswordCard } from '@/components/settings/ChangePasswordCard';
 import { MembersCard } from '@/components/settings/MembersCard';
 import { engineFetch } from '@/lib/engine';
 
+const MODEL_LABELS: Record<string, string> = {
+  'claude-fable-5': 'Fable 5',
+  'claude-opus-5': 'Opus 5',
+  'claude-sonnet-5': 'Sonnet 5',
+  'claude-haiku-4-5': 'Haiku 4.5',
+};
+
 export default async function SettingsPage() {
   const ctx = await requireOrg();
   const [row] = await db.select().from(schema.orgSettings).where(eq(schema.orgSettings.orgId, ctx.orgId)).limit(1);
@@ -64,8 +71,28 @@ export default async function SettingsPage() {
       {admin && <MembersCard orgId={ctx.orgId} selfUserId={ctx.userId} />}
       <section className="card space-y-2">
         <h2 className="font-medium">Models &amp; defaults</h2>
+        {!admin ? (
+          <div>
+            <p className="muted text-xs">Org-wide defaults — set by the org owner/admin.</p>
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+              {[
+                ['Chat model', MODEL_LABELS[row?.chatModel ?? 'claude-opus-5'] ?? (row?.chatModel ?? 'claude-opus-5')],
+                ['Chat effort', row?.chatEffort ?? 'high'],
+                ['Extraction model', MODEL_LABELS[row?.extractModel ?? 'claude-sonnet-5'] ?? (row?.extractModel ?? 'claude-sonnet-5')],
+                ['Condense model', MODEL_LABELS[row?.condenseModel ?? 'claude-haiku-4-5'] ?? (row?.condenseModel ?? 'claude-haiku-4-5')],
+                ['Timezone', row?.timezone ?? 'UTC'],
+              ].map(([k, v]) => (
+                <div key={k}>
+                  <dt className="muted text-xs">{k}</dt>
+                  <dd className="font-medium">{v}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="muted mt-3 text-xs">Any chat can still use its own model via the picker in the composer.</p>
+          </div>
+        ) : (
         <SettingsForm
-          readOnly={!admin}
+          readOnly={false}
           initial={{
             chatModel: row?.chatModel ?? 'claude-opus-5',
             extractModel: row?.extractModel ?? 'claude-sonnet-5',
@@ -75,6 +102,7 @@ export default async function SettingsPage() {
             monthlyBudgetUsd: row?.monthlyBudgetUsd ?? null,
           }}
         />
+        )}
       </section>
     </div>
   );
