@@ -124,3 +124,14 @@ code, kbd { overflow-wrap: anywhere; }
 @media (max-width: 640px), (max-aspect-ratio: 3/4) {
   .auth-bg { background-image: url('/auth-bg-mobile.png'); }
 }
+
+/* ≥lg the form column goes plain (the crowd lives in the right-hand panel) */
+@media (min-width: 1024px) {
+  .auth-bg { background-image: none; }
+}
+.auth-panel {
+  background-image: url('/auth-panel.png');
+  background-size: cover;
+  background-position: center bottom;
+  image-rendering: pixelated;
+}
