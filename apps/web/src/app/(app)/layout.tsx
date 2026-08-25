@@ -4,6 +4,7 @@ import { db, schema } from '@opersona/db';
 import { SideNav } from '@/components/shell/SideNav';
 import { UserMenu } from '@/components/shell/UserMenu';
 import { SidebarFooter } from '@/components/shell/SidebarFooter';
+import { RecentChats } from '@/components/chat/RecentChats';
 import { SidebarChats } from '@/components/shell/SidebarChats';
 import { TalkToPersona } from '@/components/shell/TalkToPersona';
 
@@ -13,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const [own] = await db.select({ id: schema.clones.id, r: schema.clones.avatarRecipe }).from(schema.clones).where(eq(schema.clones.ownerUserId, ctx.userId)).limit(1);
   const convRows = await db.select({
       id: schema.conversations.id, slug: schema.conversations.slug, title: schema.conversations.title,
-      pinned: schema.conversations.pinned, mode: schema.conversations.mode, cloneId: schema.conversations.cloneId,
+      pinned: schema.conversations.pinned, mode: schema.conversations.mode, cloneId: schema.conversations.cloneId, at: schema.conversations.lastActivityAt,
       personaName: schema.clones.name,
     })
     .from(schema.conversations)
@@ -29,6 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       personaName: mine ? undefined : c.personaName,
       href: mine ? `/c/${c.slug}` : `/ask/${c.cloneId}/${c.slug}`,
       title: /^(New chat|Persona test|Asked by )/.test(c.title) ? 'Untitled' : c.title,
+      when: c.at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
     };
   });
   const personaOptions = (await db.select({ cloneId: schema.clones.id, name: schema.clones.name, recipe: schema.clones.avatarRecipe })
@@ -57,8 +59,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <UserMenu name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} />
         </header>
         <div className="md:hidden">{/* wrapper owns the breakpoint: .nav-scroll's display:flex would out-specificity md:hidden */}
-          <nav className="nav-scroll gap-2 border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">
+          <nav className="nav-scroll items-center gap-2 border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">
             <SideNav horizontal include={['/chat', '/approvals']} />
+            <RecentChats variant="strip" currentSlug="" items={recentChats.filter((c) => c.mine).map((c) => ({ slug: c.slug, title: c.title, when: c.when }))} />
           </nav>
         </div>
         <main className="min-w-0 flex-1 overflow-x-clip px-3 py-3 md:px-6 md:py-4">{children}</main>

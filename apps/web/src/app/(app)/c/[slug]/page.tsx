@@ -7,7 +7,6 @@ import { getCloneAccess } from '@/lib/clones';
 import { engineFetch } from '@/lib/engine';
 import { DEFAULT_TITLE_RE } from '@/lib/chat';
 import { ChatView, type FeedbackVerdict, type HistoryTurn } from '@/components/chat/ChatView';
-import { RecentChats } from '@/components/chat/RecentChats';
 
 /** Full-height conversation view (own persona): slim bar on top, the rest is chat. */
 export default async function ConversationPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -27,16 +26,10 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
   for (const f of fb) feedback[f.turnId] = f.verdict;
   const authMode = await engineFetch<{ mode: string }>('/auth/mode').then((j) => j.mode).catch(() => 'api-key');
 
-  const recentRows = await db.select({ slug: schema.conversations.slug, title: schema.conversations.title, at: schema.conversations.lastActivityAt })
-    .from(schema.conversations)
-    .where(and(eq(schema.conversations.cloneId, access.clone.id), eq(schema.conversations.userId, ctx.userId)))
-    .orderBy(desc(schema.conversations.lastActivityAt)).limit(6);
-  const recent = recentRows.map((r) => ({ slug: r.slug, title: /^(New chat|Persona test)/.test(r.title) ? 'Untitled' : r.title, when: r.at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }));
-
   return (
     <div className="flex h-[calc(100dvh-7.85rem)] flex-col md:h-[calc(100dvh-2rem)]">
       <div className="flex items-center gap-2 px-1 pb-2">
-        <div className="md:hidden"><RecentChats currentSlug={conv.slug} items={recent} /></div>
+        
       </div>
       <div className="safe-b mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col">
         <ChatView
