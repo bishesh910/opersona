@@ -58,7 +58,7 @@ export default async function SettingsPage() {
           pending={pendingInvites.map((i) => ({ id: i.id, email: i.email, expiresAt: i.expiresAt.toISOString() }))}
         />
       )}
-      <TwoFactorCard enabled={!!userRow?.twoFactorEnabled} />
+      <TwoFactorCard enabled={!!userRow?.twoFactorEnabled} email={ctx.user.email} />
       <ChangePasswordCard />
       <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg={isOrgAdmin(ctx)} />
       {admin && <MembersCard orgId={ctx.orgId} selfUserId={ctx.userId} />}

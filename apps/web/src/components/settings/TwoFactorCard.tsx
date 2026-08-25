@@ -18,7 +18,7 @@ function secretFromUri(uri: string): string {
   }
 }
 
-export function TwoFactorCard({ enabled, redirectTo }: { enabled: boolean; redirectTo?: string }) {
+export function TwoFactorCard({ enabled, redirectTo, email }: { enabled: boolean; redirectTo?: string; email?: string }) {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>({ step: 'idle' });
   const [password, setPassword] = useState('');
@@ -75,6 +75,7 @@ export function TwoFactorCard({ enabled, redirectTo }: { enabled: boolean; redir
             <form onSubmit={onPasswordSubmit} className="space-y-2">
               <div>
                 <label className="label" htmlFor="tf-disable-password">Confirm your password to disable</label>
+                {email && <input type="email" autoComplete="username" value={email} readOnly tabIndex={-1} aria-hidden className="sr-only" />}
                 <input id="tf-disable-password" className="input" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
               </div>
               {error && <p className="text-sm text-red-600">{error}</p>}
@@ -124,6 +125,7 @@ export function TwoFactorCard({ enabled, redirectTo }: { enabled: boolean; redir
         <form onSubmit={onPasswordSubmit} className="space-y-2">
           <div>
             <label className="label" htmlFor="tf-enable-password">Confirm your password to continue</label>
+            {email && <input type="email" autoComplete="username" value={email} readOnly tabIndex={-1} aria-hidden className="sr-only" />}
             <input id="tf-enable-password" className="input" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
