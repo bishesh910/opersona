@@ -137,8 +137,9 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
   const input = new InputQueue();
 
   const canUseTool: Options['canUseTool'] = async (toolName, toolInput, opts) => {
-    // Persona MCP tools are free; read-only built-ins are jailed to the per-clone workspace.
-    if (toolName.startsWith(`mcp__${PERSONA_SERVER}__`)) return { behavior: 'allow', updatedInput: toolInput };
+    // Persona MCP tools are free; WebSearch runs server-side at Anthropic (WebFetch stays unavailable);
+    // read-only built-ins are jailed to the per-clone workspace.
+    if (toolName.startsWith(`mcp__${PERSONA_SERVER}__`) || toolName === 'WebSearch') return { behavior: 'allow', updatedInput: toolInput };
     if (toolName === 'Read' || toolName === 'Glob' || toolName === 'Grep') {
       return readToolInWorkspace(toolName, toolInput as Record<string, unknown>, ws.cwd)
         ? { behavior: 'allow', updatedInput: toolInput }
@@ -162,7 +163,7 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
     env: sessionEnv(ws, cfg.apiKey),
     settingSources: [],
     // Plain-Claude chats get no built-in tools and only search_documents from the persona server; clone mode gets the lot.
-    tools: cloneMode ? ['Read', 'Glob', 'Grep'] : [],
+    tools: cloneMode ? ['Read', 'Glob', 'Grep', 'WebSearch'] : ['WebSearch'],
     ...(cloneMode ? {} : { disallowedTools: PERSONA_TOOLS.filter((t) => t !== 'search_documents').map((t) => `mcp__${PERSONA_SERVER}__${t}`) }),
     mcpServers: { [PERSONA_SERVER]: server },
     canUseTool,
