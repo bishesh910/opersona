@@ -1,5 +1,6 @@
 'use server';
 import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
 import { and, eq, sql } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
@@ -115,4 +116,14 @@ export async function deletePlaybookAction(cloneId: string, id: string): Promise
     await tx.delete(schema.playbooks).where(and(eq(schema.playbooks.id, id), eq(schema.playbooks.cloneId, cloneId), eq(schema.playbooks.orgId, ctx.orgId)));
   });
   return finish(cloneId, ctx.orgId);
+}
+
+/** Forget one episode (owner of the persona only). */
+export async function deleteEpisodeAction(cloneId: string, episodeId: string): Promise<{ ok: boolean }> {
+  const ctx = await requireOrg();
+  const access = await getCloneAccess(ctx, cloneId);
+  if (!access?.canWrite) return { ok: false };
+  await db.delete(schema.episodes).where(and(eq(schema.episodes.id, episodeId), eq(schema.episodes.cloneId, access.clone.id)));
+  revalidatePath(`/clones/${access.clone.id}/memory`); revalidatePath('/me/memory');
+  return { ok: true };
 }

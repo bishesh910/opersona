@@ -6,6 +6,7 @@ import { getCloneAccess } from '@/lib/clones';
 import { FactList } from '@/components/memory/FactList';
 import { PlaybookList } from '@/components/memory/PlaybookList';
 import { PromptPanel } from '@/components/memory/PromptPanel';
+import { EpisodeList } from '@/components/memory/EpisodeList';
 
 export default async function MemoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: rawId } = await params;
@@ -28,18 +29,7 @@ export default async function MemoryPage({ params }: { params: Promise<{ id: str
         {episodes.length === 0 ? (
           <p className="muted mt-3 text-sm">No episodes yet — they appear automatically as you finish conversations.</p>
         ) : (
-          <ul className="mt-3 space-y-2">
-            {episodes.map((e) => (
-              <li key={e.id} className="card py-2.5">
-                <div className="flex items-baseline gap-2">
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{e.title}</span>
-                  <span className={'chip shrink-0 ' + (e.outcome === 'resolved' ? 'border-green-500 text-green-700 dark:text-green-400' : e.outcome === 'partial' ? 'border-amber-400 text-amber-700 dark:text-amber-400' : '')}>{e.outcome}</span>
-                  <span className="muted shrink-0 text-xs">{e.createdAt.toLocaleDateString()}</span>
-                </div>
-                {e.problem && <p className="muted mt-1 text-xs">{e.problem}</p>}
-              </li>
-            ))}
-          </ul>
+          <EpisodeList cloneId={id} readOnly={ro} episodes={episodes.map((e) => ({ id: e.id, title: e.title, problem: e.problem, outcome: e.outcome, date: e.createdAt.toLocaleDateString() }))} />
         )}
       </section>
 

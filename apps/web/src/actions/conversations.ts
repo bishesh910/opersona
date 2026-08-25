@@ -53,6 +53,7 @@ export async function deleteChatAction(conversationId: string): Promise<void> {
     const access = await getCloneAccess(ctx, conv.cloneId);
     if (access?.canWrite) {
       await db.transaction(async (tx) => {
+        await tx.delete(schema.episodes).where(and(eq(schema.episodes.conversationId, conversationId), eq(schema.episodes.orgId, ctx.orgId)));
         await tx.delete(schema.turns).where(and(eq(schema.turns.conversationId, conversationId), eq(schema.turns.orgId, ctx.orgId)));
         await tx.delete(schema.conversations).where(and(eq(schema.conversations.id, conversationId), eq(schema.conversations.orgId, ctx.orgId)));
       });
