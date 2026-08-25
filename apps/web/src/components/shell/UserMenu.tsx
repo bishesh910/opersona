@@ -9,7 +9,8 @@ import type { AvatarRecipe } from '@opersona/shared';
 const initials = (name: string) =>
   name.trim().split(/\s+/).map((w) => w[0]?.toUpperCase() ?? '').slice(0, 2).join('') || '?';
 
-export function UserMenu({ name, email, avatarRecipe, dropUp = false }: { name: string; email: string; avatarRecipe?: AvatarRecipe | null; dropUp?: boolean }) {
+export function UserMenu({ name, email, avatarRecipe, dropUp = false, compact = false }: { name: string; email: string; avatarRecipe?: AvatarRecipe | null; dropUp?: boolean; compact?: boolean }) {
+  const [pop, setPop] = useState(0);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -23,12 +24,23 @@ export function UserMenu({ name, email, avatarRecipe, dropUp = false }: { name: 
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" className="flex items-center gap-2 rounded-lg border border-neutral-200 py-1 pl-1 pr-2.5 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-800/60" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>
-        <AvatarThumb recipe={avatarRecipe} name={name} scale={1.5} />
-        <span className="hidden sm:inline" title={name}>{initials(name)}</span>
+      <button
+        type="button"
+        className={compact
+          ? 'block rounded-md transition-opacity hover:opacity-80'
+          : 'flex items-center gap-2 rounded-lg border border-neutral-200 py-1 pl-1 pr-2.5 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-800/60'}
+        onClick={() => { setOpen((o) => !o); setPop((n) => n + 1); }}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={name}
+      >
+        <span key={pop} className={pop ? 'pixie-pop inline-block' : 'inline-block'}>
+          <AvatarThumb recipe={avatarRecipe} name={name} scale={compact ? 2 : 1.5} />
+        </span>
+        {!compact && <span className="hidden sm:inline">{initials(name)}</span>}
       </button>
       {open && (
-        <div role="menu" className={"card absolute z-20 w-56 p-2 shadow-lg " + (dropUp ? "bottom-full left-0 mb-1" : "right-0 mt-1")}>
+        <div role="menu" className={"card absolute z-20 w-56 p-2 shadow-lg " + (dropUp ? (compact ? "bottom-full right-0 mb-1" : "bottom-full left-0 mb-1") : "right-0 mt-1")}>
           <div className="px-2 py-1 text-xs">
             <div className="font-medium">{name}</div>
             <div className="muted truncate">{email}</div>
