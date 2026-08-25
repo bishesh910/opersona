@@ -60,8 +60,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </header>
         <div className="md:hidden">{/* wrapper owns the breakpoint: .nav-scroll's display:flex would out-specificity md:hidden */}
           <nav className="flex items-center gap-1 whitespace-nowrap border-b border-neutral-200 px-2 py-1.5 dark:border-neutral-800">
-            <SideNav horizontal include={['/chat', '/approvals']} />
+            <SideNav horizontal include={['/chat']} />
+            <TalkToPersona variant="strip" options={personaOptions} />
             <RecentChats variant="strip" currentSlug="" items={recentChats.filter((c) => c.mine).map((c) => ({ slug: c.slug, title: c.title, when: c.when }))} />
+            <SideNav horizontal include={['/approvals']} />
           </nav>
         </div>
         <main className="min-w-0 flex-1 overflow-x-clip px-3 py-3 md:px-6 md:py-4">{children}</main>

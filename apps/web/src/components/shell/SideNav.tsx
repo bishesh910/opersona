@@ -11,7 +11,7 @@ const I = {
 } as const;
 
 const ITEMS = [
-  { href: '/chat', label: 'New chat', icon: I.plus },
+  { href: '/chat', label: 'New chat', shortLabel: 'New', icon: I.plus },
   { href: '/me', label: 'Me', icon: I.persona },
   { href: '/clones', label: 'Opersonas', icon: I.users },
   { href: '/approvals', label: 'Approvals', icon: I.check },
@@ -38,7 +38,7 @@ export function SideNav({ horizontal = false, include }: { horizontal?: boolean;
                   : 'text-neutral-700 hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800/60')
               }
             >
-              <span className="opacity-70">{it.icon}</span>{it.label}
+              <span className="opacity-70">{it.icon}</span>{horizontal && 'shortLabel' in it && it.shortLabel ? it.shortLabel : it.label}
             </Link>
           </li>
         );
