@@ -37,6 +37,10 @@ export function AvatarCanvas({ recipe, scale = 4, className, title, state = 'idl
       return () => { clearInterval(loop); if (blinkTimer) clearTimeout(blinkTimer); paint(frames.idle[0]); };
     } catch (e) { console.error('avatar render failed', e); }
   }, [recipe, scale, mode]);
+  // Pixie HD: the buffer is 2× the legacy grid (36×56). The backing store is
+  // PORTRAIT_W*scale but the CSS size halves it, so existing `scale` props keep
+  // their pre-HD physical size (scale=2 still shows an 36×56-CSS-px thumb) —
+  // each fine pixel draws at half the previous CSS size (and 2× on retina).
   return (
     <canvas
       ref={ref}
@@ -44,7 +48,7 @@ export function AvatarCanvas({ recipe, scale = 4, className, title, state = 'idl
       height={PORTRAIT_H * scale}
       className={className}
       title={title}
-      style={{ imageRendering: 'pixelated', width: PORTRAIT_W * scale, height: PORTRAIT_H * scale }}
+      style={{ imageRendering: 'pixelated', width: (PORTRAIT_W * scale) / 2, height: (PORTRAIT_H * scale) / 2 }}
       aria-label={title ?? 'Pixie'}
     />
   );

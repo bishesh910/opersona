@@ -1,19 +1,32 @@
-// Procedural pixel-art avatar engine.
+// Procedural pixel-art avatar engine ("Pixie HD").
 //
 // Ported from the original office app's `portraitArt.ts`: fully custom-drawn busts — each
 // avatar is an explicit recipe layering skin → clothing → face → facial hair →
-// hairstyle → glasses on an 18×28 canvas, plus an 18×32 full-body scene sprite
-// (front + back, 3 walk phases). The recipe shape is `AvatarRecipe` from
+// hairstyle → glasses. The base art is drawn on the legacy 18×28 grid (18×32
+// for the full-body scene sprite, front + back, 3 walk phases), then upscaled
+// 2× nearest-neighbour to the exported 36×56 / 36×64 fine grid, where fine.ts
+// applies bounded refinement (hair texture, soft shading, corner rounding,
+// finer brows/mouth) and fine-only feature art (headband, round/shades/shades3d
+// glasses, buzz stipple, mohawk jags). The recipe shape is `AvatarRecipe` from
 // @opersona/shared; this module contains only the drawing code.
 
 import type { AvatarRecipe, RGB } from '@opersona/shared';
+import { OUTLINE, MOUTH_COLOR, GLASSES_FRAME, SKIN, shades, clamp, eqRGB as eq, effectiveGlassesStyle } from './palette.js';
+import { upscale2x, refine, drawFineFeatures } from './fine.js';
 
-export const PORTRAIT_W = 18;
-export const PORTRAIT_H = 28;
-// In-scene walking sprite: same width + upper body as the portrait, taller to add legs.
-export const SCENE_W = 18;
-export const SCENE_H = 32;
-const OUTLINE: RGB = [38, 34, 46];
+export { effectiveGlassesStyle, glassesCoverEyes, shades, SKIN } from './palette.js';
+export { upscale2x } from './fine.js';
+
+// Legacy (base-art) grid — all draw calls below use these coordinates.
+const LEGACY_PORTRAIT_W = 18;
+const LEGACY_PORTRAIT_H = 28;
+const LEGACY_SCENE_W = 18;
+const LEGACY_SCENE_H = 32;
+// Exported fine grid: 2× the legacy grid.
+export const PORTRAIT_W = LEGACY_PORTRAIT_W * 2;
+export const PORTRAIT_H = LEGACY_PORTRAIT_H * 2;
+export const SCENE_W = LEGACY_SCENE_W * 2;
+export const SCENE_H = LEGACY_SCENE_H * 2;
 const HX0 = 4, HX1 = 13; // head skin columns
 
 type Buf = Uint8ClampedArray;
@@ -27,16 +40,7 @@ type HairArgs = NonNullable<AvatarRecipe['hairargs']>;
 
 // Current canvas dims — set per compose() so the same drawing primitives serve
 // both the 18×28 portrait and the 18×32 scene sprite. (Rendering is synchronous.)
-let CUR_W = PORTRAIT_W, CUR_H = PORTRAIT_H;
-
-const clamp = (v: number) => (v < 0 ? 0 : v > 255 ? 255 : Math.round(v));
-function shades(rgb: RGB, dl = 1.22, dd = 0.68): [RGB, RGB, RGB] {
-  return [
-    [clamp(rgb[0] * dl), clamp(rgb[1] * dl), clamp(rgb[2] * dl)],
-    [rgb[0], rgb[1], rgb[2]],
-    [clamp(rgb[0] * dd), clamp(rgb[1] * dd), clamp(rgb[2] * dd)],
-  ];
-}
+let CUR_W = LEGACY_PORTRAIT_W, CUR_H = LEGACY_PORTRAIT_H;
 
 function set(buf: Buf, x: number, y: number, c: RGB, a = 255): void {
   if (x < 0 || x >= CUR_W || y < 0 || y >= CUR_H) return;
@@ -51,19 +55,9 @@ function rgbAt(buf: Buf, x: number, y: number): RGB {
   const i = (y * CUR_W + x) * 4;
   return [buf[i]!, buf[i + 1]!, buf[i + 2]!];
 }
-function eq(a: RGB, b: RGB): boolean { return a[0] === b[0] && a[1] === b[1] && a[2] === b[2]; }
 function rect(buf: Buf, x0: number, y0: number, x1: number, y1: number, c: RGB): void {
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) set(buf, x, y, c);
 }
-
-// ─── palettes ────────────────────────────────────────────────────────────────
-interface SkinPal { hi: RGB; base: RGB; sh: RGB; line: RGB; }
-const SKIN: Record<Skin, SkinPal> = {
-  light: { hi: [255, 221, 189], base: [247, 201, 170], sh: [212, 158, 126], line: [168, 112, 82] },
-  tan:   { hi: [232, 182, 136], base: [214, 162, 116], sh: [176, 126, 86],  line: [138, 92, 60] },
-  brown: { hi: [180, 130, 94],  base: [158, 112, 78],  sh: [124, 86, 58],   line: [90, 60, 40] },
-  dark:  { hi: [142, 98, 70],   base: [120, 80, 56],   sh: [94, 62, 42],    line: [64, 42, 28] },
-};
 
 // ─── head + face ─────────────────────────────────────────────────────────────
 function drawHead(buf: Buf, skin: Skin): void {
@@ -101,7 +95,7 @@ function drawFace(buf: Buf, skin: Skin, brow: Brow, mouth: Mouth, blush: boolean
   else if (brow === 'raised') for (const x of [5, 6, 10, 11]) set(buf, x, 6, s.line);
   else if (brow === 'soft') { for (const x of [5, 11]) set(buf, x, 7, s.line); for (const x of [6, 10]) set(buf, x, 7, s.sh); }
   set(buf, 8, 11, s.sh); set(buf, 8, 12, s.sh); set(buf, 7, 12, s.sh);
-  const mc: RGB = [158, 86, 80];
+  const mc: RGB = MOUTH_COLOR;
   const mouths: Record<Mouth, [number, number][]> = {
     neutral: [[7, 14], [8, 14], [9, 14], [10, 14]],
     smile: [[7, 14], [8, 14], [9, 14], [10, 14], [6, 13], [11, 13]],
@@ -245,7 +239,34 @@ const styleBald: HairFn = (buf, color, skinBase, a) => {
   for (let y = top; y <= 10; y++) { set(buf, HX0 - 1, y, sh); set(buf, HX1 + 1, y, sh); }
 };
 
-const HAIR_FNS: Record<HairStyle, HairFn> = { styleShort, styleFloppy, styleFrame, styleBun, styleCurly, styleMessy, styleRecede, styleSpiky, styleBald };
+// Mohawk: shaved skin sides (bald-style dome) with a bold central strip rising
+// from the crown. The fine pass jags the strip top into 1-px teeth.
+const styleMohawk: HairFn = (buf, color, skinBase) => {
+  const [shi, sbase, ssh] = shades(skinBase, 1.1, 0.82);
+  // shaved dome above the forehead (same silhouette as the bald crown)
+  for (let x = 6; x <= 11; x++) set(buf, x, 2, sbase);
+  for (let x = 5; x <= 12; x++) set(buf, x, 3, sbase);
+  for (let x = HX0; x <= HX1; x++) set(buf, x, 4, sbase);
+  set(buf, 6, 2, shi); set(buf, 6, 3, shi);
+  set(buf, 5, 3, ssh); set(buf, 12, 3, ssh); set(buf, HX1, 4, ssh);
+  // central strip, two columns wide, up to the canvas top
+  const [hi, base, sh] = shades(color);
+  rect(buf, 8, 0, 9, 5, base);
+  for (let y = 0; y <= 2; y++) set(buf, 8, y, hi);
+  set(buf, 9, 4, sh); set(buf, 9, 5, sh);
+};
+
+// Buzz cut: a near-scalp cap hugging the skull, no volume anywhere. The fine
+// pass stipples skin show-through so it reads as clipper-short.
+const styleBuzz: HairFn = (buf, color) => {
+  const [, base, sh] = shades(color);
+  for (let x = 5; x <= 12; x++) set(buf, x, 3, base);
+  rect(buf, HX0, 4, HX1, 5, base);
+  for (let y = 6; y < 9; y++) { set(buf, HX0, y, base); set(buf, HX1, y, base); }
+  set(buf, HX0, 4, sh); set(buf, HX1, 4, sh); set(buf, 12, 3, sh);
+};
+
+const HAIR_FNS: Record<HairStyle, HairFn> = { styleShort, styleFloppy, styleFrame, styleBun, styleCurly, styleMessy, styleRecede, styleSpiky, styleBald, styleMohawk, styleBuzz };
 
 // ─── facial hair ─────────────────────────────────────────────────────────────
 function drawFacial(buf: Buf, kind: Facial, color: RGB): void {
@@ -332,15 +353,43 @@ function applyClothAccent(buf: Buf, row: number, c1: RGB, accent: RGB): void {
   }
 }
 
-/** Beanie / cap over the top hair rows. Both clear anything poking above the
- *  hat line (bun, spikes) then draw a rounded crown on rows 2-4; the beanie
- *  finishes with a folded band on row 5, the cap with a 1-px brim row at the
- *  forehead. Side hair (x3 / x14) stays visible as tufts under the hat. */
-function drawHeadwear(buf: Buf, kind: 'beanie' | 'cap', color: RGB): void {
+type Headwear = NonNullable<AvatarRecipe['headwear']>;
+
+/** Headwear over the top hair rows. Beanie/cap/fedora/hoodie clear anything
+ *  poking above the hat line (bun, spikes, mohawk) then draw their crown;
+ *  the beanie finishes with a folded band on row 5, the cap with a 1-px brim
+ *  row at the forehead, the fedora with a band + wide brim, the hoodie frames
+ *  the whole face down to the shoulders. Side hair stays visible as tufts
+ *  under the smaller hats. 'headband' is fine-grid-only art (see fine.ts). */
+function drawHeadwear(buf: Buf, kind: Headwear, color: RGB): void {
+  if (kind === 'headband') return; // drawn on the fine grid
   const [hi, base, sh] = shades(color);
   for (let y = 0; y <= 1; y++) for (let x = 0; x < CUR_W; x++) {
     const i = (y * CUR_W + x) * 4;
     buf[i] = 0; buf[i + 1] = 0; buf[i + 2] = 0; buf[i + 3] = 0;
+  }
+  if (kind === 'fedora') {
+    // tapered crown, dark band, wide flat brim
+    for (let x = 6; x <= 11; x++) set(buf, x, 1, base);
+    rect(buf, 5, 2, 12, 3, base);
+    set(buf, 6, 1, hi); set(buf, 5, 2, hi);
+    for (let x = 5; x <= 12; x++) set(buf, x, 4, sh); // band
+    for (let x = 2; x <= 15; x++) set(buf, x, 5, base); // brim
+    set(buf, 2, 5, sh); set(buf, 15, 5, sh);
+    return;
+  }
+  if (kind === 'hoodie') {
+    // hood shell: rounded top, thick sides framing the face (covering the
+    // ears), draping onto the shoulders. Inner rim shaded for depth.
+    for (let x = 5; x <= 12; x++) set(buf, x, 1, base);
+    rect(buf, 4, 2, 13, 2, base);
+    for (let y = 3; y <= 16; y++) {
+      set(buf, 2, y, base); set(buf, 3, y, base); set(buf, 4, y, sh);
+      set(buf, 13, y, sh); set(buf, 14, y, base); set(buf, 15, y, base);
+    }
+    rect(buf, 2, 17, 5, 18, base); rect(buf, 12, 17, 15, 18, base); // drape
+    set(buf, 6, 1, hi); set(buf, 7, 1, hi); set(buf, 3, 2, hi);
+    return;
   }
   for (let x = 5; x <= 12; x++) set(buf, x, 2, base);
   rect(buf, HX0, 3, HX1, 4, base);
@@ -350,9 +399,31 @@ function drawHeadwear(buf: Buf, kind: 'beanie' | 'cap', color: RGB): void {
 }
 
 /** Back view of the headwear: same crown rows fitted to the back-of-head
- *  silhouette; no brim (a cap's brim faces away). */
-function drawHeadwearBack(buf: Buf, kind: 'beanie' | 'cap', color: RGB): void {
+ *  silhouette; no brim for the cap (it faces away), full brim for the fedora,
+ *  a full hood for the hoodie. 'headband' is fine-grid-only art. */
+function drawHeadwearBack(buf: Buf, kind: Headwear, color: RGB): void {
+  if (kind === 'headband') return; // drawn on the fine grid
   const [hi, base, sh] = shades(color);
+  if (kind === 'fedora') {
+    for (let x = 6; x <= 11; x++) set(buf, x, 1, base);
+    rect(buf, 5, 2, 12, 3, base);
+    set(buf, 7, 1, hi); set(buf, 8, 1, hi);
+    for (let x = 5; x <= 12; x++) set(buf, x, 4, sh); // band
+    for (let x = 2; x <= 15; x++) set(buf, x, 5, base); // brim
+    return;
+  }
+  if (kind === 'hoodie') {
+    // the hood covers the whole back of the head down to the shoulders
+    for (let x = 5; x <= 12; x++) set(buf, x, 1, base);
+    rect(buf, 4, 2, 13, 2, base);
+    rect(buf, 3, 3, 14, 13, base);
+    rect(buf, 4, 14, 13, 15, base);
+    rect(buf, 5, 16, 12, 17, base);
+    for (let y = 3; y <= 13; y++) { set(buf, 3, y, sh); set(buf, 14, y, sh); }
+    for (let y = 2; y <= 15; y++) set(buf, 8, y, sh); // hood seam
+    set(buf, 6, 1, hi); set(buf, 7, 1, hi);
+    return;
+  }
   rect(buf, 6, 2, 11, 2, base);
   rect(buf, 5, 3, 12, 3, base);
   rect(buf, 4, 4, 13, 4, base);
@@ -365,7 +436,7 @@ function drawHeadwearBack(buf: Buf, kind: 'beanie' | 'cap', color: RGB): void {
 // without covering it. The lens interior keeps the eye/skin already drawn, plus
 // a small white glint so the lens reads as transparent glass.
 function drawGlasses(buf: Buf): void {
-  const frame: RGB = [60, 54, 62];
+  const frame: RGB = GLASSES_FRAME;
   const glint: RGB = [236, 240, 246];
   // Left lens rim around the eye at (5-6, 9): top, bottom, outer + inner edge.
   for (const x of [5, 6]) { set(buf, x, 8, frame); set(buf, x, 10, frame); }
@@ -493,6 +564,7 @@ function drawSceneTorso(buf: Buf, r: AvatarRecipe, back: boolean): void {
 function drawHeadBack(buf: Buf, r: AvatarRecipe): void {
   const s = SKIN[r.skin];
   if (r.hair === 'styleBald') { drawHeadBackBald(buf, r); return; }
+  if (r.hair === 'styleMohawk') { drawHeadBackMohawk(buf, r); return; }
   const [hi, base, sh] = shades(r.hairc);
   // rounded skull silhouette (narrow at crown + nape, full through the middle)
   const rows: [number, number, number][] = [
@@ -536,6 +608,28 @@ function drawHeadBackBald(buf: Buf, r: AvatarRecipe): void {
   rect(buf, 7, 14, 10, 14, s.sh);
   rect(buf, 7, 15, 10, 17, s.sh);
   rect(buf, 7, 15, 9, 15, s.base);
+}
+
+/** Back of a mohawk: shaved skin skull with the hair strip running down the
+ *  centre from the crown to the nape. */
+function drawHeadBackMohawk(buf: Buf, r: AvatarRecipe): void {
+  const s = SKIN[r.skin];
+  const [shi, sbase, ssh] = shades(s.base, 1.1, 0.82);
+  const rows: [number, number, number][] = [
+    [2, 6, 11], [3, 5, 12], [4, 4, 13], [5, 4, 13], [6, 4, 13], [7, 4, 13], [8, 4, 13],
+    [9, 4, 13], [10, 4, 13], [11, 4, 13], [12, 4, 13], [13, 5, 12], [14, 6, 11],
+  ];
+  for (const [y, a, b] of rows) rect(buf, a, y, b, y, sbase);
+  for (let y = 4; y <= 12; y++) { set(buf, 4, y, ssh); set(buf, 13, y, ssh); }
+  for (const [x, y] of [[6, 2], [7, 2], [6, 3], [5, 4]] as const) set(buf, x, y, shi);
+  // central strip from above the crown down to the nape
+  const [hi, base, sh] = shades(r.hairc);
+  rect(buf, 8, 0, 9, 14, base);
+  for (let y = 0; y <= 2; y++) set(buf, 8, y, hi);
+  for (let y = 3; y <= 14; y++) set(buf, 9, y, sh);
+  // nape + neck (skin)
+  rect(buf, 7, 15, 10, 17, s.sh);
+  set(buf, 7, 15, s.base); // strip covers 8-9; keep a hint of skin beside it
 }
 
 function drawSceneBody(buf: Buf, r: AvatarRecipe, phase: number, back: boolean): void {
@@ -585,7 +679,9 @@ function drawHeadGroup(buf: Buf, r: AvatarRecipe): void {
   HAIR_FNS[r.hair](buf, r.hairc, skinBase, r.hairargs ?? {});
   if (r.hairTip && preHair) applyHairTip(buf, preHair, r.hairc, r.hairTip);
   if (r.headwear) drawHeadwear(buf, r.headwear, r.headwearColor ?? [70, 76, 96]);
-  if (r.glasses) drawGlasses(buf);
+  // Only the classic (clear) style is legacy-grid art; round/shades/shades3d
+  // are drawn at fine resolution after the upscale (see fine.ts).
+  if (effectiveGlassesStyle(r) === 'classic') drawGlasses(buf);
   if (r.earrings) drawEarrings(buf, r.earrings, r.earringColor ?? GOLD);
 }
 
@@ -594,10 +690,10 @@ function defaultPants(r: AvatarRecipe): RGB {
   return r.cloth === 'suit' ? shades(r.c1)[2] : [54, 56, 70];
 }
 
-/** Portrait bust: shoulders-height clothing + front head group. */
-export function compose(r: AvatarRecipe): Buf {
-  CUR_W = PORTRAIT_W; CUR_H = PORTRAIT_H;
-  const buf = new Uint8ClampedArray(PORTRAIT_W * PORTRAIT_H * 4);
+/** Legacy-grid portrait bust: shoulders-height clothing + front head group. */
+function composeLegacy(r: AvatarRecipe): Buf {
+  CUR_W = LEGACY_PORTRAIT_W; CUR_H = LEGACY_PORTRAIT_H;
+  const buf = new Uint8ClampedArray(LEGACY_PORTRAIT_W * LEGACY_PORTRAIT_H * 4);
   drawClothing(buf, r.cloth, r.c1, r.c2, r.tie, r.skin, r.heavy ?? false);
   collarNeck(buf, r.skin);
   if (r.clothAccent) applyClothAccent(buf, 19, r.c1, r.clothAccent);
@@ -606,10 +702,19 @@ export function compose(r: AvatarRecipe): Buf {
   return buf;
 }
 
-/** Full-body 18×32 scene sprite. `back=false` reuses the portrait's exact face. */
-export function composeScene(r: AvatarRecipe, phase: number, back: boolean): Buf {
-  CUR_W = SCENE_W; CUR_H = SCENE_H;
-  const buf = new Uint8ClampedArray(SCENE_W * SCENE_H * 4);
+/** Portrait bust on the fine 36×56 grid: legacy render → 2× upscale →
+ *  refinement passes → fine-grid feature art. */
+export function compose(r: AvatarRecipe): Buf {
+  const buf = upscale2x(composeLegacy(r), LEGACY_PORTRAIT_W, LEGACY_PORTRAIT_H);
+  refine(buf, PORTRAIT_W, PORTRAIT_H, r, { face: true });
+  drawFineFeatures(buf, PORTRAIT_W, PORTRAIT_H, r, { back: false });
+  return buf;
+}
+
+/** Legacy-grid full-body scene sprite. `back=false` reuses the portrait's exact face. */
+function composeSceneLegacy(r: AvatarRecipe, phase: number, back: boolean): Buf {
+  CUR_W = LEGACY_SCENE_W; CUR_H = LEGACY_SCENE_H;
+  const buf = new Uint8ClampedArray(LEGACY_SCENE_W * LEGACY_SCENE_H * 4);
   drawSceneBody(buf, r, phase, back);
   if (r.clothAccent) applyClothAccent(buf, 18, r.c1, r.clothAccent);
   if (back) {
@@ -617,5 +722,13 @@ export function composeScene(r: AvatarRecipe, phase: number, back: boolean): Buf
     if (r.headwear) drawHeadwearBack(buf, r.headwear, r.headwearColor ?? [70, 76, 96]);
   } else drawHeadGroup(buf, r);
   outlinePass(buf);
+  return buf;
+}
+
+/** Full-body 36×64 scene sprite (fine grid, same pipeline as compose()). */
+export function composeScene(r: AvatarRecipe, phase: number, back: boolean): Buf {
+  const buf = upscale2x(composeSceneLegacy(r, phase, back), LEGACY_SCENE_W, LEGACY_SCENE_H);
+  refine(buf, SCENE_W, SCENE_H, r, { face: !back });
+  drawFineFeatures(buf, SCENE_W, SCENE_H, r, { back });
   return buf;
 }

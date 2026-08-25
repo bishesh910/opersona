@@ -117,22 +117,90 @@ describe('validateRecipe', () => {
 });
 
 // ── detail fields (eyes/earrings/freckles/hairTip/clothAccent/headwear) ──────
-import { EARRINGS, HEADWEAR } from '@opersona/shared';
-import { avatarStateFrames } from '../src/index.js';
+import { EARRINGS, HEADWEAR, GLASSES_STYLES, type RGB as RGBT } from '@opersona/shared';
+import { avatarStateFrames, shades, upscale2x } from '../src/index.js';
 import LEGACY from './fixtures/legacy-buffers.json' with { type: 'json' };
 
-describe('legacy regression: recipes without detail fields render byte-identical', () => {
+// ─── Pixie HD bounded-diff regression ────────────────────────────────────────
+// The stored snapshots are the pre-HD 18-grid renders. The HD engine must
+// produce EXACTLY their nearest-neighbour 2× upscale, except where a
+// refinement pass from src/fine.ts touches. Allowlist of touchable regions
+// (keep in sync with the contract comment in src/fine.ts):
+//   1. within 1 fine px of a hair-shade pixel (hair texture, wisps,
+//      hair-meets-forehead shading, rounding on the hair silhouette),
+//   2. within 1 fine px of an opaque↔transparent silhouette boundary
+//      (corner rounding, wisp growth),
+//   3. brow box (x8-27, y10-17) and mouth box (x10-25, y24-32) — face views,
+//   4. jaw band (x6-29, y29-38) — face views.
+// Overall change must stay ≤8% of pixels.
+const DIFF_BUDGET = 0.08;
+
+function allowedMask(up: Uint8ClampedArray, w: number, h: number, hairc: RGBT, face: boolean): Uint8Array {
+  const hairSet = shades(hairc);
+  const mask = new Uint8Array(w * h);
+  const opaque = (x: number, y: number) => x >= 0 && x < w && y >= 0 && y < h && up[(y * w + x) * 4 + 3]! > 0;
+  const isHair = (x: number, y: number) => {
+    if (!opaque(x, y)) return false;
+    const i = (y * w + x) * 4;
+    return hairSet.some((c) => c[0] === up[i] && c[1] === up[i + 1] && c[2] === up[i + 2]);
+  };
+  const isBoundary = (x: number, y: number) => {
+    // a pixel on either side of an opaque↔transparent edge
+    const o = opaque(x, y);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const xo = x + dx, yo = y + dy;
+      const no = xo >= 0 && xo < w && yo >= 0 && yo < h ? opaque(xo, yo) : false;
+      if (o !== no) return true;
+    }
+    return false;
+  };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let ok = false;
+    for (let dy = -1; dy <= 1 && !ok; dy++) for (let dx = -1; dx <= 1 && !ok; dx++) {
+      if (isHair(x + dx, y + dy) || isBoundary(x + dx, y + dy)) ok = true;
+    }
+    if (face) {
+      if (x >= 8 && x <= 27 && y >= 10 && y <= 17) ok = true;  // brow box
+      if (x >= 10 && x <= 25 && y >= 24 && y <= 32) ok = true; // mouth box
+      if (x >= 6 && x <= 29 && y >= 29 && y <= 38) ok = true;  // jaw band
+    }
+    if (ok) mask[y * w + x] = 1;
+  }
+  return mask;
+}
+
+function expectBoundedDiff(now: Uint8ClampedArray, legacyB64: string, lw: number, lh: number, hairc: RGBT, face: boolean, label: string): number {
+  const up = upscale2x(new Uint8ClampedArray(Buffer.from(legacyB64, 'base64')), lw, lh);
+  const w = lw * 2, h = lh * 2;
+  expect(now.length).toBe(up.length);
+  const mask = allowedMask(up, w, h, hairc, face);
+  let diff = 0;
+  for (let i = 0; i < up.length; i += 4) {
+    if (up[i] === now[i] && up[i + 1] === now[i + 1] && up[i + 2] === now[i + 2] && up[i + 3] === now[i + 3]) continue;
+    diff++;
+    const px = (i / 4) % w, py = Math.floor(i / 4 / w);
+    if (!mask[py * w + px]) {
+      expect.fail(`${label}: pixel (${px},${py}) changed outside the refinement allowlist`);
+    }
+  }
+  expect(diff / (w * h)).toBeLessThanOrEqual(DIFF_BUDGET);
+  return diff;
+}
+
+describe('legacy regression: HD render = 2x upscale of the pre-HD snapshot except allowlisted refinement', () => {
   for (const [name, snap] of Object.entries(LEGACY as Record<string, { recipe: unknown; portrait: string; scene: { front: string[]; back: string[] } }>)) {
     // validateRecipe doubles as the schema-backward-compat check: a stored
     // pre-detail-fields recipe must still parse.
-    it(`${name} portrait is byte-equal to the pre-detail-fields snapshot`, () => {
-      expect(Buffer.from(renderPortrait(validateRecipe(snap.recipe))).equals(Buffer.from(snap.portrait, 'base64'))).toBe(true);
+    it(`${name} portrait is the bounded-refined 2x upscale of the snapshot`, () => {
+      const recipe = validateRecipe(snap.recipe);
+      expectBoundedDiff(renderPortrait(recipe), snap.portrait, 18, 28, recipe.hairc, true, `${name} portrait`);
     });
-    it(`${name} scene frames are byte-equal to the pre-detail-fields snapshot`, () => {
-      const frames = renderSceneFrames(validateRecipe(snap.recipe));
+    it(`${name} scene frames are the bounded-refined 2x upscale of the snapshot`, () => {
+      const recipe = validateRecipe(snap.recipe);
+      const frames = renderSceneFrames(recipe);
       for (let i = 0; i < 3; i++) {
-        expect(Buffer.from(frames.front[i]!).equals(Buffer.from(snap.scene.front[i]!, 'base64'))).toBe(true);
-        expect(Buffer.from(frames.back[i]!).equals(Buffer.from(snap.scene.back[i]!, 'base64'))).toBe(true);
+        expectBoundedDiff(frames.front[i]!, snap.scene.front[i]!, 18, 32, recipe.hairc, true, `${name} scene front ${i}`);
+        expectBoundedDiff(frames.back[i]!, snap.scene.back[i]!, 18, 32, recipe.hairc, false, `${name} scene back ${i}`);
       }
     });
   }
@@ -171,15 +239,38 @@ describe('detail fields', () => {
     }
   });
 
-  it('avatarStateFrames works with headwear+glasses and keeps the glasses no-blink rule', () => {
-    const withGlasses = validateRecipe({ ...base, glasses: true, headwear: 'beanie', earrings: 'hoop', hairTip: [220, 120, 200] });
-    const f = avatarStateFrames(withGlasses);
-    // glasses → the blink frame IS the open frame (no blink painted through lenses)
-    expect(Buffer.from(f.idle[0]).equals(Buffer.from(f.idle[1]))).toBe(true);
+  // no-blink matrix: only OPAQUE lens styles (shades/shades3d) suppress the
+  // blink frame; classic + round lenses keep the eyes visible and blink.
+  const blinkMatrix: Array<[Partial<AvatarRecipe>, boolean]> = [
+    [{ glasses: undefined, glassesStyle: undefined }, true],
+    [{ glasses: true }, true],                       // legacy classic
+    [{ glasses: true, glassesStyle: 'classic' }, true],
+    [{ glasses: true, glassesStyle: 'round' }, true],
+    [{ glasses: true, glassesStyle: 'shades' }, false],
+    [{ glasses: true, glassesStyle: 'shades3d' }, false],
+    [{ glassesStyle: 'shades3d' }, false],           // style alone implies glasses
+  ];
+  for (const [patch, blinks] of blinkMatrix) {
+    it(`blink matrix: ${JSON.stringify(patch)} → ${blinks ? 'blinks' : 'no blink'}`, () => {
+      const f = avatarStateFrames(validateRecipe({ ...base, glasses: undefined, ...patch }));
+      expect(Buffer.from(f.idle[0]).equals(Buffer.from(f.idle[1]))).toBe(!blinks);
+      expect(Buffer.from(f.talking[0]).equals(Buffer.from(f.talking[1]))).toBe(false);
+    });
+  }
+
+  it('every glasses style renders and changes the portrait', () => {
+    const plain = renderPortrait(validateRecipe({ ...base, glasses: undefined }));
+    for (const glassesStyle of GLASSES_STYLES) {
+      const buf = renderPortrait(validateRecipe({ ...base, glasses: true, glassesStyle }));
+      expect(opaqueCount(buf)).toBeGreaterThan(100);
+      expect(Buffer.from(buf).equals(Buffer.from(plain))).toBe(false);
+    }
+  });
+
+  it('avatarStateFrames works with headwear+glasses combined', () => {
+    const f = avatarStateFrames(validateRecipe({ ...base, glasses: true, glassesStyle: 'shades', headwear: 'hoodie', earrings: 'hoop', hairTip: [220, 120, 200] }));
+    expect(Buffer.from(f.idle[0]).equals(Buffer.from(f.idle[1]))).toBe(true); // opaque shades: no blink
     expect(Buffer.from(f.talking[0]).equals(Buffer.from(f.talking[1]))).toBe(false);
-    const noGlasses = validateRecipe({ ...base, glasses: undefined, headwear: 'cap' });
-    const g = avatarStateFrames(noGlasses);
-    expect(Buffer.from(g.idle[0]).equals(Buffer.from(g.idle[1]))).toBe(false);
   });
 
   it('undefined detail fields render identically to fields simply absent', () => {

@@ -1,5 +1,5 @@
 'use client';
-import { SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, EARRINGS, HEADWEAR, type AvatarRecipe, type RGB } from '@opersona/shared';
+import { SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, EARRINGS, HEADWEAR, GLASSES_STYLES, type AvatarRecipe, type RGB } from '@opersona/shared';
 
 const rgbToHex = (c: RGB) => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
 const hexToRgb = (h: string): RGB => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
@@ -71,9 +71,11 @@ export function RecipeEditor({ recipe, onChange, disabled }: { recipe: AvatarRec
         <Select label="Brows" value={recipe.brow} options={BROWS} onChange={(v) => set('brow', v)} allowNone />
         <Select label="Mouth" value={recipe.mouth} options={MOUTHS} onChange={(v) => set('mouth', v)} allowNone />
         <Select label="Facial hair" value={recipe.facial} options={FACIAL} onChange={(v) => set('facial', v)} allowNone />
+        <Select label="Glasses style" value={recipe.glassesStyle ?? (recipe.glasses ? 'classic' : undefined)} options={GLASSES_STYLES}
+          onChange={(v) => onChange({ ...recipe, glassesStyle: v === 'classic' ? undefined : v, glasses: v ? true : undefined })} allowNone />
       </div>
       <div className="flex flex-wrap gap-4">
-        <Check label="Glasses" value={recipe.glasses} onChange={(v) => set('glasses', v || undefined)} />
+        <Check label="Glasses" value={recipe.glasses || !!recipe.glassesStyle} onChange={(v) => onChange({ ...recipe, glasses: v || undefined, ...(v ? {} : { glassesStyle: undefined }) })} />
         <Check label="Lashes" value={recipe.lashes} onChange={(v) => set('lashes', v || undefined)} />
         <Check label="Heavy build" value={recipe.heavy} onChange={(v) => set('heavy', v || undefined)} />
         <Check label="Blush" value={recipe.blush} onChange={(v) => set('blush', v || undefined)} />

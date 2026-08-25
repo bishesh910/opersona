@@ -7,7 +7,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import sharp from 'sharp';
 import { z } from 'zod';
-import { AvatarRecipe, SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, EARRINGS, HEADWEAR, RGB } from '@opersona/shared';
+import { AvatarRecipe, SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, EARRINGS, HEADWEAR, GLASSES_STYLES, RGB } from '@opersona/shared';
 import { db, sessionCosts } from '@opersona/db';
 import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { ensureWorkspace } from '../isolation/workspace.js';
@@ -29,6 +29,7 @@ const Extraction = z.object({
   mouth: z.enum(MOUTHS),
   facial: z.enum([...FACIAL, 'none']),
   glasses: z.boolean(),
+  glassesStyle: z.enum([...GLASSES_STYLES, 'none']).describe("only when glasses are worn: 'classic' for clear prescription frames, 'round' for thin circular frames, 'shades' for opaque dark sunglasses, 'shades3d' ONLY for red/blue 3D glasses; 'none' when no glasses or unsure (defaults to classic)"),
   lashes: z.boolean().describe('bigger, lashed eyes read as more feminine/expressive — only if that fits the person'),
   heavy: z.boolean().describe('heavier build / rounder face'),
   eyes: RGB3.nullable().describe('iris colour as [r,g,b], ONLY when the eyes are clearly a distinct light colour (blue/green/hazel); null for dark/brown or unclear'),
@@ -41,13 +42,14 @@ const Extraction = z.object({
   confidence: z.object({ skin: z.number().min(0).max(1), hair: z.number().min(0).max(1), hairc: z.number().min(0).max(1), cloth: z.number().min(0).max(1), facial: z.number().min(0).max(1), glasses: z.number().min(0).max(1) }),
 });
 
-const SYSTEM = `You convert one selfie into parameters for a tiny 18x28-pixel cartoon portrait engine. Pick the CLOSEST option from each enum — the engine can only draw those. Rules:
+const SYSTEM = `You convert one selfie into parameters for a tiny 36x56-pixel cartoon portrait engine. Pick the CLOSEST option from each enum — the engine can only draw those. Rules:
 - skin: choose the palette step (light/tan/brown/dark) that best matches the visible skin tone. This is a drawing palette, not an ethnicity guess.
-- hair: styleShort (short, parted), styleFloppy (mid-length floppy fringe), styleFrame (hair framing the face to the jaw or longer), styleBun (tied up), styleCurly (curly/voluminous), styleMessy (tousled), styleRecede (receding hairline), styleSpiky (short spiky), styleBald (bald or shaved).
+- hair: styleShort (short, parted), styleFloppy (mid-length floppy fringe), styleFrame (hair framing the face to the jaw or longer), styleBun (tied up), styleCurly (curly/voluminous), styleMessy (tousled), styleRecede (receding hairline), styleSpiky (short spiky), styleBald (bald or shaved head), styleMohawk (ONLY a clear mohawk: shaved sides with a central strip), styleBuzz (ONLY a clear buzz cut: clipper-short all over).
 - hairc / c1: real RGB values sampled from the photo (hair colour, main clothing colour).
 - glasses and facial hair only if clearly visible. facial=none when absent. part=none if hair has no visible part or is bald/bun.
+- glassesStyle: only when glasses are clearly worn AND the style is obvious; otherwise 'none' (renders as classic clear frames).
 - brow/mouth: the resting expression in the photo (smile if smiling).
-- Detail fields (eyes, earrings, freckles, hairTip, headwear) are extras: set them ONLY when the feature is clearly visible in the photo; otherwise none/null/false. When in doubt, leave them off — a plain result beats a wrong one.
+- Detail fields (eyes, earrings, freckles, hairTip, headwear) are extras: set them ONLY when the feature is clearly visible in the photo; otherwise none/null/false. headwear: beanie/cap/fedora only for an actual hat of that shape, hoodie only when a hood is UP over the head, headband only for a visible band across the forehead. When in doubt, leave them off — a plain result beats a wrong one.
 - Give honest per-field confidence; low confidence is fine — a human edits the result.`;
 
 type Extracted = z.infer<typeof Extraction>;
@@ -115,7 +117,9 @@ export async function recipeFromSelfie(args: { orgId: string; apiKey: string | n
     skin: x.skin, hair: x.hair, hairc: rgb(x.hairc), cloth: x.cloth, c1: rgb(x.c1), brow: x.brow, mouth: x.mouth,
     ...(x.part !== 'none' ? { hairargs: { part: x.part } } : {}),
     ...(x.facial !== 'none' ? { facial: x.facial } : {}),
-    ...(x.glasses ? { glasses: true } : {}), ...(x.lashes ? { lashes: true } : {}), ...(x.heavy ? { heavy: true } : {}),
+    ...(x.glasses ? { glasses: true } : {}),
+    ...(x.glasses && x.glassesStyle !== 'none' && x.glassesStyle !== 'classic' ? { glassesStyle: x.glassesStyle } : {}),
+    ...(x.lashes ? { lashes: true } : {}), ...(x.heavy ? { heavy: true } : {}),
     ...(x.eyes ? { eyes: rgb(x.eyes) } : {}),
     ...(x.earrings !== 'none' ? { earrings: x.earrings, ...(x.earringColor ? { earringColor: rgb(x.earringColor) } : {}) } : {}),
     ...(x.freckles ? { freckles: true } : {}),

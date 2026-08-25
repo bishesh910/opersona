@@ -10,13 +10,14 @@ export const RGB = z.tuple([z.number().int().min(0).max(255), z.number().int().m
 export type RGB = z.infer<typeof RGB>;
 
 export const SKIN_TONES = ['light', 'tan', 'brown', 'dark'] as const;
-export const HAIR_STYLES = ['styleShort', 'styleFloppy', 'styleFrame', 'styleBun', 'styleCurly', 'styleMessy', 'styleRecede', 'styleSpiky', 'styleBald'] as const;
+export const HAIR_STYLES = ['styleShort', 'styleFloppy', 'styleFrame', 'styleBun', 'styleCurly', 'styleMessy', 'styleRecede', 'styleSpiky', 'styleBald', 'styleMohawk', 'styleBuzz'] as const;
 export const CLOTHES = ['suit', 'dressshirt', 'polo', 'blouse', 'cardigan', 'sweater'] as const;
 export const BROWS = ['flat', 'angry', 'raised', 'soft'] as const;
 export const MOUTHS = ['neutral', 'smile', 'frown', 'grin'] as const;
 export const FACIAL = ['mustache', 'mustacheSm', 'stubble', 'goatee'] as const;
 export const EARRINGS = ['stud', 'hoop'] as const;
-export const HEADWEAR = ['beanie', 'cap'] as const;
+export const HEADWEAR = ['beanie', 'cap', 'fedora', 'hoodie', 'headband'] as const;
+export const GLASSES_STYLES = ['classic', 'round', 'shades', 'shades3d'] as const;
 
 export const AvatarRecipe = z.object({
   skin: z.enum(SKIN_TONES),
@@ -38,6 +39,10 @@ export const AvatarRecipe = z.object({
   blush: z.boolean().optional(),
   facial: z.enum(FACIAL).optional(),
   glasses: z.boolean().optional(),
+  // Glasses style: absent + glasses=true means 'classic' (back-compat). 'shades'
+  // and 'shades3d' are opaque (they cover the eyes, so blink is skipped);
+  // 'classic' and 'round' keep the eyes visible through the lenses.
+  glassesStyle: z.enum(GLASSES_STYLES).optional(),
   lashes: z.boolean().optional(),
   heavy: z.boolean().optional(),
   // ── detail fields ── every one optional; absent = exactly the pre-detail rendering.

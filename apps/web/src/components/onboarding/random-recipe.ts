@@ -1,4 +1,4 @@
-import { SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, type AvatarRecipe, type RGB } from '@opersona/shared';
+import { SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, HEADWEAR, GLASSES_STYLES, type AvatarRecipe, type RGB } from '@opersona/shared';
 
 const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)]!;
 const chance = (p: number) => Math.random() < p;
@@ -49,7 +49,12 @@ export function randomRecipe(): AvatarRecipe {
   if (chance(0.4)) recipe.c2 = clothColour();
   if ((recipe.cloth === 'suit' || recipe.cloth === 'dressshirt') && chance(0.5)) recipe.tie = clothColour();
   if (chance(0.25)) recipe.facial = pick(FACIAL);
-  if (chance(0.3)) recipe.glasses = true;
+  if (chance(0.3)) {
+    recipe.glasses = true;
+    const style = pick(GLASSES_STYLES); // 'classic' stays implicit (back-compat shape)
+    if (style !== 'classic') recipe.glassesStyle = style;
+  }
+  if (chance(0.15)) { recipe.headwear = pick(HEADWEAR); recipe.headwearColor = clothColour(); }
   if (chance(0.3)) recipe.lashes = true;
   if (chance(0.2)) recipe.blush = true;
   if (chance(0.15)) recipe.heavy = true;

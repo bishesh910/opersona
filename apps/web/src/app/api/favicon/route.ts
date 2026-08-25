@@ -19,5 +19,5 @@ export async function GET() {
       if (clone?.r) recipe = clone.r;
     }
   } catch { /* fall back to the default face */ }
-  return new Response(new Uint8Array(headPNG(recipe, 4)), { headers: { 'content-type': 'image/png', 'cache-control': 'private, max-age=300' } });
+  return new Response(new Uint8Array(headPNG(recipe, 2)), { headers: { 'content-type': 'image/png', 'cache-control': 'private, max-age=300' } }); // HD head crop is 36×36 — scale 2 keeps the 72×72 icon
 }
