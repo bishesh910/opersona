@@ -11,7 +11,10 @@
 //   2. single fine corner pixels of the head-region silhouette (rounding),
 //   3. the top skin row under the hair fringe + the bottom skin row of the jaw
 //      (soft shading),
-//   4. the brow box (fine x8-27, y10-17) and mouth box (fine x10-25, y24-32).
+//   4. the brow box (fine x8-27, y10-17) and mouth box (fine x10-25, y24-32),
+//   5. the eye boxes (fine x10-13 / x20-23, y17-21) — cartoon eye redraw,
+//   6. the cheek contour columns (fine x10-11 / x24-25, y12-29) — stripe softening,
+//   7. the jaw band (fine x6-29, y29-38) — extra corner rounding.
 // Total change stays ≤8% of pixels. Keep any new refinement inside these
 // regions or extend the allowlist + test deliberately.
 import type { AvatarRecipe, RGB } from '@opersona/shared';
@@ -160,6 +163,84 @@ function softShading(buf: Buf, w: number, h: number, r: AvatarRecipe, face: bool
 /** (d) Finer brows + mouth corners. Brows drawn in the skin line colour thin to
  *  one fine px (the block's top row takes the colour above it); smile/frown/grin
  *  corner blocks become 1-fine-px diagonal steps. */
+/** Cartoon eyes (portrait only). The legacy eye is a 2-px slit whose pupil hugs the
+ *  inner edge, which reads as a lazy eye once upscaled. Redraw each eye at fine
+ *  resolution: sclera ring, a centred 2x2 iris (recipe.eyes colour), a darker pupil
+ *  corner and a same-side glint on both eyes, plus a rounded lower lid row. */
+function cartoonEyes(buf: Buf, w: number, h: number, r: AvatarRecipe): void {
+  const s = SKIN[r.skin];
+  const sclera: RGB = [250, 248, 244];
+  const scleraLo: RGB = [219, 214, 207];
+  const iris: RGB = r.eyes ?? [72, 56, 46];
+  const pupil: RGB = [clamp(iris[0] * 0.5), clamp(iris[1] * 0.5), clamp(iris[2] * 0.5)];
+  const glint: RGB = [clamp(iris[0] * 0.25 + 200), clamp(iris[1] * 0.25 + 200), clamp(iris[2] * 0.25 + 200)];
+  for (const ox of [10, 20]) {
+    // y18: top of the eye — sclera sides, glint + iris centre (light from the left on BOTH eyes)
+    put(buf, w, h, ox, 18, sclera); put(buf, w, h, ox + 1, 18, glint);
+    put(buf, w, h, ox + 2, 18, iris); put(buf, w, h, ox + 3, 18, sclera);
+    // y19: sclera sides, iris + pupil centre
+    put(buf, w, h, ox, 19, sclera); put(buf, w, h, ox + 1, 19, iris);
+    put(buf, w, h, ox + 2, 19, pupil); put(buf, w, h, ox + 3, 19, sclera);
+    // y20: rounded lower lid — shaded sclera centre, skin-shade corners
+    put(buf, w, h, ox, 20, s.sh); put(buf, w, h, ox + 1, 20, scleraLo);
+    put(buf, w, h, ox + 2, 20, scleraLo); put(buf, w, h, ox + 3, 20, s.sh);
+  }
+}
+
+/** Soften the harsh 2-fine-px cheek stripes the legacy shading columns upscale into
+ *  (highlight at fine x10-11, shadow at x24-25): colour-keyed uniform blend toward
+ *  base skin so the contour survives as a soft tint instead of a hard line. */
+function softenCheeks(buf: Buf, w: number, h: number, r: AvatarRecipe): void {
+  const s = SKIN[r.skin];
+  const blend = (a: RGB, b: RGB, t: number): RGB => [clamp(a[0] + (b[0] - a[0]) * t), clamp(a[1] + (b[1] - a[1]) * t), clamp(a[2] + (b[2] - a[2]) * t)];
+  for (let y = 12; y <= 29; y++) for (const x of [10, 11, 24, 25]) {
+    if (A(buf, w, h, x, y) !== 255) continue;
+    const c = C(buf, w, x, y);
+    const key = eqRGB(c, s.hi) || eqRGB(c, s.sh);
+    if (!key) continue;
+    put(buf, w, h, x, y, blend(c, s.base, 0.72));
+  }
+}
+
+/** Taper the lower face: on rows 31-36 pull each cheek's silhouette inward (1 fine px,
+ *  2 on the lowest rows) so the jaw narrows toward the chin instead of staying a box.
+ *  Guarded: only fires where the edge is outline-over-skin, so side hair, beards and
+ *  collars are never notched. The outline stays continuous (it is 2 px thick; when both
+ *  px go, the newly exposed skin px is repainted as outline). */
+function jawTaper(buf: Buf, w: number, h: number, r: AvatarRecipe): void {
+  const s = SKIN[r.skin];
+  const skinish = (c: RGB): boolean => eqRGB(c, s.base) || eqRGB(c, s.sh) || eqRGB(c, s.hi);
+  for (let y = 31; y <= Math.min(h - 1, 36); y++) {
+    const deep = y >= 34 ? 2 : 1;
+    for (const dir of [1, -1] as const) {
+      // scan inward from the side to the first opaque px of the face edge
+      let x = dir === 1 ? 2 : w - 3;
+      while (x >= 2 && x <= w - 3 && A(buf, w, h, x, y) === 0) x += dir;
+      if (x < 2 || x > w - 3 || A(buf, w, h, x, y) === 0) continue;
+      if (!eqRGB(C(buf, w, x, y), OUTLINE)) continue;                    // covered by hair → skip
+      const probe = C(buf, w, x + 2 * dir, y);
+      if (A(buf, w, h, x + 2 * dir, y) !== 255 || !skinish(probe)) continue; // not a bare cheek → skip
+      clearPx(buf, w, h, x, y);
+      if (deep === 2) { clearPx(buf, w, h, x + dir, y); put(buf, w, h, x + 2 * dir, y, OUTLINE); }
+    }
+  }
+}
+
+/** Extra rounding pass for the chin: repeat the convex-corner tip kill inside the jaw
+ *  band (y29-38) so the jaw curves in a 2-px step instead of a hard box corner. */
+function roundJaw(buf: Buf, w: number, h: number): void {
+  for (let pass = 0; pass < 2; pass++) {
+    const kill: [number, number][] = [];
+    for (let y = 29; y <= Math.min(h - 1, 38); y++) for (let x = 6; x <= Math.min(w - 1, 29); x++) {
+      if (A(buf, w, h, x, y) === 0) continue;
+      const dn = A(buf, w, h, x, y + 1) === 0;
+      const lf = A(buf, w, h, x - 1, y) === 0, rt = A(buf, w, h, x + 1, y) === 0;
+      if ((dn && lf) || (dn && rt)) kill.push([x, y]);
+    }
+    for (const [x, y] of kill) clearPx(buf, w, h, x, y);
+  }
+}
+
 function refineFace(buf: Buf, w: number, h: number, r: AvatarRecipe): void {
   const s = SKIN[r.skin];
   // brows: box x8..27, y10..17
@@ -194,7 +275,7 @@ export function refine(buf: Buf, w: number, h: number, r: AvatarRecipe, opts: Re
   roundCorners(buf, w, h);
   hairTexture(buf, w, h, r, seed);
   softShading(buf, w, h, r, opts.face);
-  if (opts.face) refineFace(buf, w, h, r);
+  if (opts.face) { refineFace(buf, w, h, r); softenCheeks(buf, w, h, r); cartoonEyes(buf, w, h, r); jawTaper(buf, w, h, r); roundJaw(buf, w, h); }
 }
 
 // ─── fine-grid feature art (new features only — never legacy recipes) ────────

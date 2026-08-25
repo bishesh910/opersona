@@ -64,16 +64,19 @@ export function talkingFrames(recipe: AvatarRecipe): [Uint8ClampedArray, Uint8Cl
   return [closed, open];
 }
 
-/** Eye pixels sit on fine rows 18-19 at x 10-13 and 20-23 (legacy row 9 at
- *  x 5,6 / 10,11 — see engine drawFace). A blink paints them over with the
- *  cheek colour sampled directly beneath each eye (fine rows 24-25). */
+/** Cartoon eyes sit on fine rows 18-20 at x 10-13 and 20-23 (see fine.ts
+ *  cartoonEyes). A blink paints them over with the cheek colour sampled beneath
+ *  each eye (fine rows 24-25) plus a darkened closed-lid line. */
 function blinkFrame(open: Uint8ClampedArray): Uint8ClampedArray {
   const b = new Uint8ClampedArray(open);
   for (const x of [10, 11, 12, 13, 20, 21, 22, 23]) {
-    for (const [dy, sy] of [[18, 24], [19, 25]] as const) {
+    // cover the (now 3-row) eye with cheek colour, then a closed-lid line at y19
+    for (const [dy, sy] of [[18, 24], [19, 25], [20, 25]] as const) {
       const src = (sy * PORTRAIT_W + x) * 4, dst = (dy * PORTRAIT_W + x) * 4;
       b[dst] = open[src]!; b[dst + 1] = open[src + 1]!; b[dst + 2] = open[src + 2]!; b[dst + 3] = open[src + 3]!;
     }
+    const lid = (19 * PORTRAIT_W + x) * 4;
+    b[lid] = b[lid]! * 0.45; b[lid + 1] = b[lid + 1]! * 0.45; b[lid + 2] = b[lid + 2]! * 0.45;
   }
   return b;
 }

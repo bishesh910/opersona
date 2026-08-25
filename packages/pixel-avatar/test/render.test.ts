@@ -131,7 +131,9 @@ import LEGACY from './fixtures/legacy-buffers.json' with { type: 'json' };
 //   2. within 1 fine px of an opaque↔transparent silhouette boundary
 //      (corner rounding, wisp growth),
 //   3. brow box (x8-27, y10-17) and mouth box (x10-25, y24-32) — face views,
-//   4. jaw band (x6-29, y29-38) — face views.
+//   4. jaw band (x6-29, y29-38) — face views,
+//   5. eye boxes (x10-13 / x20-23, y17-21) — cartoon eye redraw, face views,
+//   6. cheek contour columns (x10-11 / x24-25, y12-29) — stripe softening, face views.
 // Overall change must stay ≤8% of pixels.
 const DIFF_BUDGET = 0.08;
 
@@ -163,6 +165,8 @@ function allowedMask(up: Uint8ClampedArray, w: number, h: number, hairc: RGBT, f
       if (x >= 8 && x <= 27 && y >= 10 && y <= 17) ok = true;  // brow box
       if (x >= 10 && x <= 25 && y >= 24 && y <= 32) ok = true; // mouth box
       if (x >= 6 && x <= 29 && y >= 29 && y <= 38) ok = true;  // jaw band
+      if (((x >= 10 && x <= 13) || (x >= 20 && x <= 23)) && y >= 17 && y <= 21) ok = true; // eye boxes
+      if (((x >= 10 && x <= 11) || (x >= 24 && x <= 25)) && y >= 12 && y <= 29) ok = true; // cheek columns
     }
     if (ok) mask[y * w + x] = 1;
   }
