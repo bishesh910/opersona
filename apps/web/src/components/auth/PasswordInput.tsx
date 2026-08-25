@@ -29,7 +29,9 @@ export function PasswordInput({ id, value, onChange, autoComplete = 'current-pas
       <button
         type="button"
         className="absolute inset-y-0 right-1 my-auto flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
-        onClick={() => setShow((v) => !v)}
+        // pointerdown + preventDefault: iOS Safari swallows the first tap's click while it
+        // negotiates input focus — this toggles on the tap itself and never steals focus.
+        onPointerDown={(e) => { e.preventDefault(); setShow((v) => !v); }}
         aria-label={show ? 'Hide password' : 'Show password'}
         aria-pressed={show}
         tabIndex={-1}
