@@ -218,12 +218,40 @@ export function renderPortraitV2(r: AvatarRecipe): Uint8ClampedArray {
       put(x, y, mix(g0, g1, Math.max(0, Math.min(1, t))));
     }
   }
-  // collar details
-  if (r.clothAccent) { for (let x = 2; x <= 33; x++) { const top = domeTopAt(x); if (top < V2_H) { put(x, top, r.clothAccent); put(x, top + 1, r.clothAccent); } } }
-  if ((r.cloth === 'suit' || r.cloth === 'dressshirt') && !r.clothAccent) {
-    const nc = r.cloth === 'suit' ? darken(g0, 0.72) : lighten(g0, 1.28);
-    for (const dx of [-3, -2, 2, 3]) { const x = Math.round(17.5 + dx); put(x, domeTopAt(x), nc); }
+  // per-cloth details — same flat style, but each garment reads differently
+  const dk = darken(g0, 0.7);
+  const shirtWhite: RGB = [240, 238, 232];
+  if (r.cloth === 'sweater') {
+    // ribbed collar: one darker row along the neckline
+    for (let x = 12; x <= 23; x++) { const t = domeTopAt(x); if (t < V2_H) put(x, t, dk); }
+  } else if (r.cloth === 'polo') {
+    // collar flaps + a button
+    put(14, 34, dk); put(15, 34, dk); put(14, 35, dk);
+    put(21, 34, dk); put(20, 34, dk); put(21, 35, dk);
+    put(17, 36, dk); put(18, 36, dk);
+  } else if (r.cloth === 'dressshirt') {
+    // pointed collar + button placket
+    for (const [cx, m] of [[13, 0], [22, 0]] as const) { void m; put(cx, 33, dk); }
+    put(14, 34, dk); put(15, 34, dk); put(15, 35, dk); put(16, 36, dk);
+    put(21, 34, dk); put(20, 34, dk); put(20, 35, dk); put(19, 36, dk);
+    for (const by of [38, 41, 44]) { put(17, by, dk); put(18, by, dk); }
+  } else if (r.cloth === 'suit') {
+    // white shirt in a V opening + darker lapels
+    const vRows: Array<[number, number]> = [[34, 3], [35, 2], [36, 2], [37, 1], [38, 1], [39, 0]];
+    for (const [vy, half] of vRows) { hrow(17 - half, 18 + half, vy, shirtWhite); }
+    for (const [vy, half] of vRows) { put(16 - half, vy, dk); put(19 + half, vy, dk); }
+  } else if (r.cloth === 'blouse') {
+    // scoop-neck trim + puffed shoulders
+    for (let x = 13; x <= 22; x++) { const t = domeTopAt(x); if (t < V2_H) put(x, t, lighten(g0, 1.35)); }
+    for (const px2 of [7, 8, 27, 28]) { const t = domeTopAt(px2); if (t < V2_H) put(px2, t - 1, g0); }
+  } else if (r.cloth === 'cardigan') {
+    // open front: inner shirt strip with dark edges + buttons
+    for (let y = 35; y < V2_H; y++) hrow(16, 19, y, shirtWhite);
+    for (let y = 35; y < V2_H; y++) { put(15, y, dk); put(20, y, dk); }
+    put(14, 34, dk); put(21, 34, dk);
+    for (const by of [39, 43]) put(19, by, dk);
   }
+  if (r.clothAccent) { for (let x = 2; x <= 33; x++) { const top = domeTopAt(x); if (top < V2_H) { put(x, top, r.clothAccent); put(x, top + 1, r.clothAccent); } } }
   if (r.tie) { for (let y = 35; y <= 40; y++) hrow(17, 18, y, r.tie); put(16, 35, r.tie); put(19, 35, r.tie); }
 
   // ── long hair drapes over the shoulders (styleFrame), reference-style ──────

@@ -28,9 +28,42 @@ function hslToRgb(h: number, s: number, l: number): RGB {
   return [f(0), f(8), f(4)];
 }
 
-/** A wearable colour: any hue, moderate saturation and lightness. */
+/** Actual-wardrobe colours — what people really wear. A random vivid hue makes
+ *  everyone look like a highlighter pack, so those are the rare exception below. */
+const WARDROBE: RGB[] = [
+  [236, 234, 228], // white
+  [225, 216, 198], // cream
+  [198, 198, 202], // light grey
+  [148, 148, 154], // grey
+  [72, 74, 80],    // charcoal
+  [44, 44, 48],    // black
+  [46, 58, 92],    // navy
+  [70, 96, 140],   // denim
+  [112, 140, 168], // dusty blue
+  [62, 118, 118],  // teal
+  [58, 94, 66],    // forest
+  [108, 110, 72],  // olive
+  [150, 158, 138], // sage
+  [110, 46, 56],   // burgundy
+  [158, 82, 52],   // rust
+  [188, 148, 62],  // mustard
+  [108, 82, 62],   // brown
+  [178, 150, 112], // tan
+  [198, 142, 142], // dusty pink
+  [148, 130, 168], // lavender
+];
+
+/** A wearable colour: usually from the wardrobe, occasionally something loud. */
 function clothColour(): RGB {
-  return hslToRgb(Math.random() * 360, 0.3 + Math.random() * 0.45, 0.3 + Math.random() * 0.4);
+  if (chance(0.12)) return hslToRgb(Math.random() * 360, 0.45 + Math.random() * 0.3, 0.4 + Math.random() * 0.25); // the fun one
+  return pick(WARDROBE);
+}
+
+/** Gradient partner for c1: same garment, softly lit — never a clashing second hue. */
+function shadeOf(c: RGB): RGB {
+  const t = 0.18 + Math.random() * 0.14;
+  const to: RGB = chance(0.5) ? [255, 255, 255] : [0, 0, 0];
+  return [Math.round(c[0] + (to[0] - c[0]) * t), Math.round(c[1] + (to[1] - c[1]) * t), Math.round(c[2] + (to[2] - c[2]) * t)];
 }
 
 /** A random but valid AvatarRecipe — every value from the shared enums / ranges. */
@@ -46,7 +79,7 @@ export function randomRecipe(): AvatarRecipe {
     mouth: pick(MOUTHS),
   };
   if (hair !== 'styleBald' && chance(0.7)) recipe.hairargs = { part: pick(['L', 'R'] as const) };
-  if (chance(0.4)) recipe.c2 = clothColour();
+  if (chance(0.5)) recipe.c2 = shadeOf(recipe.c1);
   if ((recipe.cloth === 'suit' || recipe.cloth === 'dressshirt') && chance(0.5)) recipe.tie = clothColour();
   if (chance(0.25)) recipe.facial = pick(FACIAL);
   if (chance(0.3)) {
