@@ -9,7 +9,7 @@ import type { AvatarRecipe } from '@opersona/shared';
 const initials = (name: string) =>
   name.trim().split(/\s+/).map((w) => w[0]?.toUpperCase() ?? '').slice(0, 2).join('') || '?';
 
-export function UserMenu({ name, email, avatarRecipe }: { name: string; email: string; avatarRecipe?: AvatarRecipe | null }) {
+export function UserMenu({ name, email, avatarRecipe, dropUp = false }: { name: string; email: string; avatarRecipe?: AvatarRecipe | null; dropUp?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -28,7 +28,7 @@ export function UserMenu({ name, email, avatarRecipe }: { name: string; email: s
         <span className="hidden sm:inline" title={name}>{initials(name)}</span>
       </button>
       {open && (
-        <div role="menu" className="card absolute right-0 z-20 mt-1 w-56 p-2 shadow-lg">
+        <div role="menu" className={"card absolute z-20 w-56 p-2 shadow-lg " + (dropUp ? "bottom-full left-0 mb-1" : "right-0 mt-1")}>
           <div className="px-2 py-1 text-xs">
             <div className="font-medium">{name}</div>
             <div className="muted truncate">{email}</div>

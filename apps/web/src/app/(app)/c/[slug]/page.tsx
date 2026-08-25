@@ -34,7 +34,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
   const recent = recentRows.map((r) => ({ slug: r.slug, title: r.title, when: r.at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }));
 
   return (
-    <div className="flex h-[calc(100dvh-7.85rem)] flex-col md:h-[calc(100dvh-5rem)]">
+    <div className="flex h-[calc(100dvh-7.85rem)] flex-col md:h-[calc(100dvh-2rem)]">
       <div className="flex items-center gap-2 px-1 pb-2">
         <RecentChats currentSlug={conv.slug} items={recent} />
       </div>
