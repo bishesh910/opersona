@@ -361,7 +361,6 @@ export function ChatView({
         <div className="min-w-0 flex-1">
           <Title conversationId={conversationId} title={title} canEdit={!readOnly && !visitorView} editing={editingTitle} setEditing={setEditingTitle} onRenamed={(t) => { setTitle(t); router.refresh(); }} />
         </div>
-        <Link href={newHref ?? '/chat?new=1'} className="btn-secondary btn-sm" data-new-chat-top>+ New</Link>
 
       </div>
 

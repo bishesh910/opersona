@@ -39,7 +39,6 @@ export default async function ChatListPage({ params, searchParams }: { params: P
             <input type="hidden" name="cloneId" value={id} />
             <input name="title" className="input w-full sm:w-56" placeholder="Title (optional)" />
             <div className="flex gap-2">
-              <button className="btn-primary flex-1 whitespace-nowrap sm:flex-none" name="mode" value="claude" title="A normal Claude chat. Your persona only learns from it.">New chat with Claude</button>
               <button className="btn-secondary flex-1 whitespace-nowrap sm:flex-none" name="mode" value="clone" title="Talk to your persona to see how well it has learned you.">Test my persona</button>
             </div>
           </form>
