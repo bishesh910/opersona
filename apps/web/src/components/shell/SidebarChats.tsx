@@ -24,6 +24,8 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
     <div ref={ref} className="group relative">
       <Link
         href={c.href}
+        draggable
+        onDragStart={(e) => { e.dataTransfer.setData('application/x-chat', JSON.stringify({ id: c.id, pinned: c.pinned })); e.dataTransfer.effectAllowed = 'move'; }}
         className={
           'block truncate rounded-md py-1.5 pl-2 pr-7 text-sm ' +
           (active
@@ -76,11 +78,28 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
 }
 
 function Section({ label, storageKey, chats, path, first }: { label: string; storageKey: string; chats: SidebarChat[]; path: string; first: boolean }) {
+  const router = useRouter();
   const [open, setOpen] = useState(true);
+  const [over, setOver] = useState(false);
+  const wantsPinned = label === 'Pinned';
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault(); setOver(false);
+    try {
+      const { id, pinned } = JSON.parse(e.dataTransfer.getData('application/x-chat')) as { id: string; pinned: boolean };
+      if (pinned === wantsPinned) return;
+      await pinChatAction(id, wantsPinned);
+      router.refresh();
+    } catch { /* not a chat row */ }
+  };
+  const dnd = {
+    onDragOver: (e: React.DragEvent) => { if (e.dataTransfer.types.includes('application/x-chat')) { e.preventDefault(); setOver(true); } },
+    onDragLeave: () => setOver(false),
+    onDrop,
+  };
   useEffect(() => { try { if (localStorage.getItem(storageKey) === '0') setOpen(false); } catch { /* ignore */ } }, [storageKey]);
   const toggle = () => { setOpen((o) => { try { localStorage.setItem(storageKey, o ? '0' : '1'); } catch { /* ignore */ } return !o; }); };
   return (
-    <>
+    <div {...dnd} className={'rounded-md ' + (over ? 'bg-neutral-200/50 ring-1 ring-neutral-400 dark:bg-neutral-800/50 dark:ring-neutral-600' : '')}>
       <button
         type="button"
         aria-expanded={open}
@@ -91,8 +110,8 @@ function Section({ label, storageKey, chats, path, first }: { label: string; sto
         <span aria-hidden className={'text-sm leading-none ' + (open ? '' : 'opacity-50')}>›</span>
         {!open && <span className="ml-auto">{chats.length}</span>}
       </button>
-      {open && <div className="space-y-0.5">{chats.map((c) => <Item key={c.id} c={c} active={path === c.href} />)}</div>}
-    </>
+      {open && (chats.length > 0 ? <div className="space-y-0.5">{chats.map((c) => <Item key={c.id} c={c} active={path === c.href} />)}</div> : <p className="muted px-2 pb-1 text-[11px]">Drag a chat here to pin it</p>)}
+    </div>
   );
 }
 
@@ -108,7 +127,7 @@ export function SidebarChats({ items }: { items: SidebarChat[] }) {
   return (
     <div className="mt-4 flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
-        {pinned.length > 0 && <Section label="Pinned" storageKey="sb.pinned" chats={pinned} path={path} first={takeFirst()} />}
+        <Section label="Pinned" storageKey="sb.pinned" chats={pinned} path={path} first={takeFirst()} />
         {claude.length > 0 && <Section label="Chats" storageKey="sb.chats" chats={claude} path={path} first={takeFirst()} />}
         {persona.length > 0 && <Section label="opersona chats" storageKey="sb.pchats" chats={persona} path={path} first={takeFirst()} />}
       </div>
