@@ -17,7 +17,7 @@ export function SidebarFooter({ name, email, avatarRecipe }: {
 }) {
   // decorative random strangers for the Opersonas button (fresh faces each visit, nobody's real Pixie)
   const [crowd, setCrowd] = useState<AvatarRecipe[]>([]);
-  useEffect(() => { setCrowd([randomRecipe(), randomRecipe()]); }, []);
+  useEffect(() => { setCrowd([randomRecipe(), randomRecipe(), randomRecipe()]); }, []);
   const path = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -42,12 +42,20 @@ export function SidebarFooter({ name, email, avatarRecipe }: {
       </Link>
       {/* the others → Opersonas */}
       <Link href="/clones" title="Opersonas" aria-label="Opersonas" className={pad(path.startsWith('/clones'))}>
-        <span className="flex items-end -space-x-1.5">
-          {crowd.map((r, i) => (
-            <span key={i} style={{ zIndex: 2 - i }}>
-              <AvatarThumb recipe={r} name="?" scale={1} />
+        {/* little crowd: two in back, one front-and-centre */}
+        <span className="relative inline-flex">
+          <span className="flex items-end -space-x-1.5">
+            {crowd.slice(0, 2).map((r, i) => (
+              <span key={i} className="opacity-90">
+                <AvatarThumb recipe={r} name="?" scale={0.9} />
+              </span>
+            ))}
+          </span>
+          {crowd[2] && (
+            <span className="absolute -bottom-0.5 left-1/2 z-10 -translate-x-1/2">
+              <AvatarThumb recipe={crowd[2]} name="?" scale={1} />
             </span>
-          ))}
+          )}
         </span>
       </Link>
       <ChatSearch anchorToContainer />
