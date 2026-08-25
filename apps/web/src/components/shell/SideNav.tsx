@@ -12,15 +12,15 @@ const ITEMS = [
 
 const LEAN = new Set(['/chat', '/approvals']); // desktop sidebar: the rest live in the account menu
 
-export function SideNav({ horizontal = false }: { horizontal?: boolean }) {
+export function SideNav({ horizontal = false, include }: { horizontal?: boolean; include?: string[] }) {
   const path = usePathname();
-  const items = horizontal ? ITEMS : ITEMS.filter((it) => LEAN.has(it.href));
+  const items = horizontal ? ITEMS : ITEMS.filter((it) => (include ? include.includes(it.href) : LEAN.has(it.href)));
   return (
     <ul className={horizontal ? 'nav-scroll gap-1' : 'space-y-0.5'}>
       {items.map((it, idx) => {
         const active = path === it.href || path.startsWith(it.href + '/');
         return (
-          <li key={it.href} className={!horizontal && idx > 0 ? 'mt-3 border-t border-neutral-200 pt-3 dark:border-neutral-800' : undefined}>
+          <li key={it.href}>
             <Link
               href={it.href}
               className={

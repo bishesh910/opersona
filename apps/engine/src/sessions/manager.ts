@@ -15,6 +15,7 @@ import { query, type Options, type SDKMessage, type SDKUserMessage, type Query, 
 import { and, eq } from 'drizzle-orm';
 import { db, clones, conversations, turns, sessionCosts } from '@opersona/db';
 import { redactSecrets, type EngineEvent } from '@opersona/shared';
+import { maybeTitleConversation } from '../learning/title.js';
 import { config } from '../config.js';
 import { orgModelConfig, authMode } from '../keys.js';
 import { ensureWorkspace } from '../isolation/workspace.js';
@@ -231,6 +232,7 @@ async function consume(s: Live): Promise<void> {
             turnId = row?.id;
           }
           if (text) emit({ type: 'assistant_message', text, turn_id: turnId });
+          void maybeTitleConversation(s.orgId, s.cloneId, s.conversationId).catch((e) => console.error('[title]', e));
           const u = m.usage;
           const cost = m.total_cost_usd ?? null;
           await db.insert(sessionCosts).values({
