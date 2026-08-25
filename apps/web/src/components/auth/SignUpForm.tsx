@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import { signUp } from '@/lib/auth-client';
 import { SocialButtons } from './SocialButtons';
 
-export function SignUpForm({ social = { google: false, apple: false }, next, prefillEmail }: { social?: { google: boolean; apple: boolean }; next?: string; prefillEmail?: string }) {
+export function SignUpForm({ social = { google: false, apple: false }, next, prefillEmail, lockEmail = false }: { social?: { google: boolean; apple: boolean }; next?: string; prefillEmail?: string; lockEmail?: boolean }) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState(prefillEmail ?? '');
+  const [confirm, setConfirm] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -16,6 +18,7 @@ export function SignUpForm({ social = { google: false, apple: false }, next, pre
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setError(null);
+    if (password !== confirm) { setError('Passwords do not match'); setBusy(false); return; }
     const res = await signUp.email({ name, email, password });
     setBusy(false);
     if (res.error) { setError(res.error.message ?? 'Sign-up failed'); return; }
@@ -33,11 +36,21 @@ export function SignUpForm({ social = { google: false, apple: false }, next, pre
       </div>
       <div>
         <label className="label" htmlFor="email">Email</label>
-        <input id="email" className="input" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input id="email" className="input read-only:opacity-70" type="email" required autoComplete="email" value={email} readOnly={lockEmail} onChange={(e) => setEmail(e.target.value)} />
       </div>
       <div>
         <label className="label" htmlFor="password">Password</label>
-        <input id="password" className="input" type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <div className="relative">
+          <input id="password" className="input pr-16" type={showPw ? 'text' : 'password'} required minLength={8} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <button type="button" className="absolute inset-y-0 right-2 my-auto text-xs font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Hide password' : 'Show password'}>
+            {showPw ? 'Hide' : 'Show'}
+          </button>
+        </div>
+      </div>
+      <div>
+        <label className="label" htmlFor="confirm">Confirm password</label>
+        <input id="confirm" className="input" type={showPw ? 'text' : 'password'} required minLength={8} autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+        {confirm.length > 0 && confirm !== password && <p className="mt-1 text-xs text-red-600">Passwords don&apos;t match yet.</p>}
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button className="btn-primary w-full" disabled={busy}>{busy ? 'Creating…' : 'Sign up'}</button>
