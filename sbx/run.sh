@@ -37,7 +37,7 @@ exec sudo -n /usr/bin/bwrap \
   --symlink usr/bin /bin --symlink usr/sbin /sbin --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
   --ro-bind /etc /etc \
   --proc /proc --dev /dev \
-  --tmpfs /tmp --tmpfs /run --tmpfs /var \
+  --perms 1777 --tmpfs /tmp --perms 1777 --tmpfs /var/tmp --tmpfs /run --tmpfs /var \
   --bind "$WS" "$WS" --chdir "$WS" \
   "${NODE_BIND[@]}" \
   --clearenv \

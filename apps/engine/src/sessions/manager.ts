@@ -23,7 +23,7 @@ import { activePrompt, PLAIN_CLAUDE_PROMPT } from '../persona/assemble.js';
 import { createPersonaServer, PERSONA_SERVER, PERSONA_TOOLS } from '../persona/mcp.js';
 import { publish } from './events.js';
 import { requestApproval } from './approvals.js';
-import { EXEC_BUILTINS, WRITE_TOOLS, wrapBash, writeToolInWorkspace, scanDir, diffFiles, type FileStat } from './sandbox.js';
+import { EXEC_BUILTINS, WRITE_TOOLS, wrapBash, writeToolInWorkspace, scanDir, diffFiles, saveAttachmentsToWorkdir, type FileStat } from './sandbox.js';
 
 /** Minimal push-based async iterable for SDKUserMessage. */
 export class InputQueue implements AsyncIterable<SDKUserMessage> {
@@ -125,12 +125,21 @@ export async function sendMessage(args: { conversationId: string; orgId: string;
   let s = live.get(args.conversationId);
   if (!s) s = await start(args);
   touch(s);
+  // Save attachments as real files in the workdir BEFORE snapshotting, so sandboxed code
+  // can process them and they are not counted as this turn's generated outputs.
+  let saved: string[] = [];
+  if (args.attachments?.length) {
+    saved = saveAttachmentsToWorkdir(s.workdir, args.attachments.map((a) => ({ name: a.name, buf: Buffer.from(a.dataBase64, 'base64') })));
+  }
   s.filesBefore = scanDir(s.workdir);
   const text = args.text;
   const header = `[context] today: ${new Date().toISOString().slice(0, 10)}\n\n`;
   // Volatile context goes in the user turn, never the system prompt (prefix cache).
   const isFirst = s.textBuf === '' && s.toolUses.length === 0 && !s.sdkSessionId;
-  const blocks: UserBlock[] = [...(args.attachments?.length ? await attachmentBlocks(args.attachments) : []), { type: 'text', text: (isFirst ? header : '') + text }];
+  const savedNote: UserBlock[] = saved.length
+    ? [{ type: 'text', text: `[Attached file(s) saved to your working directory: ${saved.join(', ')}. Use Bash/Read to open or process them directly.]` }]
+    : [];
+  const blocks: UserBlock[] = [...(args.attachments?.length ? await attachmentBlocks(args.attachments) : []), ...savedNote, { type: 'text', text: (isFirst ? header : '') + text }];
   const only = blocks.length === 1 ? blocks[0]! : null;
   s.input.push({ type: 'user', message: { role: 'user', content: only && only.type === 'text' ? only.text : blocks }, parent_tool_use_id: null });
   await db.update(conversations).set({ status: 'live', lastActivityAt: new Date() }).where(eq(conversations.id, args.conversationId));

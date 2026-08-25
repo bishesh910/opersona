@@ -9,7 +9,7 @@
  * a path check. After each turn we diff the workdir and offer any new/changed file as a
  * download.
  */
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, statSync, writeFileSync } from 'node:fs';
 import { resolve, isAbsolute, relative, join } from 'node:path';
 import { config } from '../config.js';
 
@@ -81,6 +81,37 @@ export function diffFiles(dir: string, before: Map<string, FileStat>): { path: s
     }
   }
   return changed.sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, 40).map(({ path, size }) => ({ path, size }));
+}
+
+/** Reduce an attachment name to a safe basename that can only land inside the workdir:
+ *  no directory separators, no leading dots (no dotfiles / traversal), bounded length. */
+export function safeAttachmentName(raw: string): string {
+  const base = (raw.split(/[\\/]/).pop() ?? '').trim();
+  const clean = base.replace(/[^\w.\- ]/g, '_').replace(/^\.+/, '').slice(0, 120).trim();
+  return clean || 'file';
+}
+
+/** Write the turn's attachments into the workdir (deduping names) so sandboxed code can
+ *  read/process the real bytes. Names are sanitized to basenames; the join is re-checked
+ *  to stay inside the workdir. Returns the relative names actually written. */
+export function saveAttachmentsToWorkdir(wsCwd: string, atts: { name: string; buf: Buffer }[]): string[] {
+  const root = resolve(wsCwd);
+  const used = new Set(scanDir(root, 8000).keys());
+  const written: string[] = [];
+  for (const a of atts) {
+    let name = safeAttachmentName(a.name);
+    if (used.has(name)) {
+      const dot = name.lastIndexOf('.');
+      const stem = dot > 0 ? name.slice(0, dot) : name;
+      const ext = dot > 0 ? name.slice(dot) : '';
+      let i = 1;
+      while (used.has(name)) name = `${stem}-${i++}${ext}`;
+    }
+    const abs = resolve(root, name);
+    if (abs !== root && !abs.startsWith(root + '/')) continue; // never escapes; basename guarantees this, checked anyway
+    try { writeFileSync(abs, a.buf, { mode: 0o600 }); used.add(name); written.push(name); } catch { /* skip unwritable */ }
+  }
+  return written;
 }
 
 /** Resolve a download request to an absolute path, or null if it escapes the workdir. */
