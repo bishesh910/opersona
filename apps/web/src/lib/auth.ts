@@ -37,6 +37,26 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, { provider: 'pg', schema: authSchema }),
   emailAndPassword: { enabled: true, minPasswordLength: 10, maxPasswordLength: 128 },
+  // Backstop for EVERY account-creation path (email, social, future providers): when
+  // sign-ups are closed, an account may only be created for an email that holds a live
+  // pending invitation. The route hook above additionally requires possession of the
+  // invite LINK on the email path; this database hook is what stops a social login
+  // from self-provisioning around the invite gate.
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          if (SIGNUP_OPEN) return;
+          const email = String(user.email ?? '').trim().toLowerCase();
+          const rows = email
+            ? await db.select({ id: authSchema.invitation.id }).from(authSchema.invitation)
+                .where(and(eq(authSchema.invitation.email, email), eq(authSchema.invitation.status, 'pending'), gt(authSchema.invitation.expiresAt, new Date()))).limit(1)
+            : [];
+          if (!rows.length) throw new APIError('FORBIDDEN', { message: 'Sign-ups are invite-only. Ask your organization for an invitation.' });
+        },
+      },
+    },
+  },
   // Invite-only gate: sign-up succeeds ONLY for an email with a live pending invitation
   // (or when ALLOW_SIGNUP=true). Enforced here, in the auth layer — not in the UI.
   hooks: {

@@ -11,7 +11,7 @@ export const config = {
   approvalTimeoutMs: Number(process.env.ENGINE_APPROVAL_TIMEOUT_MS ?? 10 * 60_000),
   maxTurns: Number(process.env.ENGINE_MAX_TURNS ?? 40),
   maxBudgetUsdPerSession: Number(process.env.ENGINE_MAX_BUDGET_USD ?? 5),
-  /** Sandboxed code execution in chats (bubblewrap). Off → Bash/Write/Edit fall back to owner approval. */
+  /** Sandboxed code execution in chats (bubblewrap). Off → Bash/Write/Edit are not offered at all (read-only tools + web search remain). */
   sbxEnabled: process.env.OPERSONA_SBX_ENABLED !== 'false',
   sbxRunner: resolve(process.env.OPERSONA_SBX_RUNNER ?? '../../sbx/run.sh'),
   /** Default per-command wall-clock; the model may ask for less, capped at 600s in the runner. */

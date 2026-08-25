@@ -1,12 +1,13 @@
+# Template: adjust User, paths, and the node/pnpm PATH for your install.
 [Unit]
 Description=opersona web (Next.js)
-After=network.target opersona-engine.service
+After=network.target
 [Service]
-User=bee
-WorkingDirectory=/home/bee/opersona/apps/web
-EnvironmentFile=/home/bee/opersona/.env
-Environment=NODE_ENV=production PATH=/home/bee/.local/share/fnm/node-versions/v22.23.2/installation/bin:/usr/local/bin:/usr/bin:/bin HOME=/home/bee
-ExecStart=/home/bee/.local/share/fnm/node-versions/v22.23.2/installation/bin/pnpm -s start
+User=opersona
+WorkingDirectory=/opt/opersona/apps/web
+EnvironmentFile=/opt/opersona/.env
+Environment=NODE_ENV=production PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/opersona
+ExecStart=/usr/local/bin/pnpm -s start
 Restart=always
 RestartSec=3
 [Install]
