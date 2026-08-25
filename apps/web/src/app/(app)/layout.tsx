@@ -22,9 +22,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
           <UserMenu name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} />
         </header>
-        <nav className="nav-scroll gap-2 border-b border-neutral-200 px-3 py-2 md:hidden dark:border-neutral-800">
-          <SideNav horizontal />
-        </nav>
+        <div className="md:hidden">{/* wrapper owns the breakpoint: .nav-scroll's display:flex would out-specificity md:hidden */}
+          <nav className="nav-scroll gap-2 border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">
+            <SideNav horizontal />
+          </nav>
+        </div>
         <main className="min-w-0 flex-1 overflow-x-clip px-3 py-3 md:px-6 md:py-4">{children}</main>
       </div>
     </div>
