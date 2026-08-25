@@ -86,5 +86,7 @@ export interface AvatarStateFrames {
 export function avatarStateFrames(recipe: AvatarRecipe): AvatarStateFrames {
   const open = renderPortrait(recipe);
   const think = renderPortrait({ ...recipe, brow: 'raised', mouth: 'neutral' });
-  return { idle: [open, blinkFrame(open)], thinking: [think, blinkFrame(think)], talking: talkingFrames(recipe) };
+  // Opaque glasses cover the eyes — painting a blink through the lenses looks broken.
+  const blink = (f: Uint8ClampedArray) => (recipe.glasses ? f : blinkFrame(f));
+  return { idle: [open, blink(open)], thinking: [think, blink(think)], talking: talkingFrames(recipe) };
 }
