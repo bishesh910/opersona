@@ -63,3 +63,11 @@ export const DEFAULT_RECIPE: AvatarRecipe = {
   skin: 'tan', hairc: [26, 22, 22], hair: 'styleMessy',
   cloth: 'sweater', c1: [38, 42, 66], brow: 'flat', mouth: 'neutral', glasses: true,
 };
+
+/** Claude's own Pixie — Anthropic coral hoodie, warm eyes, gentle smile. Blinks and talks like everyone else. */
+export const CLAUDE_RECIPE: AvatarRecipe = {
+  skin: 'light', hairc: [64, 44, 34], hair: 'styleBuzz',
+  cloth: 'sweater', c1: [186, 90, 64], clothAccent: [218, 119, 86],
+  headwear: 'hoodie', headwearColor: [218, 119, 86],
+  brow: 'flat', mouth: 'smile', eyes: [96, 60, 40],
+};
