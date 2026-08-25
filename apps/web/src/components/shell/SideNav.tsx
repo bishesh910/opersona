@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const ITEMS = [
-  { href: '/chat', label: 'Chat' },
+  { href: '/chat', label: 'New chat' },
   { href: '/me', label: 'My persona' },
   { href: '/clones', label: 'Personas' },
   { href: '/approvals', label: 'Approvals' },
