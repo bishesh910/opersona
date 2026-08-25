@@ -95,6 +95,8 @@ async function authorize(ctx: OrgCtx, method: string, path: string[]): Promise<A
     const access = await getCloneAccess(ctx, id);
     if (!access) return deny(404, 'clone not found');
     if ((leaf === 'prompt' || leaf === 'export') && method === 'GET') return { ok: true, cloneId: id };
+    // The vault contains episodic memory + verbatim evidence quotes — strictly owner-only.
+    if (leaf === 'export-vault' && method === 'GET') return access.isOwner ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can export the vault');
     // Self-test accuracy is part of the persona's public stats — readable by anyone with access.
     if (leaf === 'accuracy' && method === 'GET') return { ok: true, cloneId: id };
     if (leaf === 'snapshot' && method === 'POST') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'read-only');
@@ -132,6 +134,8 @@ async function authorize(ctx: OrgCtx, method: string, path: string[]): Promise<A
     if (!access) return deny(404, 'clone not found');
     if (sub === 'patterns' && tail && /^[\w.-]{1,128}$/.test(tail)) return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'read-only');
     if (sub === 'fingerprint' && (tail === 'recompute' || tail === 'tidy')) return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'read-only');
+    // Episodic memory backfill for existing conversations. Owner only.
+    if (sub === 'episodes' && tail === 'backfill') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can backfill episodes');
     return deny(404, 'unknown engine path');
   }
 

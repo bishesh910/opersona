@@ -6,6 +6,7 @@
 import { and, eq, isNull, ne, inArray } from 'drizzle-orm';
 import { db, conversations, turns, importJobs } from '@opersona/db';
 import { extractFromConversation } from './extractReasoning.js';
+import { writeEpisode } from './episodes.js';
 import { recomputeFingerprint } from './fingerprint.js';
 import { runImport } from './importClaude.js';
 import { publishSnapshot } from '../persona/assemble.js';
@@ -39,12 +40,16 @@ async function run(j: Job): Promise<void> {
     const { clones } = await import('@opersona/db');
     const [ownerRow] = await db.select({ owner: clones.ownerUserId }).from(clones).where(eq(clones.id, j.cloneId)).limit(1);
     if (conv.mode === 'clone' || (ownerRow && conv.userId !== ownerRow.owner)) {
+      // Owner persona-test chats still leave an episode (what was worked on) even though
+      // their reasoning is never extracted; a visitor's conversation leaves nothing.
+      if (ownerRow && conv.userId === ownerRow.owner) await episodeSafe(j);
       await db.update(conversations).set({ extractedAt: new Date() }).where(eq(conversations.id, j.conversationId));
       return;
     }
     const n = await db.select({ id: turns.id }).from(turns).where(eq(turns.conversationId, j.conversationId));
     if (n.length < 2) { await db.update(conversations).set({ extractedAt: new Date() }).where(eq(conversations.id, j.conversationId)); return; }
     const out = await extractFromConversation(j.orgId, j.cloneId, j.conversationId);
+    await episodeSafe(j); // episodic memory rides the same extraction pass, AFTER reasoning extraction
     await db.update(conversations).set({ extractedAt: new Date() }).where(eq(conversations.id, j.conversationId));
     console.log(`[learning] extracted ${out.observations.length} observation(s) from ${j.conversationId}: ${out.note}`);
     await refresh(j.orgId, j.cloneId);
@@ -52,6 +57,16 @@ async function run(j: Job): Promise<void> {
     await runImport(j.importId);
   } else {
     await refresh(j.orgId, j.cloneId);
+  }
+}
+
+/** Episode failures must never block extraction bookkeeping. */
+async function episodeSafe(j: { orgId: string; cloneId: string; conversationId: string }): Promise<void> {
+  try {
+    const r = await writeEpisode(j.orgId, j.cloneId, j.conversationId);
+    console.log(`[learning] episode for ${j.conversationId}: ${r.wrote ? `wrote "${r.title}"` : r.reason}`);
+  } catch (e) {
+    console.error('[learning] episode', j.conversationId, e instanceof Error ? e.message : e);
   }
 }
 

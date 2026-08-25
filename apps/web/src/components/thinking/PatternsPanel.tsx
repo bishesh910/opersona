@@ -211,8 +211,9 @@ export function PatternsPanel({ cloneId, patterns, readOnly }: { cloneId: string
           </p>
         </div>
         {!readOnly && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <a className="btn-secondary btn-sm" href={`/api/engine/clones/${cloneId}/export?kind=persona`} title="Everything: brief, fingerprint, facts, playbooks, avatar, prompt">Export persona</a>
+            <a className="btn-secondary btn-sm" href={`/api/engine/clones/${cloneId}/export-vault`} title="Markdown vault of the whole brain — patterns with evidence, episodes, brief. Open the folder in Obsidian.">Export brain (vault)</a>
             <a className="btn-secondary btn-sm" href={`/api/engine/clones/${cloneId}/export?kind=hire`} title="An agent manifest for The Office — puts this persona on the office floor">Export for The Office</a>
           </div>
         )}

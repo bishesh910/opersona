@@ -17,6 +17,8 @@ import { enqueue, queueSize } from '../learning/queue.js';
 import { recomputeFingerprint, setPatternVerdict } from '../learning/fingerprint.js';
 import { recordFeedback } from '../learning/feedback.js';
 import { exportPersona, exportHireManifest } from '../persona/export.js';
+import { exportVault } from '../persona/vault.js';
+import { backfillEpisodes } from '../learning/episodes.js';
 import { importJobs, ingestTokens, claudeCodeSessions } from '@opersona/db';
 import { createHash, randomBytes } from 'node:crypto';
 import { desc } from 'drizzle-orm';
@@ -170,6 +172,20 @@ routes.get('/clones/:id/export', async (c) => {
   const body = kind === 'hire' ? await exportHireManifest(orgId, c.req.param('id')) : await exportPersona(orgId, c.req.param('id'));
   const fname = kind === 'hire' ? `${body.name}.agent.json` : `${body.name}.persona.json`;
   return new Response(JSON.stringify(body, null, 2), { headers: { 'content-type': 'application/json', 'content-disposition': `attachment; filename="${fname.replace(/[^A-Za-z0-9._-]/g, '_')}"` } });
+});
+
+/** The brain as an Obsidian-ready markdown vault (zip). Owner-only — the web proxy enforces it. */
+routes.get('/clones/:id/export-vault', async (c) => {
+  const orgId = c.req.query('orgId') ?? '';
+  const { buffer, filename } = await exportVault(orgId, c.req.param('id'));
+  return new Response(new Uint8Array(buffer), { headers: { 'content-type': 'application/zip', 'content-disposition': `attachment; filename="${filename}"` } });
+});
+
+// ─── episodes ───────────────────────────────────────────────────────────────
+/** Backfill episodic memory for existing finished conversations (owner's chats, newest first, ≤50). */
+routes.post('/clones/:id/episodes/backfill', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string(), cap: z.number().int().min(1).max(50).optional() }));
+  return c.json(await backfillEpisodes(body.orgId, c.req.param('id'), body.cap ?? 50));
 });
 
 // ─── fingerprint quality (1b) ───────────────────────────────────────────────

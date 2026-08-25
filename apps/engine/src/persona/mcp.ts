@@ -20,9 +20,11 @@ const text = (s: string) => ({ content: [{ type: 'text' as const, text: s }] });
 export function createPersonaServer(ctx: ToolContext) {
   const recall = tool(
     'recall_memory',
-    "Search this clone's long-term memory (confirmed facts, playbooks, past episodes, standing lessons, condensed history) by keywords. Use before guessing about anything the person may have taught you.",
+    "Search this clone's long-term memory (confirmed facts, playbooks, past episodes = records of previous conversations and the decisions made in them, standing lessons, condensed history) by keywords. Use before guessing about anything the person may have taught you, and whenever they ask about a past conversation or decision.",
     { query: z.string().describe('keywords, e.g. "wazuh agent disconnected"'), layer: z.enum(['facts', 'playbooks', 'episodes', 'corrections', 'condensed']).optional(), k: z.number().int().min(1).max(20).optional() },
     async (a) => {
+      // Episodic memory is never shared outside the owner (retrieval also filters it; this makes the refusal explicit).
+      if (ctx.visitor && a.layer === 'episodes') return text("Past conversations are private to this persona's owner and not shared. Ask them directly.");
       const hits = await recallMemory(ctx.cloneId, a.query, a.layer ? [a.layer as Layer] : undefined, a.k ?? 8, ctx.visitor);
       if (!hits.length) return text('No memory matched. If this is something the person would know, ask them — and it will be remembered.');
       return text(hits.map((h) => `[${h.layer} ${h.id}] (${h.status ?? ''} conf=${h.confidence ?? '–'} src=${h.source ?? ''})\n${h.text}`).join('\n\n'));

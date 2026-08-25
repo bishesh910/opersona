@@ -19,9 +19,24 @@ export async function recallMemory(cloneId: string, query: string, layers: Layer
   if (layers.includes('playbooks')) parts.push(sql`
     select 'playbooks' as layer, id::text, name || ' — trigger: ' || trigger as text, confidence, status, source_kind as source, ts_rank(tsv, ${q(query)}) as rank
     from playbooks where clone_id = ${cloneId} and status in ('confirmed','candidate') ${visitor ? sql`and shareable = true and status = 'confirmed'` : sql``} and tsv @@ ${q(query)}`);
-  if (layers.includes('episodes')) parts.push(sql`
-    select 'episodes' as layer, id::text, title || ': ' || problem || ' → ' || approach_summary || ' (' || outcome || ')' as text, confidence, status, source_kind as source, ts_rank(tsv, ${q(query)}) as rank
-    from episodes where clone_id = ${cloneId} and tsv @@ ${q(query)}`);
+  if (layers.includes('episodes')) {
+    // Episodes are episodic memory of past conversations: FTS over title/problem/approach,
+    // plus ILIKE-any-term so key_decisions text is findable too. Top 3, freshest first on ties,
+    // formatted as "[date] title — problem → outcome; key decisions: …". Owner-only (visitor
+    // layers were filtered above): what was worked on is never shared outside the owner.
+    const terms = query.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3).slice(0, 8).map((w) => `%${w}%`);
+    parts.push(sql`
+    select * from (
+      select 'episodes' as layer, id::text,
+        '[' || to_char(created_at, 'YYYY-MM-DD') || '] ' || title || ' — ' || problem || ' → ' || outcome
+          || case when cardinality(key_decisions) > 0 then '; key decisions: ' || array_to_string(key_decisions, '; ') else '' end as text,
+        confidence, status, source_kind as source, ts_rank(tsv, ${q(query)}) as rank
+      from episodes
+      where clone_id = ${cloneId}
+        and (tsv @@ ${q(query)}${terms.length ? sql` or (title || ' ' || problem || ' ' || approach_summary || ' ' || array_to_string(key_decisions, ' ')) ilike any(array[${sql.join(terms.map((t) => sql`${t}`), sql`, `)}])` : sql``})
+      order by rank desc, created_at desc limit 3
+    ) ep`);
+  }
   if (layers.includes('corrections')) parts.push(sql`
     select 'corrections' as layer, id::text, lesson as text, confidence, status, source_kind as source,
       ts_rank(to_tsvector('english', lesson), ${q(query)}) as rank
