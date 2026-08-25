@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { AvatarRecipe } from '@opersona/shared';
 
 const MAX_EDGE = 512;
@@ -48,6 +48,7 @@ async function downscale(file: File): Promise<{ base64: string; mime: string }> 
 export function SelfieUpload({ onRecipe, disabled }: { onRecipe: (r: AvatarRecipe, confidence: Record<string, number>) => void; disabled?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -76,10 +77,18 @@ export function SelfieUpload({ onRecipe, disabled }: { onRecipe: (r: AvatarRecip
 
   return (
     <div className="space-y-2">
-      <label className={'btn-secondary cursor-pointer ' + (busy || disabled ? 'pointer-events-none opacity-50' : '')}>
+      {/* real <button> + programmatic .click(): iOS Safari often ignores taps on a
+          <label> that forwards to a display:none file input. sr-only keeps the input
+          in the layout tree (belt and braces for older WebKit). */}
+      <button
+        type="button"
+        className="btn-secondary"
+        disabled={busy || disabled}
+        onClick={() => fileRef.current?.click()}
+      >
         {busy ? 'Looking at your selfie…' : 'Upload a selfie'}
-        <input type="file" accept="image/*" className="hidden" onChange={onFile} disabled={busy || disabled} />
-      </label>
+      </button>
+      <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={onFile} disabled={busy || disabled} tabIndex={-1} aria-hidden />
       <p className="muted text-xs">
         Your selfie is downscaled in your browser, sent once to pick hair, skin tone and clothes, and <strong>never stored</strong> — not on disk, not in the database. Only the resulting recipe is saved.
       </p>
