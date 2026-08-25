@@ -36,7 +36,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
   return (
     <div className="flex h-[calc(100dvh-7.85rem)] flex-col md:h-[calc(100dvh-2rem)]">
       <div className="flex items-center gap-2 px-1 pb-2">
-        <RecentChats currentSlug={conv.slug} items={recent} />
+        <div className="md:hidden"><RecentChats currentSlug={conv.slug} items={recent} /></div>
       </div>
       <div className="safe-b mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col">
         <ChatView

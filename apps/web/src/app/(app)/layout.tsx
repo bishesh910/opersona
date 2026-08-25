@@ -1,19 +1,28 @@
 import { requireOrg, require2FA } from '@/lib/session';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { SideNav } from '@/components/shell/SideNav';
 import { UserMenu } from '@/components/shell/UserMenu';
 import { ChatSearch } from '@/components/shell/ChatSearch';
+import { SidebarChats } from '@/components/shell/SidebarChats';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireOrg();
   await require2FA(ctx);
-  const [own] = await db.select({ r: schema.clones.avatarRecipe }).from(schema.clones).where(eq(schema.clones.ownerUserId, ctx.userId)).limit(1);
+  const [own] = await db.select({ id: schema.clones.id, r: schema.clones.avatarRecipe }).from(schema.clones).where(eq(schema.clones.ownerUserId, ctx.userId)).limit(1);
+  const recentChats = own
+    ? (await db.select({ slug: schema.conversations.slug, title: schema.conversations.title })
+        .from(schema.conversations)
+        .where(and(eq(schema.conversations.cloneId, own.id), eq(schema.conversations.userId, ctx.userId)))
+        .orderBy(desc(schema.conversations.lastActivityAt)).limit(20))
+        .map((c) => ({ slug: c.slug, title: /^(New chat|Persona test)/.test(c.title) ? 'New chat' : c.title }))
+    : [];
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col self-start border-r border-neutral-200 bg-neutral-50 p-4 md:flex dark:border-neutral-800 dark:bg-neutral-900/40">
         <div className="mb-6 px-2 text-lg font-semibold tracking-tight">opersona</div>
         <SideNav />
+        <SidebarChats items={recentChats} />
         <div className="relative mt-auto -mx-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800">
           <div className="flex items-center justify-between">
             <UserMenu name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} dropUp compact />
