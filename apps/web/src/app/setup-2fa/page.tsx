@@ -16,7 +16,7 @@ export default async function Setup2FAPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 p-6">
       <div className="text-center">
-        <div className="text-lg font-semibold tracking-tight">opersona</div>
+        <div className="text-lg font-semibold tracking-tight">opersona.me</div>
         <p className="muted mt-1 text-sm">Two-factor authentication is required to continue.</p>
       </div>
       <TwoFactorCard enabled={false} redirectTo={dest} email={s.user.email} />

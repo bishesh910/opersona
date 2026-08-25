@@ -98,7 +98,7 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
     <div className="min-h-screen bg-neutral-50 px-4 py-8 dark:bg-neutral-950 sm:px-6">
       <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-6">
         <div className="text-center">
-          <p className="muted text-xs uppercase tracking-widest">opersona</p>
+          <p className="muted text-xs uppercase tracking-widest">opersona.me</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Build your persona</h1>
         </div>
         <StepDots current={step} />

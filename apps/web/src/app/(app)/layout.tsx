@@ -38,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col self-start border-r border-neutral-200 bg-neutral-50 p-4 md:flex dark:border-neutral-800 dark:bg-neutral-900/40">
-        <div className="mb-6 px-2 text-lg font-semibold tracking-tight">opersona</div>
+        <div className="mb-6 px-2 text-lg font-semibold tracking-tight">opersona.me</div>
         <SideNav include={['/chat']} />
         <div className="my-2 border-t border-neutral-200 dark:border-neutral-800" />
         <TalkToPersona options={personaOptions} />

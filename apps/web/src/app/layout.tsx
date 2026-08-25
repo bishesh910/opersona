@@ -5,7 +5,7 @@ import './globals.css';
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', maximumScale: 5 };
 
 export const metadata: Metadata = {
-  title: 'opersona',
+  title: 'opersona.me',
   description: 'How to think, not what to think — AI personas that reason the way their humans do',
   icons: { icon: [{ url: '/api/favicon', type: 'image/png', sizes: '72x72' }] },
 };
