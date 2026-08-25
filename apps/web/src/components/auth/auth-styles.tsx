@@ -10,40 +10,40 @@ export const NIGHT = {
   FIELD:
     'auth-input h-12 w-full rounded-md border-2 border-[#262c44] bg-[#141930] px-3 text-[15px] ' +
     'text-neutral-100 placeholder:text-neutral-500 shadow-[inset_0_2px_0_rgba(0,0,0,0.35)] ' +
-    'outline-none transition-colors duration-150 focus:border-amber-300/70 focus:ring-2 ' +
-    'focus:ring-amber-300/20 max-sm:text-base',
+    'outline-none transition-colors duration-150 focus:border-[#e2decd]/60 focus:ring-2 ' +
+    'focus:ring-[#e2decd]/20 max-sm:text-base',
   LABEL:
     'mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400',
   BTN:
-    'h-12 w-full select-none rounded-md border border-amber-500/60 bg-amber-400 px-3 text-[15px] ' +
-    'font-bold text-[#231303] shadow-[0_4px_0_0_#92400e] ' +
-    'transition-[transform,box-shadow,background-color] duration-100 hover:bg-amber-300 ' +
-    'active:translate-y-[3px] active:shadow-[0_1px_0_0_#92400e] ' +
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 ' +
-    'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-amber-400 ' +
-    'disabled:active:translate-y-0 disabled:active:shadow-[0_4px_0_0_#92400e] motion-reduce:transition-none',
+    'h-12 w-full select-none rounded-md border border-[#c8c2ac]/60 bg-[#e2decd] px-3 text-[15px] ' +
+    'font-bold text-[#1c1917] shadow-[0_4px_0_0_#57534e] ' +
+    'transition-[transform,box-shadow,background-color] duration-100 hover:bg-[#efecdf] ' +
+    'active:translate-y-[3px] active:shadow-[0_1px_0_0_#57534e] ' +
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e2decd] ' +
+    'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#e2decd] ' +
+    'disabled:active:translate-y-0 disabled:active:shadow-[0_4px_0_0_#57534e] motion-reduce:transition-none',
   LINK:
-    'rounded-sm font-medium text-amber-300 underline decoration-amber-300/40 underline-offset-[3px] ' +
-    'transition-colors hover:text-amber-200 hover:decoration-amber-200/70 ' +
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300',
+    'rounded-sm font-medium text-[#e8e4d4] underline decoration-[#e8e4d4]/40 underline-offset-[3px] ' +
+    'transition-colors hover:text-white hover:decoration-white/70 ' +
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e2decd]',
   QUIET_BTN:
     'rounded-sm text-neutral-400 underline decoration-neutral-500/50 underline-offset-[3px] ' +
     'transition-colors hover:text-neutral-200 ' +
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300',
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e2decd]',
   OTP:
     'auth-input h-14 w-full rounded-md border-2 border-[#262c44] bg-[#141930] pl-[0.35em] text-center ' +
     'font-mono text-2xl tracking-[0.35em] text-neutral-100 placeholder:tracking-[0.35em] ' +
     'placeholder:text-neutral-600 shadow-[inset_0_2px_0_rgba(0,0,0,0.35)] outline-none ' +
-    'transition-colors focus:border-amber-300/70 focus:ring-2 focus:ring-amber-300/20',
+    'transition-colors focus:border-[#e2decd]/60 focus:ring-2 focus:ring-[#e2decd]/20',
   BACKUP:
     'auth-input h-12 w-full rounded-md border-2 border-[#262c44] bg-[#141930] px-3 text-center ' +
     'font-mono text-lg tracking-[0.12em] text-neutral-100 placeholder:text-neutral-600 ' +
     'shadow-[inset_0_2px_0_rgba(0,0,0,0.35)] outline-none transition-colors ' +
-    'focus:border-amber-300/70 focus:ring-2 focus:ring-amber-300/20',
+    'focus:border-[#e2decd]/60 focus:ring-2 focus:ring-[#e2decd]/20',
   EYE:
     'absolute inset-y-0 right-1 my-auto flex h-8 w-8 items-center justify-center rounded-md ' +
     'text-neutral-500 transition-colors hover:text-neutral-200 ' +
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300',
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e2decd]',
 };
 
 /** Calm error chip: square pixel bullet, server message verbatim, never clears input. */

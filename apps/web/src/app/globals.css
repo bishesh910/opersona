@@ -161,11 +161,11 @@ code, kbd { overflow-wrap: anywhere; }
 /* accept-invite still uses .btn-primary/.muted — shim them to the night vocabulary
    inside the card until that page gets its full NIGHT restyle. */
 .night-card .btn-primary {
-  border-color: rgb(245 158 11 / 0.6);
-  background-color: #fbbf24;
-  color: #231303;
+  border-color: rgb(200 194 172 / 0.6);
+  background-color: #e2decd;
+  color: #1c1917;
   font-weight: 700;
-  box-shadow: 0 4px 0 0 #92400e;
+  box-shadow: 0 4px 0 0 #57534e;
 }
-.night-card .btn-primary:hover { background-color: #fcd34d; }
+.night-card .btn-primary:hover { background-color: #efecdf; }
 .night-card .muted { color: #a3a3a3; }

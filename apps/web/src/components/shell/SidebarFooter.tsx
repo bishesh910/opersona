@@ -42,18 +42,17 @@ export function SidebarFooter({ name, email, avatarRecipe }: {
       </Link>
       {/* the others → Opersonas */}
       <Link href="/clones" title="Opersonas" aria-label="Opersonas" className={pad(path.startsWith('/clones'))}>
-        {/* little crowd: two in back, one front-and-centre */}
-        <span className="relative inline-flex">
-          <span className="flex items-end -space-x-1.5">
-            {crowd.slice(0, 2).map((r, i) => (
-              <span key={i} className="opacity-90">
-                <AvatarThumb recipe={r} name="?" scale={0.9} />
-              </span>
-            ))}
-          </span>
+        {/* facepile: three cropped heads in ringed tiles — two back, one front-centre.
+            Full bodies mush into a blob at this size; heads stay legible. */}
+        <span className="relative block h-8 w-10">
+          {crowd.slice(0, 2).map((r, i) => (
+            <span key={i} className={'absolute top-0 h-[22px] w-[22px] overflow-hidden rounded-[6px] ring-2 ring-neutral-50 dark:ring-neutral-900 ' + (i === 0 ? 'left-0' : 'right-0')}>
+              <span className="absolute -left-[7px] -top-[2px]"><AvatarThumb recipe={r} name="?" scale={2} /></span>
+            </span>
+          ))}
           {crowd[2] && (
-            <span className="absolute -bottom-0.5 left-1/2 z-10 -translate-x-1/2">
-              <AvatarThumb recipe={crowd[2]} name="?" scale={1} />
+            <span className="absolute bottom-0 left-1/2 z-10 h-[22px] w-[22px] -translate-x-1/2 overflow-hidden rounded-[6px] ring-2 ring-neutral-50 dark:ring-neutral-900">
+              <span className="absolute -left-[7px] -top-[2px]"><AvatarThumb recipe={crowd[2]} name="?" scale={2} /></span>
             </span>
           )}
         </span>
