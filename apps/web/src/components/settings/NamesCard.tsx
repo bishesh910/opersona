@@ -26,12 +26,12 @@ function NameForm({ label, hint, initial, action: serverAction }: {
   );
 }
 
-export function NamesCard({ orgName, userName, canRenameOrg }: { orgName: string; userName: string; canRenameOrg: boolean }) {
+export function NamesCard({ orgName, userName, canRenameOrg, showSelf = true }: { orgName: string; userName: string; canRenameOrg: boolean; showSelf?: boolean }) {
   return (
     <section className="card space-y-4">
       <h2 className="font-medium">Names</h2>
       {canRenameOrg && <NameForm label="Organization name" hint="Shown in the header and on invites." initial={orgName} action={renameOrgAction} />}
-      <NameForm label="Your name" hint="Shown in the header, roster, and your persona's replies." initial={userName} action={renameSelfAction} />
+      {showSelf && <NameForm label="Your name" hint="Shown in the header, roster, and your persona's replies." initial={userName} action={renameSelfAction} />}
     </section>
   );
 }

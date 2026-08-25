@@ -8,6 +8,7 @@ import { TwoFactorCard } from '@/components/settings/TwoFactorCard';
 import { NamesCard } from '@/components/settings/NamesCard';
 import { ChangePasswordCard } from '@/components/settings/ChangePasswordCard';
 import { MembersCard } from '@/components/settings/MembersCard';
+import { SettingsTabs } from '@/components/settings/SettingsTabs';
 import { engineFetch } from '@/lib/engine';
 
 const MODEL_LABELS: Record<string, string> = {
@@ -31,79 +32,92 @@ export default async function SettingsPage() {
     : [];
   const baseUrl = (process.env.BETTER_AUTH_URL ?? '').replace(/\/$/, '');
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-5">
       <div>
-        <h1 className="text-xl font-semibold">Organization settings</h1>
-        <p className="muted text-sm">{ctx.orgName}{!admin && ' — read-only (org owner/admin can edit)'}</p>
+        <h1 className="text-xl font-semibold">Settings</h1>
+        <p className="muted text-sm">{ctx.orgName}{!admin && ' — member view'}</p>
       </div>
-      <section className="card space-y-2">
-        <h2 className="font-medium">Claude access</h2>
-        {hostLogin ? (
+      <SettingsTabs
+        account={
           <>
-            <p className="text-sm">
-              <span className="chip">pilot mode</span> Using the <strong>Claude login on this machine</strong> (your claude.ai subscription) — no API key needed.
-            </p>
-            <p className="muted text-xs">
-              Chats and selfie processing run through Claude Code under that login. For a multi-user deployment
-              switch the engine to <code>ENGINE_AUTH_MODE=api-key</code> and give each org its own API key below{row?.anthropicKeyEnc ? ' (one is already stored and takes precedence)' : ''}.
-            </p>
-            <details className="text-xs"><summary className="cursor-pointer muted">Optional: use an API key instead</summary><div className="pt-2"><ApiKeyForm hasKey={!!row?.anthropicKeyEnc} readOnly={!admin} /></div></details>
+            <TwoFactorCard enabled={!!userRow?.twoFactorEnabled} email={ctx.user.email} />
+            <ChangePasswordCard />
+            <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg={false} />
           </>
-        ) : (
+        }
+        org={admin ? (
           <>
-            <p className="muted text-xs">
-              Bring your own key: usage is billed to your Anthropic account. Stored encrypted (AES-256-GCM) and never shown again.
-              Anthropic&apos;s API data-retention policy applies to everything your personas send.
-            </p>
-            <ApiKeyForm hasKey={!!row?.anthropicKeyEnc} readOnly={!admin} />
+            <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg showSelf={false} />
+            <MembersCard orgId={ctx.orgId} selfUserId={ctx.userId} />
+            <InviteCard
+              baseUrl={baseUrl}
+              pending={pendingInvites.map((i) => ({ id: i.id, email: i.email, expiresAt: i.expiresAt.toISOString() }))}
+            />
           </>
-        )}
-      </section>
-      {admin && (
-        <InviteCard
-          baseUrl={baseUrl}
-          pending={pendingInvites.map((i) => ({ id: i.id, email: i.email, expiresAt: i.expiresAt.toISOString() }))}
-        />
-      )}
-      <TwoFactorCard enabled={!!userRow?.twoFactorEnabled} email={ctx.user.email} />
-      <ChangePasswordCard />
-      <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg={isOrgAdmin(ctx)} />
-      {admin && <MembersCard orgId={ctx.orgId} selfUserId={ctx.userId} />}
-      <section className="card space-y-2">
-        <h2 className="font-medium">Models &amp; defaults</h2>
-        {!admin ? (
-          <div>
-            <p className="muted text-xs">Org-wide defaults — set by the org owner/admin.</p>
-            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
-              {[
-                ['Chat model', MODEL_LABELS[row?.chatModel ?? 'claude-opus-5'] ?? (row?.chatModel ?? 'claude-opus-5')],
-                ['Chat effort', row?.chatEffort ?? 'high'],
-                ['Extraction model', MODEL_LABELS[row?.extractModel ?? 'claude-sonnet-5'] ?? (row?.extractModel ?? 'claude-sonnet-5')],
-                ['Condense model', MODEL_LABELS[row?.condenseModel ?? 'claude-haiku-4-5'] ?? (row?.condenseModel ?? 'claude-haiku-4-5')],
-                ['Timezone', row?.timezone ?? 'UTC'],
-              ].map(([k, v]) => (
-                <div key={k}>
-                  <dt className="muted text-xs">{k}</dt>
-                  <dd className="font-medium">{v}</dd>
+        ) : undefined}
+        models={
+          <>
+            <section className="card space-y-2">
+              <h2 className="font-medium">Models &amp; defaults</h2>
+              {!admin ? (
+                <div>
+                  <p className="muted text-xs">Org-wide defaults — set by the org owner/admin.</p>
+                  <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+                    {[
+                      ['Chat model', MODEL_LABELS[row?.chatModel ?? 'claude-opus-5'] ?? (row?.chatModel ?? 'claude-opus-5')],
+                      ['Chat effort', row?.chatEffort ?? 'high'],
+                      ['Extraction model', MODEL_LABELS[row?.extractModel ?? 'claude-sonnet-5'] ?? (row?.extractModel ?? 'claude-sonnet-5')],
+                      ['Condense model', MODEL_LABELS[row?.condenseModel ?? 'claude-haiku-4-5'] ?? (row?.condenseModel ?? 'claude-haiku-4-5')],
+                      ['Timezone', row?.timezone ?? 'UTC'],
+                    ].map(([k, v]) => (
+                      <div key={k}>
+                        <dt className="muted text-xs">{k}</dt>
+                        <dd className="font-medium">{v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="muted mt-3 text-xs">Any chat can still use its own model via the picker in the composer.</p>
                 </div>
-              ))}
-            </dl>
-            <p className="muted mt-3 text-xs">Any chat can still use its own model via the picker in the composer.</p>
-          </div>
-        ) : (
-        <SettingsForm
-          readOnly={false}
-          initial={{
-            chatModel: row?.chatModel ?? 'claude-opus-5',
-            extractModel: row?.extractModel ?? 'claude-sonnet-5',
-            condenseModel: row?.condenseModel ?? 'claude-haiku-4-5',
-            chatEffort: row?.chatEffort ?? 'high',
-            timezone: row?.timezone ?? 'UTC',
-            monthlyBudgetUsd: row?.monthlyBudgetUsd ?? null,
-          }}
-        />
-        )}
-      </section>
+              ) : (
+                <SettingsForm
+                  readOnly={false}
+                  initial={{
+                    chatModel: row?.chatModel ?? 'claude-opus-5',
+                    extractModel: row?.extractModel ?? 'claude-sonnet-5',
+                    condenseModel: row?.condenseModel ?? 'claude-haiku-4-5',
+                    chatEffort: row?.chatEffort ?? 'high',
+                    timezone: row?.timezone ?? 'UTC',
+                    monthlyBudgetUsd: row?.monthlyBudgetUsd ?? null,
+                  }}
+                />
+              )}
+            </section>
+            <section className="card space-y-2">
+              <h2 className="font-medium">Claude access</h2>
+              {hostLogin ? (
+                <>
+                  <p className="text-sm">
+                    <span className="chip">pilot mode</span> Using the <strong>Claude login on this machine</strong> (your claude.ai subscription) — no API key needed.
+                  </p>
+                  <p className="muted text-xs">
+                    Chats and selfie processing run through Claude Code under that login. For a multi-user deployment
+                    switch the engine to <code>ENGINE_AUTH_MODE=api-key</code> and give each org its own API key below{row?.anthropicKeyEnc ? ' (one is already stored and takes precedence)' : ''}.
+                  </p>
+                  <details className="text-xs"><summary className="cursor-pointer muted">Optional: use an API key instead</summary><div className="pt-2"><ApiKeyForm hasKey={!!row?.anthropicKeyEnc} readOnly={!admin} /></div></details>
+                </>
+              ) : (
+                <>
+                  <p className="muted text-xs">
+                    Bring your own key: usage is billed to your Anthropic account. Stored encrypted (AES-256-GCM) and never shown again.
+                    Anthropic&apos;s API data-retention policy applies to everything your personas send.
+                  </p>
+                  <ApiKeyForm hasKey={!!row?.anthropicKeyEnc} readOnly={!admin} />
+                </>
+              )}
+            </section>
+          </>
+        }
+      />
     </div>
   );
 }
