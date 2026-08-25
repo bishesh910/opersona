@@ -59,15 +59,14 @@ export function renderPortraitV2(r: AvatarRecipe): Uint8ClampedArray {
   const mirror = (x: number): number => 35 - x; // symmetric about 17.5
 
   // shoulder dome geometry (used by back hair + clothing): wide flat-top superellipse
-  const rx = 15.5 + (r.heavy ? 1 : 0), ry = 22, cy = 56;
+  const rx = 13.5 + (r.heavy ? 1 : 0), ry = 22, cy = 56;
   const domeTopAt = (x: number): number => {
-    // quantise columns into pairs so the slope steps in chunky 2-px stairs (reference look)
-    const px = x < 18 ? x + ((x - 0) % 2) : x - ((x - 0) % 2);
-    const adx = Math.abs(px - 17.5);
+    // quantise by distance-from-centre into symmetric pairs → chunky 2-px stairs (reference look)
+    const adx = Math.floor((Math.abs(x - 17.5) - 0.5) / 2) * 2 + 1;
     const q = 1 - Math.pow(adx / rx, 4); // flat top, quick rolloff at the edges
     if (q <= 0) return V2_H;
     let top = Math.ceil(cy - ry * Math.pow(q, 0.25));
-    if (adx < 5) top = Math.max(top, 37 - Math.floor(adx / 2)); // neckline dips around the neck
+    if (adx < 5) top = Math.max(top, 34 - Math.floor(adx / 2)); // neckline dips around the neck
     return top;
   };
 
@@ -206,7 +205,7 @@ export function renderPortraitV2(r: AvatarRecipe): Uint8ClampedArray {
   }
 
   // ── neck ───────────────────────────────────────────────────────────────────
-  for (let y = 27; y <= 37; y++) hrow(15, 20, y, s.base);
+  for (let y = 27; y <= 34; y++) hrow(15, 20, y, s.base);
   hrow(15, 20, 27, s.sh); hrow(15, 20, 28, s.sh); // shadow under the chin
 
   // ── shoulder dome (gradient) ───────────────────────────────────────────────
@@ -225,12 +224,12 @@ export function renderPortraitV2(r: AvatarRecipe): Uint8ClampedArray {
     const nc = r.cloth === 'suit' ? darken(g0, 0.72) : lighten(g0, 1.28);
     for (const dx of [-3, -2, 2, 3]) { const x = Math.round(17.5 + dx); put(x, domeTopAt(x), nc); }
   }
-  if (r.tie) { for (let y = 38; y <= 43; y++) hrow(17, 18, y, r.tie); put(16, 38, r.tie); put(19, 38, r.tie); }
+  if (r.tie) { for (let y = 35; y <= 40; y++) hrow(17, 18, y, r.tie); put(16, 35, r.tie); put(19, 35, r.tie); }
 
   // ── long hair drapes over the shoulders (styleFrame), reference-style ──────
   if (r.hair === 'styleFrame') {
-    for (let y = 7; y <= 44; y++) { hair(7, 10, y, hairC); hair(25, 28, y, hairC); }
-    hair(8, 10, 45, hairC); hair(25, 27, 45, hairC); // rounded ends
+    for (let y = 7; y <= 41; y++) { hair(7, 10, y, hairC); hair(25, 28, y, hairC); }
+    hair(8, 10, 42, hairC); hair(25, 27, 42, hairC); // rounded ends
     for (let y = 8; y <= 26; y++) { hpx(11, y, hairC); hpx(24, y, hairC); } // frame the face edge
   }
   // dip-dye: recolour the lowest hair pixel of every column
