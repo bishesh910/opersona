@@ -3,12 +3,15 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { renameConversationAction, deleteChatAction, pinChatAction } from '@/actions/conversations';
+import { ConfirmDialog, PromptDialog } from './Dialog';
 
 export interface SidebarChat { id: string; slug: string; title: string; pinned: boolean }
 
 function Item({ c, active }: { c: SidebarChat; active: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [dlg, setDlg] = useState<'delete' | 'rename' | null>(null);
+  const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -43,19 +46,27 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
         <div role="menu" className="card absolute right-0 top-full z-30 mt-1 w-44 p-1 shadow-lg">
           <a href={`/c/${c.slug}`} target="_blank" rel="noreferrer" role="menuitem" className={item} onClick={() => setOpen(false)}>Open in new tab</a>
           <button type="button" role="menuitem" className={item} onClick={async () => { setOpen(false); await pinChatAction(c.id, !c.pinned); router.refresh(); }}>{c.pinned ? 'Unpin' : 'Pin'}</button>
-          <button type="button" role="menuitem" className={item} onClick={async () => {
-            setOpen(false);
-            const t = window.prompt('Rename chat', c.title);
-            if (t && t.trim() && t.trim() !== c.title) { await renameConversationAction(c.id, t.trim()); router.refresh(); }
-          }}>Rename</button>
+          <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); setDlg('rename'); }}>Rename</button>
           <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
-          <button type="button" role="menuitem" className={`${item} text-red-600 dark:text-red-400`} onClick={async () => {
-            setOpen(false);
-            if (!window.confirm(`Delete "${c.title}"? This cannot be undone.`)) return;
-            await deleteChatAction(c.id);
-            if (active) router.push('/chat'); else router.refresh();
-          }}>Delete</button>
+          <button type="button" role="menuitem" className={`${item} text-red-600 dark:text-red-400`} onClick={() => { setOpen(false); setDlg('delete'); }}>Delete</button>
         </div>
+      )}
+      {dlg === 'delete' && (
+        <ConfirmDialog
+          title="Delete chat?"
+          message={`"${c.title}" will be permanently deleted. This cannot be undone.`}
+          busy={busy}
+          onCancel={() => setDlg(null)}
+          onConfirm={async () => { setBusy(true); await deleteChatAction(c.id); setBusy(false); setDlg(null); if (active) router.push('/chat'); else router.refresh(); }}
+        />
+      )}
+      {dlg === 'rename' && (
+        <PromptDialog
+          title="Rename chat"
+          initial={c.title}
+          onCancel={() => setDlg(null)}
+          onSubmit={async (t) => { setDlg(null); if (t !== c.title) { await renameConversationAction(c.id, t); router.refresh(); } }}
+        />
       )}
     </div>
   );

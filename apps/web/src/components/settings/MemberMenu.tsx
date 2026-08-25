@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { resetMemberPasswordAction, resetMember2FAAction, removeMemberAction, type MemberActionResult } from '@/actions/members';
 import { copyText } from '@/components/shell/CopyButton';
+import { ConfirmDialog } from '@/components/shell/Dialog';
 
 export function MemberMenu({ userId, email }: { userId: string; email: string }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<MemberActionResult | null>(null);
+  const [confirm, setConfirm] = useState<{ name: string; action: (p: MemberActionResult | null, f: FormData) => Promise<MemberActionResult>; title: string; message: string; label: string } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
   useEffect(() => {
@@ -17,8 +19,7 @@ export function MemberMenu({ userId, email }: { userId: string; email: string })
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
-  const run = async (name: string, action: (p: MemberActionResult | null, f: FormData) => Promise<MemberActionResult>, confirmMsg?: string) => {
-    if (confirmMsg && !window.confirm(confirmMsg)) return;
+  const run = async (name: string, action: (p: MemberActionResult | null, f: FormData) => Promise<MemberActionResult>) => {
     setBusy(name); setResult(null);
     const f = new FormData(); f.set('userId', userId);
     const r = await action(null, f);
@@ -43,14 +44,25 @@ export function MemberMenu({ userId, email }: { userId: string; email: string })
             </div>
           ) : (
             <>
-              <button type="button" role="menuitem" disabled={!!busy} className={item} onClick={() => run('pw', resetMemberPasswordAction, `Reset ${email}'s password? Their current sessions are signed out.`)}>{busy === 'pw' ? 'Resetting…' : 'Reset password'}</button>
-              <button type="button" role="menuitem" disabled={!!busy} className={item} onClick={() => run('2fa', resetMember2FAAction, `Reset ${email}'s two-factor? They'll re-enrol with their phone at next sign-in.`)}>{busy === '2fa' ? 'Resetting…' : 'Reset 2FA (lost phone)'}</button>
+              <button type="button" role="menuitem" disabled={!!busy} className={item} onClick={() => { setOpen(false); setConfirm({ name: 'pw', action: resetMemberPasswordAction, title: 'Reset password?', message: `${email} gets a new temporary password and their sessions are signed out.`, label: 'Reset password' }); }}>{busy === 'pw' ? 'Resetting…' : 'Reset password'}</button>
+              <button type="button" role="menuitem" disabled={!!busy} className={item} onClick={() => { setOpen(false); setConfirm({ name: '2fa', action: resetMember2FAAction, title: 'Reset two-factor?', message: `${email} will re-enrol with their phone at next sign-in.`, label: 'Reset 2FA' }); }}>{busy === '2fa' ? 'Resetting…' : 'Reset 2FA (lost phone)'}</button>
               <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
-              <button type="button" role="menuitem" disabled={!!busy} className={`${item} text-red-600 dark:text-red-400`} onClick={() => run('rm', removeMemberAction, `Remove ${email} from the org? Their persona and everything learned from them is permanently deleted. This cannot be undone.`)}>{busy === 'rm' ? 'Removing…' : 'Remove from org'}</button>
+              <button type="button" role="menuitem" disabled={!!busy} className={`${item} text-red-600 dark:text-red-400`} onClick={() => { setOpen(false); setConfirm({ name: 'rm', action: removeMemberAction, title: 'Remove from org?', message: `${email}'s persona and everything learned from them is permanently deleted. This cannot be undone.`, label: 'Remove' }); }}>{busy === 'rm' ? 'Removing…' : 'Remove from org'}</button>
               {result && !result.ok && <p className="px-2 pt-1 text-xs text-red-600">{result.error}</p>}
             </>
           )}
         </div>
+      )}
+      {confirm && (
+        <ConfirmDialog
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={confirm.label}
+          danger={confirm.name === 'rm'}
+          busy={!!busy}
+          onCancel={() => setConfirm(null)}
+          onConfirm={async () => { const c = confirm; setConfirm(null); if (c.name === 'pw') setOpen(true); await run(c.name, c.action); }}
+        />
       )}
     </div>
   );
