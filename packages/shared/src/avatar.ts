@@ -59,8 +59,9 @@ export type AvatarRecipe = z.infer<typeof AvatarRecipe>;
 
 /** The app's default pixel face (used for logged-out favicons, empty previews,
  *  and as the onboarding starting point before selfie/randomise). */
+/** Neutral starter Pixie — deliberately generic (looks like nobody in particular). */
 export const DEFAULT_RECIPE: AvatarRecipe = {
-  skin: 'tan', hairc: [26, 22, 22], hair: 'styleMessy',
-  cloth: 'sweater', c1: [38, 42, 66], brow: 'flat', mouth: 'neutral', glasses: true,
+  skin: 'light', hairc: [92, 64, 40], hair: 'styleShort',
+  cloth: 'polo', c1: [70, 90, 100], brow: 'flat', mouth: 'neutral',
 };
 
