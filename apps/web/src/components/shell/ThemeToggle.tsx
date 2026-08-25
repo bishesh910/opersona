@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 type Mode = 'light' | 'auto' | 'dark';
 
@@ -18,8 +18,9 @@ function apply(mode: Mode) {
 }
 
 export function ThemeToggle() {
-  const [mode, setMode] = useState<Mode>('auto');
-  useEffect(() => { setMode(readMode()); }, []);
+  // Lazy init: the toggle only ever renders client-side (inside an opened menu),
+  // so read the real value BEFORE first paint — no Auto→saved flash.
+  const [mode, setMode] = useState<Mode>(() => (typeof document === 'undefined' ? 'auto' : readMode()));
   const opts: { m: Mode; label: string }[] = [{ m: 'light', label: 'Light' }, { m: 'auto', label: 'Auto' }, { m: 'dark', label: 'Dark' }];
   return (
     <div className="flex items-center gap-1 rounded-lg bg-neutral-100 p-0.5 dark:bg-neutral-800">
@@ -28,7 +29,7 @@ export function ThemeToggle() {
           key={o.m}
           type="button"
           onClick={() => { setMode(o.m); apply(o.m); }}
-          className={`flex-1 rounded-md px-2 py-1 text-xs transition-colors ${mode === o.m ? 'bg-white font-medium shadow-sm dark:bg-neutral-700' : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'}`}
+          className={`flex-1 rounded-md px-2 py-1 text-xs ${mode === o.m ? 'bg-white font-medium shadow-sm dark:bg-neutral-700' : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'}`}
         >
           {o.label}
         </button>
