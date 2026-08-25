@@ -31,9 +31,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       title: /^(New chat|Persona test|Asked by )/.test(c.title) ? 'Untitled' : c.title,
     };
   });
-  const personaOptions = (await db.select({ cloneId: schema.clones.id, name: schema.clones.name })
+  const personaOptions = (await db.select({ cloneId: schema.clones.id, name: schema.clones.name, recipe: schema.clones.avatarRecipe })
     .from(schema.clones).where(eq(schema.clones.orgId, ctx.orgId)))
-    .map((c) => ({ cloneId: c.cloneId, name: c.name, mine: !!own && c.cloneId === own.id }))
+    .map((c) => ({ cloneId: c.cloneId, name: c.name, recipe: c.recipe, mine: !!own && c.cloneId === own.id }))
     .sort((a, b) => Number(b.mine) - Number(a.mine) || a.name.localeCompare(b.name));
   return (
     <div className="flex min-h-screen">

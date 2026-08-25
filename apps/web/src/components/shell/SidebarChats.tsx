@@ -76,7 +76,28 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
   );
 }
 
-/** Claude-style history in two sections: plain Claude chats, then persona chats. */
+function Section({ label, storageKey, chats, path, first }: { label: string; storageKey: string; chats: SidebarChat[]; path: string; first: boolean }) {
+  const [open, setOpen] = useState(true);
+  useEffect(() => { try { if (localStorage.getItem(storageKey) === '0') setOpen(false); } catch { /* ignore */ } }, [storageKey]);
+  const toggle = () => { setOpen((o) => { try { localStorage.setItem(storageKey, o ? '0' : '1'); } catch { /* ignore */ } return !o; }); };
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={toggle}
+        className={'muted flex w-full items-center gap-1 px-2 pb-1 text-[11px] font-medium uppercase tracking-wide hover:text-neutral-700 dark:hover:text-neutral-300 ' + (first ? '' : 'mt-4')}
+      >
+        <span aria-hidden className={'inline-block text-[9px] transition-transform ' + (open ? 'rotate-90' : '')}>▶</span>
+        {label}
+        {!open && <span className="ml-auto normal-case tracking-normal">{chats.length}</span>}
+      </button>
+      {open && <div className="space-y-0.5">{chats.map((c) => <Item key={c.id} c={c} active={path === c.href} />)}</div>}
+    </>
+  );
+}
+
+/** Claude-style history in two collapsible sections: plain Claude chats, then persona chats. */
 export function SidebarChats({ items }: { items: SidebarChat[] }) {
   const path = usePathname();
   if (items.length === 0) return null;
@@ -85,18 +106,8 @@ export function SidebarChats({ items }: { items: SidebarChat[] }) {
   return (
     <div className="mt-4 flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
-        {claude.length > 0 && (
-          <>
-            <div className="muted px-2 pb-1 text-[11px] font-medium uppercase tracking-wide">Chats</div>
-            <div className="space-y-0.5">{claude.map((c) => <Item key={c.id} c={c} active={path === c.href} />)}</div>
-          </>
-        )}
-        {persona.length > 0 && (
-          <>
-            <div className={'muted px-2 pb-1 text-[11px] font-medium uppercase tracking-wide ' + (claude.length ? 'mt-4' : '')}>opersona chats</div>
-            <div className="space-y-0.5">{persona.map((c) => <Item key={c.id} c={c} active={path === c.href} />)}</div>
-          </>
-        )}
+        {claude.length > 0 && <Section label="Chats" storageKey="sb.chats" chats={claude} path={path} first />}
+        {persona.length > 0 && <Section label="opersona chats" storageKey="sb.pchats" chats={persona} path={path} first={claude.length === 0} />}
       </div>
       <Link href="/me/chat" className="muted mt-1 block px-2 py-1 text-xs hover:underline">All chats →</Link>
     </div>

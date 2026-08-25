@@ -1,8 +1,10 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { askPersonaAction } from '@/actions/conversations';
+import { AvatarThumb } from '@/components/avatar/AvatarThumb';
+import type { AvatarRecipe } from '@opersona/shared';
 
-export interface PersonaOption { cloneId: string; name: string; mine: boolean }
+export interface PersonaOption { cloneId: string; name: string; mine: boolean; recipe?: AvatarRecipe | null }
 
 /** "Talk to persona" under New chat: searchable list of the org's personas. */
 export function TalkToPersona({ options }: { options: PersonaOption[] }) {
@@ -36,7 +38,7 @@ export function TalkToPersona({ options }: { options: PersonaOption[] }) {
               <form key={o.cloneId} action={askPersonaAction}>
                 <input type="hidden" name="cloneId" value={o.cloneId} />
                 <button type="submit" role="menuitem" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">
-                  <span aria-hidden className={'inline-block h-2 w-2 rounded-full ' + (o.mine ? 'bg-amber-500' : 'bg-violet-500')} />
+                  <AvatarThumb recipe={o.recipe} name={o.name} scale={1} />
                   <span className="min-w-0 flex-1 truncate">{o.name}</span>
                   {o.mine && <span className="muted text-[11px]">you · test</span>}
                 </button>
