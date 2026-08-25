@@ -163,27 +163,23 @@ function softShading(buf: Buf, w: number, h: number, r: AvatarRecipe, face: bool
 /** (d) Finer brows + mouth corners. Brows drawn in the skin line colour thin to
  *  one fine px (the block's top row takes the colour above it); smile/frown/grin
  *  corner blocks become 1-fine-px diagonal steps. */
-/** Cartoon eyes (portrait only). The legacy eye is a 2-px slit whose pupil hugs the
- *  inner edge, which reads as a lazy eye once upscaled. Redraw each eye at fine
- *  resolution: sclera ring, a centred 2x2 iris (recipe.eyes colour), a darker pupil
- *  corner and a same-side glint on both eyes, plus a rounded lower lid row. */
+/** Cartoon eyes (portrait only), in the flat "cute pixel portrait" style: a compact
+ *  SOLID dark eye (no white sclera — big white eyes read as startled at this scale),
+ *  2 fine px wide by 3 tall, centred in the old eye box so both eyes look forward.
+ *  The eye colour is the recipe iris blended into near-black, so blue/green eyes read
+ *  as a subtle tint the way they do in reference pixel art. */
 function cartoonEyes(buf: Buf, w: number, h: number, r: AvatarRecipe): void {
   const s = SKIN[r.skin];
-  const sclera: RGB = [250, 248, 244];
-  const scleraLo: RGB = [219, 214, 207];
-  const iris: RGB = r.eyes ?? [72, 56, 46];
-  const pupil: RGB = [clamp(iris[0] * 0.5), clamp(iris[1] * 0.5), clamp(iris[2] * 0.5)];
-  const glint: RGB = [clamp(iris[0] * 0.25 + 200), clamp(iris[1] * 0.25 + 200), clamp(iris[2] * 0.25 + 200)];
+  const iris: RGB = r.eyes ?? [46, 38, 42];
+  const eye: RGB = [clamp(20 + iris[0] * 0.28), clamp(18 + iris[1] * 0.28), clamp(18 + iris[2] * 0.28)];
+  const soft: RGB = [clamp(eye[0] + 26), clamp(eye[1] + 24), clamp(eye[2] + 24)];
   for (const ox of [10, 20]) {
-    // y18: top of the eye — sclera sides, glint + iris centre (light from the left on BOTH eyes)
-    put(buf, w, h, ox, 18, sclera); put(buf, w, h, ox + 1, 18, glint);
-    put(buf, w, h, ox + 2, 18, iris); put(buf, w, h, ox + 3, 18, sclera);
-    // y19: sclera sides, iris + pupil centre
-    put(buf, w, h, ox, 19, sclera); put(buf, w, h, ox + 1, 19, iris);
-    put(buf, w, h, ox + 2, 19, pupil); put(buf, w, h, ox + 3, 19, sclera);
-    // y20: rounded lower lid — shaded sclera centre, skin-shade corners
-    put(buf, w, h, ox, 20, s.sh); put(buf, w, h, ox + 1, 20, scleraLo);
-    put(buf, w, h, ox + 2, 20, scleraLo); put(buf, w, h, ox + 3, 20, s.sh);
+    // the legacy upscale left a 4x2 white slit here — return it to skin first
+    for (let y = 18; y <= 19; y++) for (let x = ox; x <= ox + 3; x++) put(buf, w, h, x, y, s.base);
+    // solid dark eye, centred: 2 wide x 3 tall, top corners softened for a round read
+    put(buf, w, h, ox + 1, 18, soft); put(buf, w, h, ox + 2, 18, soft);
+    put(buf, w, h, ox + 1, 19, eye); put(buf, w, h, ox + 2, 19, eye);
+    put(buf, w, h, ox + 1, 20, eye); put(buf, w, h, ox + 2, 20, eye);
   }
 }
 
