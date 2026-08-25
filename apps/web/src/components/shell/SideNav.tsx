@@ -10,11 +10,14 @@ const ITEMS = [
   { href: '/settings', label: 'Settings' },
 ];
 
+const LEAN = new Set(['/chat', '/approvals']); // desktop sidebar: the rest live in the account menu
+
 export function SideNav({ horizontal = false }: { horizontal?: boolean }) {
   const path = usePathname();
+  const items = horizontal ? ITEMS : ITEMS.filter((it) => LEAN.has(it.href));
   return (
     <ul className={horizontal ? 'nav-scroll gap-1' : 'space-y-0.5'}>
-      {ITEMS.map((it) => {
+      {items.map((it) => {
         const active = path === it.href || path.startsWith(it.href + '/');
         return (
           <li key={it.href}>

@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from '@/lib/auth-client';
@@ -45,7 +46,13 @@ export function UserMenu({ name, email, avatarRecipe, dropUp = false, compact = 
             <div className="font-medium">{name}</div>
             <div className="muted truncate">{email}</div>
           </div>
-          <div className="mt-2 px-2"><ThemeToggle /></div>
+          <nav className="mt-1 border-t border-neutral-200 pt-1 dark:border-neutral-800">
+            {[['/me', 'My persona'], ['/clones', 'Personas'], ['/settings', 'Settings']].map(([href, label]) => (
+              <Link key={href} href={href} role="menuitem" onClick={() => setOpen(false)}
+                className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">{label}</Link>
+            ))}
+          </nav>
+          <div className="mt-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800"><ThemeToggle /></div>
           <button
             type="button"
             role="menuitem"

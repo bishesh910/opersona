@@ -16,8 +16,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <SideNav />
         <div className="relative mt-auto -mx-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800">
           <div className="flex items-center justify-between">
-            <ChatSearch />
             <UserMenu name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} dropUp compact />
+            <ChatSearch anchorToContainer />
           </div>
         </div>
       </aside>
