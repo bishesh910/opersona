@@ -53,15 +53,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-12 items-center justify-between border-b border-neutral-200 px-4 md:hidden dark:border-neutral-800">
-          <div className="flex items-center gap-3">
-            <span className="font-medium">{ctx.orgName}</span>
-            <span className="chip">{ctx.role}</span>
-          </div>
+          <span className="text-base font-semibold tracking-tight">opersona.me</span>
           <UserMenu name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} />
         </header>
         <div className="md:hidden">{/* wrapper owns the breakpoint: .nav-scroll's display:flex would out-specificity md:hidden */}
           <nav className="nav-scroll gap-2 border-b border-neutral-200 px-3 py-2 dark:border-neutral-800">
-            <SideNav horizontal />
+            <SideNav horizontal include={['/chat', '/approvals']} />
           </nav>
         </div>
         <main className="min-w-0 flex-1 overflow-x-clip px-3 py-3 md:px-6 md:py-4">{children}</main>

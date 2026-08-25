@@ -22,7 +22,7 @@ const LEAN = new Set(['/chat', '/approvals']); // desktop sidebar: the rest live
 
 export function SideNav({ horizontal = false, include }: { horizontal?: boolean; include?: string[] }) {
   const path = usePathname();
-  const items = horizontal ? ITEMS : ITEMS.filter((it) => (include ? include.includes(it.href) : LEAN.has(it.href)));
+  const items = include ? ITEMS.filter((it) => include.includes(it.href)) : horizontal ? ITEMS : ITEMS.filter((it) => LEAN.has(it.href));
   return (
     <ul className={horizontal ? 'nav-scroll gap-1' : 'space-y-0.5'}>
       {items.map((it, idx) => {
