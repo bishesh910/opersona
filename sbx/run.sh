@@ -41,7 +41,7 @@ exec sudo -n /usr/bin/bwrap \
   --bind "$WS" "$WS" --chdir "$WS" \
   "${NODE_BIND[@]}" \
   --clearenv \
-  --setenv HOME "$WS" --setenv TMPDIR /tmp --setenv BASH_ENV "" --setenv LANG C.UTF-8 --setenv TERM dumb \
+  --setenv HOME "$WS" --setenv TMPDIR /tmp --setenv BASH_ENV "" --setenv MPLCONFIGDIR /tmp --setenv XDG_CACHE_HOME /tmp --setenv LANG C.UTF-8 --setenv TERM dumb \
   --setenv PATH "/usr/local/bin:/usr/bin:/bin${NODE_PATH_EXTRA}" \
   /usr/bin/setpriv --reuid "$RUID" --regid "$RGID" --init-groups --no-new-privs \
   /usr/bin/timeout -k 5 "$TMO" /bin/bash --noprofile --norc -c "$CMD"
