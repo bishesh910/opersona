@@ -453,6 +453,13 @@ export function ChatView({
             }
           })}
           {replying && !items.some((i) => i.kind === 'assistant' && i.streaming) && (
+            <div className="inline-flex items-center gap-1 rounded-lg bg-neutral-100 px-3 py-2.5 dark:bg-neutral-800" data-thinking aria-label="thinking">
+              <span className="think-dot inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500" />
+              <span className="think-dot inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500" />
+              <span className="think-dot inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500" />
+            </div>
+          )}
+          {replying && !items.some((i) => i.kind === 'assistant' && i.streaming) && (
             <div className="muted text-xs italic" data-thinking>Thinking…</div>
           )}
           <div ref={bottomRef} />
