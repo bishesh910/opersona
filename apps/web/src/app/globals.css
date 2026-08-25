@@ -113,3 +113,14 @@ code, kbd { overflow-wrap: anywhere; }
 /* Pixie button press: quick squash + springy return. */
 @keyframes pixie-pop { 0% { transform: scale(1); } 35% { transform: scale(.82); } 70% { transform: scale(1.12); } 100% { transform: scale(1); } }
 .pixie-pop { animation: pixie-pop .45s cubic-bezier(.34,1.56,.64,1); }
+
+/* Auth pages: starry Pixie-crowd backdrop; portrait screens get their own composition */
+.auth-bg {
+  background-image: url('/auth-bg.png');
+  background-size: cover;
+  background-position: center bottom;
+  image-rendering: pixelated;
+}
+@media (max-width: 640px), (max-aspect-ratio: 3/4) {
+  .auth-bg { background-image: url('/auth-bg-mobile.png'); }
+}
