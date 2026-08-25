@@ -18,7 +18,7 @@ export function SignInForm({ social = { google: false, apple: false }, next }: {
   const [code, setCode] = useState('');
 
   function done() {
-    router.push(next ?? '/clones');
+    router.push(next ?? '/chat');
     router.refresh();
   }
 
