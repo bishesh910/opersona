@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import { signUp } from '@/lib/auth-client';
 import { SocialButtons } from './SocialButtons';
 
-export function SignUpForm({ social = { google: false, apple: false }, next }: { social?: { google: boolean; apple: boolean }; next?: string }) {
+export function SignUpForm({ social = { google: false, apple: false }, next, prefillEmail }: { social?: { google: boolean; apple: boolean }; next?: string; prefillEmail?: string }) {
   const router = useRouter();
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(prefillEmail ?? '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

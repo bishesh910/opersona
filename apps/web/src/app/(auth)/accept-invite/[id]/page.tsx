@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
 import { db, authSchema } from '@opersona/db';
-import { auth, SIGNUP_OPEN } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 import { getSessionCtx } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -45,22 +45,27 @@ export default async function AcceptInvitePage({ params }: { params: Promise<{ i
   const here = `/accept-invite/${inv.id}`;
 
   if (!s) {
+    // This invitation IS permission to sign up (the auth hook admits invited emails even
+    // when public sign-ups are closed). If the account already exists, sign-in leads.
+    const [existing] = await db.select({ id: authSchema.user.id }).from(authSchema.user)
+      .where(eq(authSchema.user.email, inv.email.toLowerCase())).limit(1);
     return (
       <div className="space-y-3 text-sm" data-invite-landing>
         <h1 className="text-lg font-semibold">Join {inv.orgName}</h1>
         <p className="muted">
           You&rsquo;ve been invited to join <strong>{inv.orgName}</strong> as <strong>{inv.email}</strong>.
-          Sign in — or create an account with that email — to accept.
+          {existing ? ' You already have an account — sign in to accept.' : ' Create your account with that email to accept.'}
         </p>
-        {SIGNUP_OPEN ? (
-          <Link href={`/sign-up?next=${encodeURIComponent(here)}`} className="btn-primary block w-full text-center" data-invite-signup>Create account</Link>
+        {existing ? (
+          <>
+            <Link href={`/sign-in?next=${encodeURIComponent(here)}`} className="btn-primary block w-full text-center" data-invite-signin>Sign in</Link>
+          </>
         ) : (
-          <p className="muted text-xs">
-            Sign-ups are currently closed on this server, so a brand-new account can&rsquo;t be created yet —
-            ask the organization owner to enable sign-ups (ALLOW_SIGNUP), then come back to this link.
-          </p>
+          <>
+            <Link href={`/sign-up?next=${encodeURIComponent(here)}&email=${encodeURIComponent(inv.email)}`} className="btn-primary block w-full text-center" data-invite-signup>Create account</Link>
+            <Link href={`/sign-in?next=${encodeURIComponent(here)}`} className="btn-secondary block w-full text-center" data-invite-signin>I already have an account</Link>
+          </>
         )}
-        <Link href={`/sign-in?next=${encodeURIComponent(here)}`} className="btn-secondary block w-full text-center" data-invite-signin>Sign in</Link>
       </div>
     );
   }

@@ -4,8 +4,8 @@ import { getSessionCtx } from '@/lib/session';
 import { SIGNUP_OPEN, SOCIAL } from '@/lib/auth';
 import { SignUpForm } from '@/components/auth/SignUpForm';
 
-export default async function SignUpPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  const { next: rawNext } = await searchParams;
+export default async function SignUpPage({ searchParams }: { searchParams: Promise<{ next?: string; email?: string }> }) {
+  const { next: rawNext, email: prefillEmail } = await searchParams;
   const next = rawNext && /^\/(?!\/)/.test(rawNext) ? rawNext : undefined;
   const invited = !!next && next.startsWith('/accept-invite/');
   if (await getSessionCtx()) redirect(next ?? '/chat');
@@ -20,7 +20,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
   }
   return (
     <>
-      <SignUpForm social={SOCIAL} next={next} />
+      <SignUpForm social={SOCIAL} next={next} prefillEmail={typeof prefillEmail === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(prefillEmail) ? prefillEmail : undefined} />
       <p className="muted mt-4 text-center text-xs">Sign up and build your persona — face, story, mind.</p>
     </>
   );
