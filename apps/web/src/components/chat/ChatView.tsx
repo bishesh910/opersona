@@ -357,12 +357,15 @@ export function ChatView({
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col gap-2" data-chat-view>
       {/* Title row: sidebar toggle (mobile), editable title, "+ New", delete. */}
+      {/* Untitled chats show no heading — the nav already says New chat; the title appears once the chat names itself. */}
+      {!/^(New chat|Persona test)/.test(title) && (
       <div className="flex items-center gap-1">
         <div className="min-w-0 flex-1">
           <Title conversationId={conversationId} title={title} canEdit={!readOnly && !visitorView} editing={editingTitle} setEditing={setEditingTitle} onRenamed={(t) => { setTitle(t); router.refresh(); }} />
         </div>
 
       </div>
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col border-neutral-200 sm:rounded-lg sm:border dark:border-neutral-800">
         <div className={`flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2 text-xs ${mode === 'clone' && !visitorView ? 'border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/30' : 'border-neutral-200 dark:border-neutral-800'}`}>
