@@ -48,12 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <SideNav include={['/approvals']} />
         </div>
         <div className="relative mt-auto -mx-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800">
-          <SidebarFooter
-            name={ctx.user.name}
-            email={ctx.user.email}
-            avatarRecipe={own?.r ?? null}
-            roster={personaOptions.filter((o) => !o.mine).map((o) => ({ name: o.name, recipe: o.recipe ?? null }))}
-          />
+          <SidebarFooter name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} />
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
