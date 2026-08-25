@@ -77,18 +77,29 @@ export function SelfieUpload({ onRecipe, disabled }: { onRecipe: (r: AvatarRecip
 
   return (
     <div className="space-y-2">
-      {/* real <button> + programmatic .click(): iOS Safari often ignores taps on a
-          <label> that forwards to a display:none file input. sr-only keeps the input
-          in the layout tree (belt and braces for older WebKit). */}
-      <button
-        type="button"
-        className="btn-secondary"
-        disabled={busy || disabled}
-        onClick={() => fileRef.current?.click()}
-      >
-        {busy ? 'Looking at your selfie…' : 'Upload a selfie'}
-      </button>
-      <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={onFile} disabled={busy || disabled} tabIndex={-1} aria-hidden />
+      {/* Most reliable pattern on iOS: the file input itself, transparent, laid OVER the
+          visual button — the tap lands on the native input directly (no label forwarding,
+          no programmatic click). Button onClick is kept as a second path. */}
+      <div className="relative inline-block">
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={busy || disabled}
+          onClick={() => fileRef.current?.click()}
+        >
+          {busy ? 'Looking at your selfie…' : 'Upload a selfie'}
+        </button>
+        {!busy && !disabled && (
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            onChange={onFile}
+            aria-label="Upload a selfie"
+            className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 [font-size:16px]"
+          />
+        )}
+      </div>
       <p className="muted text-xs">
         Your selfie is downscaled in your browser, sent once to pick hair, skin tone and clothes, and <strong>never stored</strong> — not on disk, not in the database. Only the resulting recipe is saved.
       </p>
