@@ -65,6 +65,8 @@ function StepDots({ current }: { current: number }) {
 export function CharacterBuilder(props: CharacterBuilderProps) {
   const [step, setStepState] = useState(props.initialStep);
   const [recipe, setRecipe] = useState<AvatarRecipe>(props.clone?.recipe ?? DEFAULT_RECIPE);
+  // new joiners meet a random stranger, not a fixed default (post-mount: SSR-safe)
+  useEffect(() => { if (!props.clone?.recipe) setRecipe(randomRecipe()); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
   const [displayName, setDisplayName] = useState(props.brief?.displayName ?? props.userName);
   const [roleTitle, setRoleTitle] = useState(props.brief?.roleTitle ?? '');
   const [mbtiType, setMbtiType] = useState<string | null>(props.personalityType);

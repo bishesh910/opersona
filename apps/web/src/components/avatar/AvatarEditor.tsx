@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { DEFAULT_RECIPE, type AvatarRecipe } from '@opersona/shared';
+import { randomRecipe } from '@/components/onboarding/random-recipe';
 import { saveAvatarAction } from '@/actions/avatar';
 import { AvatarCanvas } from './AvatarCanvas';
 import { RecipeEditor } from './RecipeEditor';
@@ -11,6 +12,9 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
   const router = useRouter();
   const [mode, setMode] = useState<'choose' | 'edit'>(initial ? 'edit' : 'choose');
   const [recipe, setRecipe] = useState<AvatarRecipe>(initial ?? DEFAULT_RECIPE);
+  const [touched, setTouched] = useState(false);
+  // fresh personas start from a random stranger, not a fixed default (post-mount to avoid hydration mismatch)
+  useEffect(() => { if (!initial) setRecipe(randomRecipe()); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
   const [confidence, setConfidence] = useState<Record<string, number> | null>(null);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [pending, start] = useTransition();
@@ -30,8 +34,8 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
   useEffect(() => {
     if (firstRun.current) { firstRun.current = false; return; }
     if (readOnly || mode !== 'edit') return;
-    // never autosave the untouched starter — a member who merely opened the editor hasn't chosen a face
-    if (!initial && JSON.stringify(recipe) === JSON.stringify(DEFAULT_RECIPE)) return;
+    // never autosave a face the person hasn't actually chosen (random seed included)
+    if (!initial && !touched) return;
     setMsg(null);
     const t = setTimeout(save, 1200);
     return () => clearTimeout(t);
@@ -55,7 +59,7 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
         {mode === 'choose' && !readOnly ? (
           <div className="card space-y-4">
             <h2 className="font-medium">Your Pixie — start from a selfie, or pick by hand</h2>
-            <SelfieUpload onRecipe={(r, c) => { setRecipe(r); setConfidence(c); setMode('edit'); }} />
+            <SelfieUpload onRecipe={(r, c) => { setTouched(true); setRecipe(r); setConfidence(c); setMode('edit'); }} />
             <div className="muted text-xs">or</div>
             <button type="button" className="btn-secondary" onClick={() => setMode('edit')}>Skip selfie, pick manually</button>
           </div>
@@ -63,16 +67,16 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
           <>
             {!readOnly && (
               <div className="card space-y-2">
-                <SelfieUpload onRecipe={(r, c) => { setRecipe(r); setConfidence(c); setMsg(null); }} />
+                <SelfieUpload onRecipe={(r, c) => { setTouched(true); setRecipe(r); setConfidence(c); setMsg(null); }} />
                 {lowConfidence.length > 0 && (
                   <p className="text-xs text-amber-600">Low confidence on: {lowConfidence.join(', ')} — worth a second look below.</p>
                 )}
               </div>
             )}
-            <RecipeEditor recipe={recipe} onChange={(r) => { setRecipe(r); setMsg(null); }} disabled={readOnly} />
+            <RecipeEditor recipe={recipe} onChange={(r) => { setTouched(true); setRecipe(r); setMsg(null); }} disabled={readOnly} />
             {!readOnly && (
               <div className="flex items-center gap-3">
-                <button type="button" className="btn-secondary" onClick={() => { setRecipe(DEFAULT_RECIPE); setConfidence(null); }}>Reset</button>
+                <button type="button" className="btn-secondary" onClick={() => { setTouched(true); setRecipe(randomRecipe()); setConfidence(null); }}>Reroll</button>
                 <span className={'text-sm ' + (pending ? 'muted' : msg?.kind === 'err' ? 'text-red-600' : 'text-green-700 dark:text-green-400')} aria-live="polite">
                   {pending ? 'Saving…' : msg ? msg.text : 'Changes save automatically'}
                 </span>
