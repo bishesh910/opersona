@@ -30,6 +30,8 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
   useEffect(() => {
     if (firstRun.current) { firstRun.current = false; return; }
     if (readOnly || mode !== 'edit') return;
+    // never autosave the untouched starter — a member who merely opened the editor hasn't chosen a face
+    if (!initial && JSON.stringify(recipe) === JSON.stringify(DEFAULT_RECIPE)) return;
     setMsg(null);
     const t = setTimeout(save, 1200);
     return () => clearTimeout(t);
