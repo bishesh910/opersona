@@ -22,9 +22,11 @@ export async function maybeTitleConversation(orgId: string, cloneId: string, con
   if (!DEFAULTISH.test(conv.title) && !crudeEcho) return;
   const cfg = await orgModelConfig(orgId);
   const raw = await textCall({ orgId, cloneId, kind: 'title', apiKey: cfg.apiKey, model: cfg.condenseModel, effort: 'low',
-    system: 'Title this conversation for a sidebar: 3-6 words, the TOPIC (what it is about), no quotes, no trailing punctuation, same language as the user.',
+    system: 'Output ONLY a conversation title: 3-6 words naming the TOPIC. No preamble, no quotes, no markdown, no labels like "Title:", no trailing punctuation. Same language as the user. Your entire reply must be the title itself.',
     user: `USER:\n${firstMsg}\n\nASSISTANT:\n${assistants[0]!.content.slice(0, 600)}` });
-  const title = raw.trim().replace(/^["'“]|["'”]$/g, '').replace(/[.。]$/, '').slice(0, 80);
+  let title = raw.trim().split('\n')[0]!;
+  title = title.replace(/\*\*/g, '').replace(/^(ok[.,:!]?\s*)/i, '').replace(/^(sidebar )?title\s*[:—-]\s*/i, '');
+  title = title.replace(/^["'“]|["'”]$/g, '').replace(/[.。]$/, '').trim().slice(0, 80);
   if (title.length < 3) return;
   await db.update(conversations).set({ title }).where(and(eq(conversations.id, conversationId), eq(conversations.title, conv.title))); // don't stomp a concurrent rename
 }

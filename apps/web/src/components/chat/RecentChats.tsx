@@ -33,7 +33,7 @@ export function RecentChats({ items, currentSlug, variant = 'inline' }: { items:
         {variant === 'strip' ? 'Chats ▾' : 'chats ▾'}
       </button>
       {open && (
-        <div role="menu" className="card absolute left-0 z-20 mt-1 w-64 p-1.5 shadow-lg">
+        <div role="menu" className={"card absolute z-20 mt-1 w-64 p-1.5 shadow-lg " + (variant === "strip" ? "right-0" : "left-0")}>
           {items.filter((c) => c.slug !== currentSlug).slice(0, 5).map((c) => (
             <Link key={c.slug} href={`/c/${c.slug}`} role="menuitem" onClick={() => setOpen(false)}
               className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">
