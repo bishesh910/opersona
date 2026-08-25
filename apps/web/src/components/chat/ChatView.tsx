@@ -370,7 +370,7 @@ export function ChatView({
           <div className="flex items-center gap-2">
             {mode === 'clone' ? (<><AvatarThumb recipe={avatar} name={cloneName} scale={1.5} state={(() => { const last = items[items.length - 1]; return last && last.kind === 'assistant' && last.streaming && last.text.length > 0 ? 'talking' : replying ? 'thinking' : 'idle'; })()} /><span className="font-medium">{cloneName}</span>{visitorView
               ? <span className="chip border-blue-400 text-blue-700 dark:border-blue-700 dark:text-blue-400" data-visitor-chip>{cloneName}&rsquo;s persona</span>
-              : <span className="chip border-amber-400 text-amber-700 dark:text-amber-400">persona test — replies as you, never learned from</span>}</>)
+              : <span className="chip border-amber-400 text-amber-700 dark:text-amber-400">persona test — replies as you; your ratings teach it</span>}</>)
               : (<><span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-neutral-800 text-[10px] font-semibold text-white dark:bg-neutral-200 dark:text-neutral-900">C</span><span className="font-medium">Claude</span><span className="muted hidden sm:inline">· learns how you think, automatically</span></>)}
             <span className={'inline-block h-1.5 w-1.5 rounded-full ' + (connected === 'open' ? 'bg-green-500' : connected === 'connecting' ? 'animate-pulse bg-amber-500' : 'bg-red-500')} title={`stream ${connected}`} />
             {pendingApprovals > 0 && <span className="chip border-amber-400">{pendingApprovals} awaiting approval</span>}
@@ -388,7 +388,7 @@ export function ChatView({
         </div>
 
         <div ref={scrollRef} onScroll={onScroll} className="scroll-touch flex-1 space-y-2 overflow-y-auto px-3 py-3">
-          {empty && <p className="muted text-sm">{visitorView ? `Ask ${cloneName}'s persona anything — it answers the way ${cloneName} would, from what they chose to share.` : mode === 'clone' ? 'Ask anything — see whether the answer sounds like you. Test chats are never learned from.' : 'Say hello. Ask anything, or walk through a problem the way you would — your persona learns from it.'}</p>}
+          {empty && <p className="muted text-sm">{visitorView ? `Ask ${cloneName}'s persona anything — it answers the way ${cloneName} would, from what they chose to share.` : mode === 'clone' ? 'Ask anything — see whether the answer sounds like you. What you type here is never mined for patterns — but your That\u2019s me / Not me ratings do teach your persona.' : 'Say hello. Ask anything, or walk through a problem the way you would — your persona learns from it.'}</p>}
           {items.map((it) => {
             switch (it.kind) {
               case 'user':
