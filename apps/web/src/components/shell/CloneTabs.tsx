@@ -15,7 +15,7 @@ const TABS: { key: string; label: string }[] = [
 
 /** Tabs with chat/learning content are the owner's alone — colleagues and admins see
  *  only the persona-identity tabs (privacy: the system enforces it, nobody "watches"). */
-const PUBLIC_TABS = new Set(['brief', 'personality', 'avatar', 'documents']);
+const PUBLIC_TABS = new Set(['brief', 'thinking', 'personality', 'avatar', 'documents']);
 
 export function CloneTabs({ cloneId, isOwner = false }: { cloneId: string; isOwner?: boolean }) {
   const path = usePathname();

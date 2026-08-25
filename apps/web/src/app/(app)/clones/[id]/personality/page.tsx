@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { desc, eq } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
-import { getCloneAccess } from '@/lib/clones';
+import { getProfileAccess } from '@/lib/clones';
 import { PersonalityCard } from '@/components/brief/PersonalityCard';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function PersonalityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: rawId } = await params;
   const ctx = await requireOrg();
-  const access = await getCloneAccess(ctx, rawId);
+  const access = await getProfileAccess(ctx, rawId);
   if (!access) notFound();
   const id = access.clone.id;
   const [personality] = await db

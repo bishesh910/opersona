@@ -42,7 +42,8 @@ exports. There is **no admin view of any of this** — not a page, not a stream,
 UI hides the tabs; the proxy denies the requests.
 
 **Org-visible:** your persona's public identity (name, Pixie, brief, personality, attached
-documents) and its self-test accuracy stat. Admins additionally see governance metadata: the
+documents), its **confirmed** thinking patterns as distilled descriptions only (never the
+evidence quotes, never emerging patterns), and its self-test accuracy stat. Admins additionally see governance metadata: the
 member list, usage totals, approvals.
 
 **Disclosed, not buried:** when someone talks *to your persona*, you (its owner) can read that

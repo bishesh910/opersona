@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { and, desc, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
-import { getCloneAccess } from '@/lib/clones';
+import { getProfileAccess } from '@/lib/clones';
 import { listImportJobs } from '@/lib/imports';
 import { engineFetch } from '@/lib/engine';
 import { PatternsPanel, type PatternRow } from '@/components/thinking/PatternsPanel';
@@ -16,11 +16,47 @@ export const dynamic = 'force-dynamic';
 export default async function ThinkingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: rawId } = await params;
   const ctx = await requireOrg();
-  const access = await getCloneAccess(ctx, rawId);
+  const access = await getProfileAccess(ctx, rawId);
   if (!access) notFound();
-  // Chat + learning content is private to the persona's owner — admins see metadata only.
-  if (!access.isOwner) notFound();
   const id = access.clone.id;
+
+  // Colleagues get the LIMITED view: confirmed pattern descriptions grouped by
+  // dimension + the accuracy stat. No evidence quotes, no counts, no sources,
+  // no import tooling — those are the owner's alone.
+  if (!access.isOwner) {
+    const confirmed = await db
+      .select({ dimension: schema.reasoningPatterns.dimension, description: schema.reasoningPatterns.description })
+      .from(schema.reasoningPatterns)
+      .where(and(eq(schema.reasoningPatterns.cloneId, id), eq(schema.reasoningPatterns.status, 'confirmed')))
+      .orderBy(desc(schema.reasoningPatterns.strength));
+    const publicAcc = await engineFetch<{ me: number; notMe: number; pct: number | null }>(`/clones/${id}/accuracy`, { query: { orgId: ctx.orgId } })
+      .catch(() => ({ me: 0, notMe: 0, pct: null as number | null }));
+    const byDim = new Map<string, string[]>();
+    for (const p of confirmed) { const arr = byDim.get(p.dimension) ?? []; arr.push(p.description); byDim.set(p.dimension, arr); }
+    return (
+      <div className="max-w-2xl space-y-4">
+        <div>
+          <h2 className="font-medium">How {access.clone.name} thinks</h2>
+          <p className="muted mt-1 text-sm">
+            Confirmed reasoning patterns this persona applies — the distilled descriptions only.
+            The conversations and quotes they were learned from are private to {access.clone.name}.
+          </p>
+        </div>
+        {publicAcc.pct != null && (
+          <p className="muted text-sm">Sounds-like-them accuracy: <span className="font-medium text-neutral-800 dark:text-neutral-200">{publicAcc.pct}%</span> (rated by {access.clone.name})</p>
+        )}
+        {byDim.size === 0 && <p className="muted text-sm">Nothing confirmed yet — this persona is still learning.</p>}
+        {[...byDim.entries()].map(([dim, descs]) => (
+          <section key={dim} className="card space-y-1.5 p-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{dim.replace(/_/g, ' ')}</h3>
+            <ul className="list-disc space-y-1 pl-5 text-sm">
+              {descs.map((d, i) => <li key={i}>{d}</li>)}
+            </ul>
+          </section>
+        ))}
+      </div>
+    );
+  }
 
   const [patterns, sources, feedback, jobs, ccSessions, ccTokens] = await Promise.all([
     db.select().from(schema.reasoningPatterns)

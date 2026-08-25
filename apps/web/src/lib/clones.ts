@@ -34,6 +34,26 @@ export async function getCloneAccess(ctx: OrgCtx, cloneId: string): Promise<Clon
   return { clone, isOwner, canRead, canWrite: isOwner };
 }
 
+/**
+ * Public persona profile: ANY member of the org may view a colleague's persona
+ * identity — brief, personality, Pixie, documents, and the LIMITED thinking view
+ * (confirmed pattern descriptions only; evidence quotes stay owner-private).
+ * Editing remains owner-only. Content pages (chat/memory/survey/full thinking)
+ * must NOT use this — they gate on isOwner.
+ */
+export async function getProfileAccess(ctx: OrgCtx, cloneId: string): Promise<CloneAccess | null> {
+  const own = cloneId === 'me';
+  if (!own && !/^[0-9a-f-]{36}$/i.test(cloneId)) return null;
+  const [clone] = await db
+    .select()
+    .from(schema.clones)
+    .where(own ? and(eq(schema.clones.ownerUserId, ctx.userId), eq(schema.clones.orgId, ctx.orgId)) : and(eq(schema.clones.id, cloneId), eq(schema.clones.orgId, ctx.orgId)))
+    .limit(1);
+  if (!clone) return null;
+  const isOwner = clone.ownerUserId === ctx.userId;
+  return { clone, isOwner, canRead: true, canWrite: isOwner };
+}
+
 export interface AskAccess {
   clone: Clone;
   /** True when the asker owns this persona (then /chat is the right surface, not /ask). */

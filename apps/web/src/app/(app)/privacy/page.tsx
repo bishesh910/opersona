@@ -23,6 +23,7 @@ export default function PrivacyPage() {
         <h2 className="font-medium">Visible to your teammates</h2>
         <ul className="muted list-disc space-y-1 pl-5 text-sm">
           <li>Your persona&apos;s public identity: name, Pixie, brief, personality, and documents you attach to it.</li>
+          <li>Its <strong>confirmed</strong> thinking patterns — the distilled descriptions only, grouped by dimension. Never the evidence quotes, never emerging patterns, never the conversations they came from.</li>
           <li>Its self-test accuracy score.</li>
           <li><strong>When you ask a colleague&apos;s persona something, that conversation belongs to their persona — they can read it.</strong> (The same is true in reverse when someone asks yours.)</li>
         </ul>
