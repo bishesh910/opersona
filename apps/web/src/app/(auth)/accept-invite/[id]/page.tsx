@@ -31,6 +31,25 @@ export default async function AcceptInvitePage({ params }: { params: Promise<{ i
         .limit(1)
     : [];
 
+  const s = await getSessionCtx();
+
+  // Idempotent success paths FIRST — a used link must never error at the person who used it.
+  if (inv && s) {
+    const [already] = await db.select({ id: authSchema.member.id }).from(authSchema.member)
+      .where(and(eq(authSchema.member.userId, s.userId), eq(authSchema.member.organizationId, inv.organizationId))).limit(1);
+    // Already in the org (they accepted moments ago and the browser re-requested this URL) → carry on.
+    if (already) redirect('/onboarding');
+  }
+  if (inv && inv.status === 'accepted' && !s) {
+    return (
+      <div className="space-y-2 text-sm" data-invite-used>
+        <h1 className="text-lg font-semibold">Already accepted</h1>
+        <p className="muted">This invitation was already used to create the account for <strong>{inv.email}</strong>. Just sign in.</p>
+        <Link href="/sign-in" className="btn-primary block w-full text-center">Sign in</Link>
+      </div>
+    );
+  }
+
   if (!inv || inv.status !== 'pending' || inv.expiresAt < new Date()) {
     return (
       <div className="space-y-2 text-sm" data-invite-invalid>
@@ -41,7 +60,6 @@ export default async function AcceptInvitePage({ params }: { params: Promise<{ i
     );
   }
 
-  const s = await getSessionCtx();
   const here = `/accept-invite/${inv.id}`;
 
   if (!s) {
