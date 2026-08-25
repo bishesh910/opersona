@@ -22,11 +22,14 @@ export function TalkToPersona({ options }: { options: PersonaOption[] }) {
     <div ref={ref} className="relative">
       <button
         type="button"
-        className="block w-full rounded-md px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800/60"
+        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800/60"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => { setOpen((o) => !o); setQ(''); }}
       >
+        <span className="opacity-70" aria-hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h8A2.5 2.5 0 0 1 17 6.5v4a2.5 2.5 0 0 1-2.5 2.5H9l-3.6 3v-3A2.5 2.5 0 0 1 4 10.5v-4Z" /><path d="M19.8 9.5c.7.4 1.2 1.2 1.2 2.1v3.4c0 1.1-.9 2-2 2v2.4l-2.9-2.4h-3" /></svg>
+        </span>
         Talk to opersona
       </button>
       {open && (
