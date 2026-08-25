@@ -32,7 +32,6 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
         }
         title={c.title}
       >
-        {c.pinned && <span aria-hidden className="mr-1 text-[10px]">📌</span>}
         {!c.mine && c.personaName ? `${c.personaName} · ${c.title}` : c.title}
       </Link>
       <button
@@ -101,13 +100,17 @@ function Section({ label, storageKey, chats, path, first }: { label: string; sto
 export function SidebarChats({ items }: { items: SidebarChat[] }) {
   const path = usePathname();
   if (items.length === 0) return null;
-  const claude = items.filter((c) => c.mode === 'claude');
-  const persona = items.filter((c) => c.mode === 'clone');
+  const pinned = items.filter((c) => c.pinned);
+  const claude = items.filter((c) => !c.pinned && c.mode === 'claude');
+  const persona = items.filter((c) => !c.pinned && c.mode === 'clone');
+  let first = true;
+  const takeFirst = () => { const f = first; first = false; return f; };
   return (
     <div className="mt-4 flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
-        {claude.length > 0 && <Section label="Chats" storageKey="sb.chats" chats={claude} path={path} first />}
-        {persona.length > 0 && <Section label="opersona chats" storageKey="sb.pchats" chats={persona} path={path} first={claude.length === 0} />}
+        {pinned.length > 0 && <Section label="Pinned" storageKey="sb.pinned" chats={pinned} path={path} first={takeFirst()} />}
+        {claude.length > 0 && <Section label="Chats" storageKey="sb.chats" chats={claude} path={path} first={takeFirst()} />}
+        {persona.length > 0 && <Section label="opersona chats" storageKey="sb.pchats" chats={persona} path={path} first={takeFirst()} />}
       </div>
       <Link href="/me/chat" className="muted mt-1 block px-2 py-1 text-xs hover:underline">All chats →</Link>
     </div>

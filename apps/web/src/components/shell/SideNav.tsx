@@ -4,8 +4,8 @@ import { usePathname } from 'next/navigation';
 
 const ITEMS = [
   { href: '/chat', label: 'New chat' },
-  { href: '/me', label: 'My persona' },
-  { href: '/clones', label: 'Personas' },
+  { href: '/me', label: 'Me' },
+  { href: '/clones', label: 'opersonas' },
   { href: '/approvals', label: 'Approvals' },
   { href: '/settings', label: 'Settings' },
 ];
