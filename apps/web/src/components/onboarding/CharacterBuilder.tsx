@@ -14,7 +14,7 @@ import { randomRecipe } from './random-recipe';
 
 const STEPS = [
   { n: 1, label: 'Team' },
-  { n: 2, label: 'Face' },
+  { n: 2, label: 'Pixie' },
   { n: 3, label: 'Story' },
   { n: 4, label: 'Mind' },
   { n: 5, label: 'Ready' },
@@ -87,7 +87,7 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
 
   const heading =
     step === 1 ? 'Pick your team' :
-    step === 2 ? 'Choose your face' :
+    step === 2 ? 'Build your Pixie' :
     step === 3 ? 'Your story' :
     step === 4 ? 'Your mind' :
     'Your persona is ready';
@@ -179,10 +179,10 @@ function FaceStep({ cloneId, recipe, onRecipe, onNext }: {
     setError(null);
     try {
       const res = await saveAvatarAction(cloneId, recipe);
-      if (!res.ok) { setError(res.error ?? 'Could not save your avatar.'); return; }
+      if (!res.ok) { setError(res.error ?? 'Could not save your Pixie.'); return; }
       onNext();
     } catch {
-      setError('Could not save your avatar.');
+      setError('Could not save your Pixie.');
     } finally {
       setPending(false);
     }
@@ -192,7 +192,7 @@ function FaceStep({ cloneId, recipe, onRecipe, onNext }: {
     <div className="space-y-4">
       {mode === 'choose' ? (
         <div className="card space-y-4">
-          <p className="muted text-sm">Start from a selfie, roll the dice, or build your face by hand — you can fine-tune either way.</p>
+          <p className="muted text-sm">Your Pixie is your persona's pixel portrait. Start from a selfie, roll the dice, or build it by hand — you can fine-tune either way.</p>
           <SelfieUpload onRecipe={(r, c) => { onRecipe(r); setConfidence(c); setMode('edit'); }} />
           <div className="muted text-xs">or</div>
           <div className="flex flex-wrap gap-2">

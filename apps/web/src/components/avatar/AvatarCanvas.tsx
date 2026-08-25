@@ -45,7 +45,7 @@ export function AvatarCanvas({ recipe, scale = 4, className, title, state = 'idl
       className={className}
       title={title}
       style={{ imageRendering: 'pixelated', width: PORTRAIT_W * scale, height: PORTRAIT_H * scale }}
-      aria-label={title ?? 'avatar'}
+      aria-label={title ?? 'Pixie'}
     />
   );
 }

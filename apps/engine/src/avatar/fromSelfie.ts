@@ -7,7 +7,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import sharp from 'sharp';
 import { z } from 'zod';
-import { AvatarRecipe, SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, RGB } from '@opersona/shared';
+import { AvatarRecipe, SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, EARRINGS, HEADWEAR, RGB } from '@opersona/shared';
 import { db, sessionCosts } from '@opersona/db';
 import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { ensureWorkspace } from '../isolation/workspace.js';
@@ -31,6 +31,13 @@ const Extraction = z.object({
   glasses: z.boolean(),
   lashes: z.boolean().describe('bigger, lashed eyes read as more feminine/expressive — only if that fits the person'),
   heavy: z.boolean().describe('heavier build / rounder face'),
+  eyes: RGB3.nullable().describe('iris colour as [r,g,b], ONLY when the eyes are clearly a distinct light colour (blue/green/hazel); null for dark/brown or unclear'),
+  earrings: z.enum([...EARRINGS, 'none']).describe('only if an earring is clearly visible'),
+  earringColor: RGB3.nullable().describe('earring metal colour, null for default gold or when no earrings'),
+  freckles: z.boolean().describe('only if freckles are clearly visible on the cheeks'),
+  hairTip: RGB3.nullable().describe('second colour of the hair TIPS when the hair is clearly dip-dyed/two-tone; null for single-colour hair'),
+  headwear: z.enum([...HEADWEAR, 'none']).describe('beanie or cap only if the person is clearly wearing one'),
+  headwearColor: RGB3.nullable().describe('hat colour, null when no headwear'),
   confidence: z.object({ skin: z.number().min(0).max(1), hair: z.number().min(0).max(1), hairc: z.number().min(0).max(1), cloth: z.number().min(0).max(1), facial: z.number().min(0).max(1), glasses: z.number().min(0).max(1) }),
 });
 
@@ -40,6 +47,7 @@ const SYSTEM = `You convert one selfie into parameters for a tiny 18x28-pixel ca
 - hairc / c1: real RGB values sampled from the photo (hair colour, main clothing colour).
 - glasses and facial hair only if clearly visible. facial=none when absent. part=none if hair has no visible part or is bald/bun.
 - brow/mouth: the resting expression in the photo (smile if smiling).
+- Detail fields (eyes, earrings, freckles, hairTip, headwear) are extras: set them ONLY when the feature is clearly visible in the photo; otherwise none/null/false. When in doubt, leave them off — a plain result beats a wrong one.
 - Give honest per-field confidence; low confidence is fine — a human edits the result.`;
 
 type Extracted = z.infer<typeof Extraction>;
@@ -108,6 +116,11 @@ export async function recipeFromSelfie(args: { orgId: string; apiKey: string | n
     ...(x.part !== 'none' ? { hairargs: { part: x.part } } : {}),
     ...(x.facial !== 'none' ? { facial: x.facial } : {}),
     ...(x.glasses ? { glasses: true } : {}), ...(x.lashes ? { lashes: true } : {}), ...(x.heavy ? { heavy: true } : {}),
+    ...(x.eyes ? { eyes: rgb(x.eyes) } : {}),
+    ...(x.earrings !== 'none' ? { earrings: x.earrings, ...(x.earringColor ? { earringColor: rgb(x.earringColor) } : {}) } : {}),
+    ...(x.freckles ? { freckles: true } : {}),
+    ...(x.hairTip ? { hairTip: rgb(x.hairTip) } : {}),
+    ...(x.headwear !== 'none' ? { headwear: x.headwear, ...(x.headwearColor ? { headwearColor: rgb(x.headwearColor) } : {}) } : {}),
   };
   return { recipe: AvatarRecipe.parse(recipe), confidence: x.confidence };
 }

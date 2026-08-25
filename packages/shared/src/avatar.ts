@@ -15,6 +15,8 @@ export const CLOTHES = ['suit', 'dressshirt', 'polo', 'blouse', 'cardigan', 'swe
 export const BROWS = ['flat', 'angry', 'raised', 'soft'] as const;
 export const MOUTHS = ['neutral', 'smile', 'frown', 'grin'] as const;
 export const FACIAL = ['mustache', 'mustacheSm', 'stubble', 'goatee'] as const;
+export const EARRINGS = ['stud', 'hoop'] as const;
+export const HEADWEAR = ['beanie', 'cap'] as const;
 
 export const AvatarRecipe = z.object({
   skin: z.enum(SKIN_TONES),
@@ -38,6 +40,15 @@ export const AvatarRecipe = z.object({
   glasses: z.boolean().optional(),
   lashes: z.boolean().optional(),
   heavy: z.boolean().optional(),
+  // ── detail fields ── every one optional; absent = exactly the pre-detail rendering.
+  eyes: RGB.optional(),          // iris colour (default stays the engine's dark pupil)
+  earrings: z.enum(EARRINGS).optional(),
+  earringColor: RGB.optional(),  // default gold
+  freckles: z.boolean().optional(),
+  hairTip: RGB.optional(),       // dip-dye: lowest hair pixels per column recoloured
+  clothAccent: RGB.optional(),   // collar/trim: top clothing row recoloured
+  headwear: z.enum(HEADWEAR).optional(),
+  headwearColor: RGB.optional(),
 });
 export type AvatarRecipe = z.infer<typeof AvatarRecipe>;
 

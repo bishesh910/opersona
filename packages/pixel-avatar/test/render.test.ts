@@ -115,3 +115,75 @@ describe('validateRecipe', () => {
     expect(() => validateRecipe(null)).toThrow();
   });
 });
+
+// ── detail fields (eyes/earrings/freckles/hairTip/clothAccent/headwear) ──────
+import { EARRINGS, HEADWEAR } from '@opersona/shared';
+import { avatarStateFrames } from '../src/index.js';
+import LEGACY from './fixtures/legacy-buffers.json' with { type: 'json' };
+
+describe('legacy regression: recipes without detail fields render byte-identical', () => {
+  for (const [name, snap] of Object.entries(LEGACY as Record<string, { recipe: unknown; portrait: string; scene: { front: string[]; back: string[] } }>)) {
+    // validateRecipe doubles as the schema-backward-compat check: a stored
+    // pre-detail-fields recipe must still parse.
+    it(`${name} portrait is byte-equal to the pre-detail-fields snapshot`, () => {
+      expect(Buffer.from(renderPortrait(validateRecipe(snap.recipe))).equals(Buffer.from(snap.portrait, 'base64'))).toBe(true);
+    });
+    it(`${name} scene frames are byte-equal to the pre-detail-fields snapshot`, () => {
+      const frames = renderSceneFrames(validateRecipe(snap.recipe));
+      for (let i = 0; i < 3; i++) {
+        expect(Buffer.from(frames.front[i]!).equals(Buffer.from(snap.scene.front[i]!, 'base64'))).toBe(true);
+        expect(Buffer.from(frames.back[i]!).equals(Buffer.from(snap.scene.back[i]!, 'base64'))).toBe(true);
+      }
+    });
+  }
+});
+
+describe('detail fields', () => {
+  const base: AvatarRecipe = { ...DEFAULT_RECIPE };
+  const detailCases: Array<[string, Partial<AvatarRecipe>]> = [
+    ['eyes', { eyes: [70, 120, 180] }],
+    ...EARRINGS.map((earrings): [string, Partial<AvatarRecipe>] => [`earrings=${earrings}`, { earrings }]),
+    ['earrings+color', { earrings: 'stud', earringColor: [200, 200, 210] }],
+    ['freckles', { freckles: true }],
+    ['hairTip', { hairTip: [200, 60, 160] }],
+    ['clothAccent', { clothAccent: [240, 240, 240] }],
+    ...HEADWEAR.map((headwear): [string, Partial<AvatarRecipe>] => [`headwear=${headwear}`, { headwear }]),
+    ['headwear+color', { headwear: 'cap', headwearColor: [180, 40, 40] }],
+    ['everything', { eyes: [60, 130, 90], earrings: 'hoop', earringColor: [200, 200, 210], freckles: true, hairTip: [220, 120, 200], clothAccent: [230, 230, 230], headwear: 'beanie', headwearColor: [150, 60, 60] }],
+  ];
+  for (const [label, patch] of detailCases) {
+    it(`${label} renders and changes the portrait`, () => {
+      const recipe = validateRecipe({ ...base, ...patch });
+      const buf = renderPortrait(recipe);
+      expect(opaqueCount(buf)).toBeGreaterThan(100);
+      expect(Buffer.from(buf).equals(Buffer.from(renderPortrait(base)))).toBe(false);
+      const { front, back } = renderSceneFrames(recipe);
+      for (const f of [...front, ...back]) expect(opaqueCount(f)).toBeGreaterThan(100);
+    });
+  }
+
+  it('every headwear composes with every hair style (front + back) without throwing', () => {
+    for (const hair of HAIR_STYLES) for (const headwear of HEADWEAR) {
+      const recipe = validateRecipe({ ...base, hair, headwear, headwearColor: [90, 70, 120] });
+      expect(opaqueCount(renderPortrait(recipe))).toBeGreaterThan(100);
+      const { front, back } = renderSceneFrames(recipe);
+      for (const f of [...front, ...back]) expect(opaqueCount(f)).toBeGreaterThan(100);
+    }
+  });
+
+  it('avatarStateFrames works with headwear+glasses and keeps the glasses no-blink rule', () => {
+    const withGlasses = validateRecipe({ ...base, glasses: true, headwear: 'beanie', earrings: 'hoop', hairTip: [220, 120, 200] });
+    const f = avatarStateFrames(withGlasses);
+    // glasses → the blink frame IS the open frame (no blink painted through lenses)
+    expect(Buffer.from(f.idle[0]).equals(Buffer.from(f.idle[1]))).toBe(true);
+    expect(Buffer.from(f.talking[0]).equals(Buffer.from(f.talking[1]))).toBe(false);
+    const noGlasses = validateRecipe({ ...base, glasses: undefined, headwear: 'cap' });
+    const g = avatarStateFrames(noGlasses);
+    expect(Buffer.from(g.idle[0]).equals(Buffer.from(g.idle[1]))).toBe(false);
+  });
+
+  it('undefined detail fields render identically to fields simply absent', () => {
+    const explicit = { ...base, eyes: undefined, earrings: undefined, freckles: undefined, hairTip: undefined, clothAccent: undefined, headwear: undefined };
+    expect(Buffer.from(renderPortrait(explicit as AvatarRecipe)).equals(Buffer.from(renderPortrait(base)))).toBe(true);
+  });
+});

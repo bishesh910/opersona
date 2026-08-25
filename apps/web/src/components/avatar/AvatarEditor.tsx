@@ -20,7 +20,7 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
   function save() {
     start(async () => {
       const res = await saveAvatarAction(cloneId, recipe);
-      setMsg(res.ok ? { kind: 'ok', text: 'Avatar saved.' } : { kind: 'err', text: res.error ?? 'Failed' });
+      setMsg(res.ok ? { kind: 'ok', text: 'Pixie saved.' } : { kind: 'err', text: res.error ?? 'Failed' });
       if (res.ok) router.refresh();
     });
   }
@@ -41,7 +41,7 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
       <div className="space-y-5">
         {mode === 'choose' && !readOnly ? (
           <div className="card space-y-4">
-            <h2 className="font-medium">Start from a selfie, or pick by hand</h2>
+            <h2 className="font-medium">Your Pixie — start from a selfie, or pick by hand</h2>
             <SelfieUpload onRecipe={(r, c) => { setRecipe(r); setConfidence(c); setMode('edit'); }} />
             <div className="muted text-xs">or</div>
             <button type="button" className="btn-secondary" onClick={() => setMode('edit')}>Skip selfie, pick manually</button>
@@ -59,7 +59,7 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
             <RecipeEditor recipe={recipe} onChange={(r) => { setRecipe(r); setMsg(null); }} disabled={readOnly} />
             {!readOnly && (
               <div className="flex items-center gap-3">
-                <button type="button" className="btn-primary" onClick={save} disabled={pending}>{pending ? 'Saving…' : 'Save avatar'}</button>
+                <button type="button" className="btn-primary" onClick={save} disabled={pending}>{pending ? 'Saving…' : 'Save Pixie'}</button>
                 <button type="button" className="btn-secondary" onClick={() => { setRecipe(DEFAULT_RECIPE); setConfidence(null); }}>Reset</button>
                 {msg && <span className={'text-sm ' + (msg.kind === 'ok' ? 'text-green-700 dark:text-green-400' : 'text-red-600')}>{msg.text}</span>}
               </div>

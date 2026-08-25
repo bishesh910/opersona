@@ -82,9 +82,9 @@ function drawHead(buf: Buf, skin: Skin): void {
   rect(buf, 7, 17, 10, 18, s.sh); rect(buf, 7, 17, 9, 17, s.base);
 }
 
-function drawFace(buf: Buf, skin: Skin, brow: Brow, mouth: Mouth, blush: boolean, lashes = false): void {
+function drawFace(buf: Buf, skin: Skin, brow: Brow, mouth: Mouth, blush: boolean, lashes = false, iris?: RGB): void {
   const s = SKIN[skin];
-  const white: RGB = [250, 248, 244], pup: RGB = [46, 38, 42];
+  const white: RGB = [250, 248, 244], pup: RGB = iris ?? [46, 38, 42];
   for (const [a, b, p] of [[5, 6, 6], [10, 11, 10]] as const) {
     set(buf, a, 9, white); set(buf, b, 9, white); set(buf, p, 9, pup);
   }
@@ -263,6 +263,101 @@ function drawFacial(buf: Buf, kind: Facial, color: RGB): void {
     set(buf, 8, 14, base); set(buf, 9, 14, base);
     for (const x of [7, 8, 9, 10]) set(buf, x, 13, base);
   }
+}
+
+// ─── detail features (all optional; absent = legacy rendering) ───────────────
+const GOLD: RGB = [216, 178, 60];
+
+/** 3-4 slightly-darker-than-skin pixels on the cheeks (mirrored diagonals). */
+function drawFreckles(buf: Buf, skin: Skin): void {
+  const s = SKIN[skin];
+  const f: RGB = [
+    clamp(s.base[0] * 0.55 + s.line[0] * 0.45),
+    clamp(s.base[1] * 0.55 + s.line[1] * 0.45),
+    clamp(s.base[2] * 0.55 + s.line[2] * 0.45),
+  ];
+  for (const [x, y] of [[5, 11], [6, 12], [11, 12], [12, 11]] as const) set(buf, x, y, f);
+}
+
+/** Stud (1 px mid-ear) or hoop (2 px hanging off the lobe) at both ears. */
+function drawEarrings(buf: Buf, kind: 'stud' | 'hoop', color: RGB): void {
+  for (const ex of [HX0 - 1, HX1 + 1]) {
+    if (kind === 'stud') set(buf, ex, 10, color);
+    else { set(buf, ex, 11, color); set(buf, ex, 12, color); }
+  }
+}
+
+/** Dip-dye: recolour the lowest 1-2 hair-coloured pixels per column with a second
+ *  colour. Only pixels the hair function itself painted (diffed against `pre`)
+ *  in one of the hair shades count — facial hair and skin never get tipped — and
+ *  only in columns whose hair reaches near the overall bottom of the hair mass,
+ *  so the fringe over the forehead never gets dyed (that read as a headband). */
+function applyHairTip(buf: Buf, pre: Buf, hairc: RGB, tip: RGB): void {
+  const [hi, base, sh] = shades(hairc);
+  const [thi, tbase, tsh] = shades(tip);
+  const isHair = (x: number, y: number): RGB | null => {
+    const i = (y * CUR_W + x) * 4;
+    if (buf[i + 3] !== 255) return null;
+    if (buf[i] === pre[i] && buf[i + 1] === pre[i + 1] && buf[i + 2] === pre[i + 2] && buf[i + 3] === pre[i + 3]) return null;
+    const c = rgbAt(buf, x, y);
+    if (eq(c, base)) return tbase;
+    if (eq(c, hi)) return thi;
+    if (eq(c, sh)) return tsh;
+    return null;
+  };
+  let maxY = -1;
+  for (let y = 0; y < CUR_H; y++) for (let x = 0; x < CUR_W; x++) if (isHair(x, y)) maxY = y;
+  if (maxY < 0) return;
+  for (let x = 0; x < CUR_W; x++) {
+    let n = 0;
+    for (let y = maxY; y >= Math.max(0, maxY - 1) && n < 2; y--) {
+      const t = isHair(x, y);
+      if (t) { set(buf, x, y, t); n++; }
+    }
+  }
+}
+
+/** Collar/trim accent: recolour the top clothing row (portrait y19) where it
+ *  still shows the garment's own shades (the neck skin and shirt details keep
+ *  their colours). */
+function applyClothAccent(buf: Buf, row: number, c1: RGB, accent: RGB): void {
+  const [hi, base, sh] = shades(c1);
+  const [ahi, abase, ash] = shades(accent);
+  for (let x = 0; x < CUR_W; x++) {
+    if (alphaAt(buf, x, row) !== 255) continue;
+    const c = rgbAt(buf, x, row);
+    if (eq(c, base)) set(buf, x, row, abase);
+    else if (eq(c, hi)) set(buf, x, row, ahi);
+    else if (eq(c, sh)) set(buf, x, row, ash);
+  }
+}
+
+/** Beanie / cap over the top hair rows. Both clear anything poking above the
+ *  hat line (bun, spikes) then draw a rounded crown on rows 2-4; the beanie
+ *  finishes with a folded band on row 5, the cap with a 1-px brim row at the
+ *  forehead. Side hair (x3 / x14) stays visible as tufts under the hat. */
+function drawHeadwear(buf: Buf, kind: 'beanie' | 'cap', color: RGB): void {
+  const [hi, base, sh] = shades(color);
+  for (let y = 0; y <= 1; y++) for (let x = 0; x < CUR_W; x++) {
+    const i = (y * CUR_W + x) * 4;
+    buf[i] = 0; buf[i + 1] = 0; buf[i + 2] = 0; buf[i + 3] = 0;
+  }
+  for (let x = 5; x <= 12; x++) set(buf, x, 2, base);
+  rect(buf, HX0, 3, HX1, 4, base);
+  set(buf, 6, 2, hi); set(buf, 7, 2, hi); set(buf, 5, 3, hi);
+  if (kind === 'beanie') for (let x = HX0; x <= HX1; x++) set(buf, x, 5, sh);
+  else for (let x = HX0 - 1; x <= HX1 + 1; x++) set(buf, x, 5, sh);
+}
+
+/** Back view of the headwear: same crown rows fitted to the back-of-head
+ *  silhouette; no brim (a cap's brim faces away). */
+function drawHeadwearBack(buf: Buf, kind: 'beanie' | 'cap', color: RGB): void {
+  const [hi, base, sh] = shades(color);
+  rect(buf, 6, 2, 11, 2, base);
+  rect(buf, 5, 3, 12, 3, base);
+  rect(buf, 4, 4, 13, 4, base);
+  set(buf, 7, 2, hi); set(buf, 8, 2, hi);
+  if (kind === 'beanie') rect(buf, 4, 5, 13, 5, sh);
 }
 
 // ─── glasses ─────────────────────────────────────────────────────────────────
@@ -483,10 +578,15 @@ function drawHeadGroup(buf: Buf, r: AvatarRecipe): void {
   const skinBase = SKIN[r.skin].base;
   drawHead(buf, r.skin);
   if (r.heavy) drawHeavyFace(buf, r.skin);
-  drawFace(buf, r.skin, r.brow ?? 'flat', r.mouth ?? 'neutral', r.blush ?? false, r.lashes ?? false);
+  drawFace(buf, r.skin, r.brow ?? 'flat', r.mouth ?? 'neutral', r.blush ?? false, r.lashes ?? false, r.eyes);
+  if (r.freckles) drawFreckles(buf, r.skin);
   if (r.facial) drawFacial(buf, r.facial, r.hairc);
+  const preHair = r.hairTip ? new Uint8ClampedArray(buf) : null;
   HAIR_FNS[r.hair](buf, r.hairc, skinBase, r.hairargs ?? {});
+  if (r.hairTip && preHair) applyHairTip(buf, preHair, r.hairc, r.hairTip);
+  if (r.headwear) drawHeadwear(buf, r.headwear, r.headwearColor ?? [70, 76, 96]);
   if (r.glasses) drawGlasses(buf);
+  if (r.earrings) drawEarrings(buf, r.earrings, r.earringColor ?? GOLD);
 }
 
 function defaultPants(r: AvatarRecipe): RGB {
@@ -500,6 +600,7 @@ export function compose(r: AvatarRecipe): Buf {
   const buf = new Uint8ClampedArray(PORTRAIT_W * PORTRAIT_H * 4);
   drawClothing(buf, r.cloth, r.c1, r.c2, r.tie, r.skin, r.heavy ?? false);
   collarNeck(buf, r.skin);
+  if (r.clothAccent) applyClothAccent(buf, 19, r.c1, r.clothAccent);
   drawHeadGroup(buf, r);
   outlinePass(buf);
   return buf;
@@ -510,8 +611,11 @@ export function composeScene(r: AvatarRecipe, phase: number, back: boolean): Buf
   CUR_W = SCENE_W; CUR_H = SCENE_H;
   const buf = new Uint8ClampedArray(SCENE_W * SCENE_H * 4);
   drawSceneBody(buf, r, phase, back);
-  if (back) drawHeadBack(buf, r);
-  else drawHeadGroup(buf, r);
+  if (r.clothAccent) applyClothAccent(buf, 18, r.c1, r.clothAccent);
+  if (back) {
+    drawHeadBack(buf, r);
+    if (r.headwear) drawHeadwearBack(buf, r.headwear, r.headwearColor ?? [70, 76, 96]);
+  } else drawHeadGroup(buf, r);
   outlinePass(buf);
   return buf;
 }

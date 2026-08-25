@@ -1,5 +1,5 @@
 'use client';
-import { SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, type AvatarRecipe, type RGB } from '@opersona/shared';
+import { SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, EARRINGS, HEADWEAR, type AvatarRecipe, type RGB } from '@opersona/shared';
 
 const rgbToHex = (c: RGB) => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
 const hexToRgb = (h: string): RGB => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
@@ -78,6 +78,23 @@ export function RecipeEditor({ recipe, onChange, disabled }: { recipe: AvatarRec
         <Check label="Heavy build" value={recipe.heavy} onChange={(v) => set('heavy', v || undefined)} />
         <Check label="Blush" value={recipe.blush} onChange={(v) => set('blush', v || undefined)} />
       </div>
+      <details className="card">
+        <summary className="cursor-pointer text-sm font-medium">Details</summary>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <Color label="Eye colour" value={recipe.eyes} onChange={(v) => set('eyes', v)} optional />
+          <div className="grid grid-cols-2 gap-3">
+            <Select label="Earrings" value={recipe.earrings} options={EARRINGS} onChange={(v) => set('earrings', v)} allowNone />
+            <Select label="Headwear" value={recipe.headwear} options={HEADWEAR} onChange={(v) => set('headwear', v)} allowNone />
+          </div>
+          <Color label="Earring colour (default gold)" value={recipe.earringColor} onChange={(v) => set('earringColor', v)} optional />
+          <Color label="Headwear colour" value={recipe.headwearColor} onChange={(v) => set('headwearColor', v)} optional />
+          <Color label="Hair tip colour (dip-dye)" value={recipe.hairTip} onChange={(v) => set('hairTip', v)} optional />
+          <Color label="Collar accent" value={recipe.clothAccent} onChange={(v) => set('clothAccent', v)} optional />
+        </div>
+        <div className="mt-3">
+          <Check label="Freckles" value={recipe.freckles} onChange={(v) => set('freckles', v || undefined)} />
+        </div>
+      </details>
       <details className="card">
         <summary className="cursor-pointer text-sm font-medium">Hair details</summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-4">
