@@ -35,7 +35,7 @@ export function UserMenu({ name, email, avatarRecipe, dropUp = false, compact = 
         title={name}
       >
         <span key={pop} className={pop ? 'pixie-pop inline-block' : 'inline-block'}>
-          <AvatarThumb recipe={avatarRecipe} name={name} scale={compact ? 2 : 1.5} />
+          <AvatarThumb recipe={avatarRecipe} name={name} scale={1.5} />
         </span>
         {!compact && <span className="hidden sm:inline">{initials(name)}</span>}
       </button>
