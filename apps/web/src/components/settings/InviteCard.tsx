@@ -1,4 +1,5 @@
 'use client';
+import { copyText } from '@/components/shell/CopyButton';
 import { useActionState, useState } from 'react';
 import { createInviteAction, cancelInviteAction, type InviteResult } from '@/actions/invites';
 
@@ -18,9 +19,8 @@ function CopyField({ url }: { url: string }) {
       <button
         type="button"
         className="btn-secondary btn-sm shrink-0"
-        onClick={async () => {
-          try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); }
-          catch { /* clipboard unavailable — the input is selectable */ }
+        onClick={() => {
+          if (copyText(url)) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
         }}
       >
         {copied ? 'Copied' : 'Copy'}

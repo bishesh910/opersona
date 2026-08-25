@@ -1,4 +1,5 @@
 'use client';
+import { CopyButton } from '@/components/shell/CopyButton';
 import { useActionState, useState } from 'react';
 import { createInviteAction, type InviteResult } from '@/actions/invites';
 
@@ -24,7 +25,7 @@ export function InviteButton() {
               <p className="text-xs font-medium text-green-700 dark:text-green-400">Invite link — send it to them:</p>
               <div className="flex items-center gap-2">
                 <code className="min-w-0 flex-1 truncate rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] dark:bg-neutral-800" title={url}>{url}</code>
-                <button type="button" className="btn-secondary btn-sm shrink-0" onClick={() => navigator.clipboard?.writeText(url)}>Copy</button>
+                <CopyButton text={url} />
               </div>
               <p className="muted text-xs">Manage pending invites in <a href="/settings" className="underline">Settings</a>.</p>
             </div>
