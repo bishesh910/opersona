@@ -33,13 +33,6 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
         title={c.title}
       >
         {c.pinned && <span aria-hidden className="mr-1 text-[10px]">📌</span>}
-        {c.mode === 'clone' && (
-          <span
-            aria-hidden
-            title={c.mine ? 'Persona test — replies as you' : `${c.personaName}'s persona`}
-            className={'mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ' + (c.mine ? 'bg-amber-500' : 'bg-violet-500')}
-          />
-        )}
         {!c.mine && c.personaName ? `${c.personaName} · ${c.title}` : c.title}
       </Link>
       <button
@@ -83,15 +76,27 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
   );
 }
 
-/** Claude-style history: recent conversations under New chat; ⋮ menu per row. */
+/** Claude-style history in two sections: plain Claude chats, then persona chats. */
 export function SidebarChats({ items }: { items: SidebarChat[] }) {
   const path = usePathname();
   if (items.length === 0) return null;
+  const claude = items.filter((c) => c.mode === 'claude');
+  const persona = items.filter((c) => c.mode === 'clone');
   return (
-    <div className="mt-5 flex min-h-0 flex-1 flex-col">
-      <div className="muted px-2 pb-1 text-[11px] font-medium uppercase tracking-wide">Chats</div>
-      <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1 [scrollbar-width:thin]">
-        {items.map((c) => <Item key={c.id} c={c} active={path === c.href} />)}
+    <div className="mt-4 flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
+        {claude.length > 0 && (
+          <>
+            <div className="muted px-2 pb-1 text-[11px] font-medium uppercase tracking-wide">Chats</div>
+            <div className="space-y-0.5">{claude.map((c) => <Item key={c.id} c={c} active={path === c.href} />)}</div>
+          </>
+        )}
+        {persona.length > 0 && (
+          <>
+            <div className={'muted px-2 pb-1 text-[11px] font-medium uppercase tracking-wide ' + (claude.length ? 'mt-4' : '')}>opersona chats</div>
+            <div className="space-y-0.5">{persona.map((c) => <Item key={c.id} c={c} active={path === c.href} />)}</div>
+          </>
+        )}
       </div>
       <Link href="/me/chat" className="muted mt-1 block px-2 py-1 text-xs hover:underline">All chats →</Link>
     </div>

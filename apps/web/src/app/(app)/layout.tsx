@@ -40,6 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col self-start border-r border-neutral-200 bg-neutral-50 p-4 md:flex dark:border-neutral-800 dark:bg-neutral-900/40">
         <div className="mb-6 px-2 text-lg font-semibold tracking-tight">opersona</div>
         <SideNav include={['/chat']} />
+        <div className="my-2 border-t border-neutral-200 dark:border-neutral-800" />
         <TalkToPersona options={personaOptions} />
         <div className="my-3 border-t border-neutral-200 dark:border-neutral-800" />
         <SidebarChats items={recentChats} />

@@ -25,10 +25,10 @@ export function TalkToPersona({ options }: { options: PersonaOption[] }) {
         aria-expanded={open}
         onClick={() => { setOpen((o) => !o); setQ(''); }}
       >
-        Talk to persona
+        Talk to opersona
       </button>
       {open && (
-        <div role="menu" className="card absolute inset-x-0 top-full z-30 mt-1 p-2 shadow-lg">
+        <div role="menu" className="card absolute left-full top-0 z-30 ml-2 w-64 p-2 shadow-lg">
           <input autoFocus className="input mb-1.5" placeholder="Who?" value={q} onChange={(e) => setQ(e.target.value)} />
           <div className="max-h-56 overflow-y-auto">
             {hits.length === 0 && <p className="muted px-2 py-1.5 text-xs">No persona matches.</p>}
