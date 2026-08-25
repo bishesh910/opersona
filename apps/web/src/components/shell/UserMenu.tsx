@@ -6,6 +6,9 @@ import { ThemeToggle } from './ThemeToggle';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
 import type { AvatarRecipe } from '@opersona/shared';
 
+const initials = (name: string) =>
+  name.trim().split(/\s+/).map((w) => w[0]?.toUpperCase() ?? '').slice(0, 2).join('') || '?';
+
 export function UserMenu({ name, email, avatarRecipe }: { name: string; email: string; avatarRecipe?: AvatarRecipe | null }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -22,7 +25,7 @@ export function UserMenu({ name, email, avatarRecipe }: { name: string; email: s
     <div ref={ref} className="relative">
       <button type="button" className="flex items-center gap-2 rounded-lg border border-neutral-200 py-1 pl-1 pr-2.5 text-sm hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-800/60" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>
         <AvatarThumb recipe={avatarRecipe} name={name} scale={1.5} />
-        <span className="hidden sm:inline">{name}</span>
+        <span className="hidden sm:inline" title={name}>{initials(name)}</span>
       </button>
       {open && (
         <div role="menu" className="card absolute right-0 z-20 mt-1 w-56 p-2 shadow-lg">
