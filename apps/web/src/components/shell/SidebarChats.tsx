@@ -25,7 +25,7 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
       <Link
         href={c.href}
         draggable
-        onDragStart={(e) => { e.dataTransfer.setData('application/x-chat', JSON.stringify({ id: c.id, pinned: c.pinned })); e.dataTransfer.effectAllowed = 'move'; }}
+        onDragStart={(e) => { e.dataTransfer.setData('application/x-chat', JSON.stringify({ id: c.id, pinned: c.pinned })); e.dataTransfer.setData(`application/x-chat-meta-${c.mode}-${c.pinned ? 1 : 0}`, '1'); e.dataTransfer.effectAllowed = 'move'; }}
         className={
           'block truncate rounded-md py-1.5 pl-2 pr-7 text-sm ' +
           (active
@@ -77,7 +77,7 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
   );
 }
 
-function Section({ label, storageKey, chats, path, first }: { label: string; storageKey: string; chats: SidebarChat[]; path: string; first: boolean }) {
+function Section({ label, storageKey, chats, path, first, mode }: { label: string; storageKey: string; chats: SidebarChat[]; path: string; first: boolean; mode: 'claude' | 'clone' | null }) {
   const router = useRouter();
   const [open, setOpen] = useState(true);
   const [over, setOver] = useState(false);
@@ -91,8 +91,15 @@ function Section({ label, storageKey, chats, path, first }: { label: string; sto
       router.refresh();
     } catch { /* not a chat row */ }
   };
+  const accepts = (types: readonly string[]) => {
+    const meta = types.find((t) => t.startsWith('application/x-chat-meta-'));
+    if (!meta) return false;
+    const [, , , dragMode, dragPinned] = meta.split('-');
+    if (wantsPinned) return dragPinned === '0';              // Pinned takes any unpinned chat
+    return dragPinned === '1' && dragMode === mode;          // home section takes back its own pinned chats
+  };
   const dnd = {
-    onDragOver: (e: React.DragEvent) => { if (e.dataTransfer.types.includes('application/x-chat')) { e.preventDefault(); setOver(true); } },
+    onDragOver: (e: React.DragEvent) => { if (accepts(e.dataTransfer.types)) { e.preventDefault(); setOver(true); } },
     onDragLeave: () => setOver(false),
     onDrop,
   };
@@ -127,9 +134,9 @@ export function SidebarChats({ items }: { items: SidebarChat[] }) {
   return (
     <div className="mt-4 flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
-        <Section label="Pinned" storageKey="sb.pinned" chats={pinned} path={path} first={takeFirst()} />
-        {claude.length > 0 && <Section label="Chats" storageKey="sb.chats" chats={claude} path={path} first={takeFirst()} />}
-        {persona.length > 0 && <Section label="opersona chats" storageKey="sb.pchats" chats={persona} path={path} first={takeFirst()} />}
+        <Section label="Pinned" storageKey="sb.pinned" chats={pinned} path={path} first={takeFirst()} mode={null} />
+        {claude.length > 0 && <Section label="Chats" storageKey="sb.chats" chats={claude} path={path} first={takeFirst()} mode="claude" />}
+        {persona.length > 0 && <Section label="opersona chats" storageKey="sb.pchats" chats={persona} path={path} first={takeFirst()} mode="clone" />}
       </div>
       <Link href="/me/chat" className="muted mt-1 block px-2 py-1 text-xs hover:underline">All chats →</Link>
     </div>
