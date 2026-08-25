@@ -8,7 +8,7 @@
 
 export const NIGHT = {
   FIELD:
-    'auth-input h-12 w-full rounded-md border-2 border-[#262c44] bg-[#141930] px-3 text-[15px] ' +
+    'auth-input h-12 w-full rounded-md border-2 border-[#30303a] bg-[#1a1a20] px-3 text-[15px] ' +
     'text-neutral-100 placeholder:text-neutral-500 shadow-[inset_0_2px_0_rgba(0,0,0,0.35)] ' +
     'outline-none transition-colors duration-150 focus:border-[#e2decd]/60 focus:ring-2 ' +
     'focus:ring-[#e2decd]/20 max-sm:text-base',
@@ -31,12 +31,12 @@ export const NIGHT = {
     'transition-colors hover:text-neutral-200 ' +
     'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e2decd]',
   OTP:
-    'auth-input h-14 w-full rounded-md border-2 border-[#262c44] bg-[#141930] pl-[0.35em] text-center ' +
+    'auth-input h-14 w-full rounded-md border-2 border-[#30303a] bg-[#1a1a20] pl-[0.35em] text-center ' +
     'font-mono text-2xl tracking-[0.35em] text-neutral-100 placeholder:tracking-[0.35em] ' +
     'placeholder:text-neutral-600 shadow-[inset_0_2px_0_rgba(0,0,0,0.35)] outline-none ' +
     'transition-colors focus:border-[#e2decd]/60 focus:ring-2 focus:ring-[#e2decd]/20',
   BACKUP:
-    'auth-input h-12 w-full rounded-md border-2 border-[#262c44] bg-[#141930] px-3 text-center ' +
+    'auth-input h-12 w-full rounded-md border-2 border-[#30303a] bg-[#1a1a20] px-3 text-center ' +
     'font-mono text-lg tracking-[0.12em] text-neutral-100 placeholder:text-neutral-600 ' +
     'shadow-[inset_0_2px_0_rgba(0,0,0,0.35)] outline-none transition-colors ' +
     'focus:border-[#e2decd]/60 focus:ring-2 focus:ring-[#e2decd]/20',

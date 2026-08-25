@@ -14,12 +14,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               app theme is light. This card is always night: dark glass (/85 + blur so stars
               transmit) with a hard pixel drop shadow, one more building in the skyline.
               .night-card hooks the no-backdrop-filter fallback in globals.css. */}
-          <div className="night-card relative rounded-lg border border-white/10 bg-[#0e1322]/85 p-6 text-neutral-100 shadow-[0_6px_0_0_rgba(4,5,12,0.55),0_36px_90px_-28px_rgba(0,0,0,0.9)] backdrop-blur-md [-webkit-backdrop-filter:blur(12px)] max-sm:p-5">
+          <div className="night-card relative rounded-lg border border-white/10 bg-[#141419]/85 p-6 text-neutral-100 shadow-[0_6px_0_0_rgba(4,5,12,0.55),0_36px_90px_-28px_rgba(0,0,0,0.9)] backdrop-blur-md [-webkit-backdrop-filter:blur(12px)] max-sm:p-5">
             {/* three office-window pixels; the lit one hard-blinks every ~7s */}
             <div aria-hidden className="absolute right-5 top-5 flex gap-1">
               <span className="win-blink h-1.5 w-1.5 bg-amber-300/90" />
-              <span className="h-1.5 w-1.5 bg-[#2a3050]" />
-              <span className="h-1.5 w-1.5 bg-[#2a3050]" />
+              <span className="h-1.5 w-1.5 bg-[#2e2e38]" />
+              <span className="h-1.5 w-1.5 bg-[#2e2e38]" />
             </div>
             {children}
           </div>

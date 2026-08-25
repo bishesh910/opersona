@@ -6,6 +6,7 @@ import { signOut } from '@/lib/auth-client';
 import { ThemeToggle } from './ThemeToggle';
 import { ChatSearch } from './ChatSearch';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
+import { PixelChevronUp } from './PixelGlyphs';
 import type { AvatarRecipe } from '@opersona/shared';
 import { randomRecipe } from '@/components/onboarding/random-recipe';
 
@@ -72,7 +73,7 @@ export function SidebarFooter({ name, email, avatarRecipe }: {
       <button type="button" aria-label="Account & settings" aria-haspopup="menu" aria-expanded={open} title="Account & settings"
         className={pad(false) + ' text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'}
         onClick={() => setOpen((o) => !o)}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={'transition-transform ' + (open ? 'rotate-180' : '')}><path d="m6 14 6-6 6 6" /></svg>
+        <PixelChevronUp className={'transition-transform ' + (open ? 'rotate-180' : '')} />
       </button>
       {open && (
         <div role="menu" className="card absolute bottom-full inset-x-0 z-20 mb-2 p-2 shadow-lg">
