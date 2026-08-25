@@ -13,6 +13,8 @@ export default async function SurveyPage({ params }: { params: Promise<{ id: str
   const ctx = await requireOrg();
   const access = await getCloneAccess(ctx, rawId);
   if (!access) notFound();
+  // Chat + learning content is private to the persona's owner — admins see metadata only.
+  if (!access.isOwner) notFound();
   const id = access.clone.id;
 
   // Self-tests: everything not yet rated, plus the last 10 verdicts for the history dots.

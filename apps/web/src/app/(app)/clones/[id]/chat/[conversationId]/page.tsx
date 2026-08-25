@@ -13,6 +13,8 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
   const ctx = await requireOrg();
   const access = await getCloneAccess(ctx, rawId);
   if (!access) notFound();
+  // Chat + learning content is private to the persona's owner — admins see metadata only.
+  if (!access.isOwner) notFound();
   const id = access.clone.id;
   const [conv] = await db.select().from(schema.conversations)
     .where(and(/^[0-9a-f-]{36}$/i.test(conversationId) ? or(eq(schema.conversations.id, conversationId), eq(schema.conversations.slug, conversationId)) : eq(schema.conversations.slug, conversationId), eq(schema.conversations.cloneId, access.clone.id), eq(schema.conversations.orgId, ctx.orgId))).limit(1);

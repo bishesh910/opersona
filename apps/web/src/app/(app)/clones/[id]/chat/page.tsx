@@ -12,6 +12,8 @@ export default async function ChatListPage({ params, searchParams }: { params: P
   const ctx = await requireOrg();
   const access = await getCloneAccess(ctx, rawId);
   if (!access) notFound();
+  // Chat + learning content is private to the persona's owner — admins see metadata only.
+  if (!access.isOwner) notFound();
   const id = access.clone.id;
   const allConvs = await db.select().from(schema.conversations).where(eq(schema.conversations.cloneId, id)).orderBy(desc(schema.conversations.lastActivityAt)).limit(200);
   // The owner's own conversations vs. colleagues asking their persona ("Ask their persona").

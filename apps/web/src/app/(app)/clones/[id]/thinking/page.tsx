@@ -18,6 +18,8 @@ export default async function ThinkingPage({ params }: { params: Promise<{ id: s
   const ctx = await requireOrg();
   const access = await getCloneAccess(ctx, rawId);
   if (!access) notFound();
+  // Chat + learning content is private to the persona's owner — admins see metadata only.
+  if (!access.isOwner) notFound();
   const id = access.clone.id;
 
   const [patterns, sources, feedback, jobs, ccSessions, ccTokens] = await Promise.all([

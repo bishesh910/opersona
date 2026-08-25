@@ -85,6 +85,12 @@ export function SidebarFooter({ name, email, avatarRecipe }: {
             className="mt-1 flex items-center gap-2.5 rounded px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">
             <span className="opacity-70">{GEAR}</span>Settings
           </Link>
+          <Link href="/privacy" role="menuitem" onClick={() => setOpen(false)}
+            className="mt-1 flex items-center gap-2.5 rounded px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">
+            <span aria-hidden className="flex w-4 justify-center opacity-70">
+              <svg width="14" height="16" viewBox="0 0 14 16" fill="currentColor" shapeRendering="crispEdges" aria-hidden><path d="M6 0h2v1h2v1h2v1h2v6h-1v2h-1v2h-2v1h-2v1H6v-1H4v-1H2v-2H1V9H0V3h2V2h2V1h2V0Z" opacity=".85"/></svg>
+            </span>Privacy
+          </Link>
           <div className="mt-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800"><ThemeToggle /></div>
           <button type="button" role="menuitem"
             className="mt-2 block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"

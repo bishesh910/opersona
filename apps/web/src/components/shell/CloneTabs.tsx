@@ -13,9 +13,14 @@ const TABS: { key: string; label: string }[] = [
   { key: 'documents', label: 'Documents' },
 ];
 
+/** Tabs with chat/learning content are the owner's alone — colleagues and admins see
+ *  only the persona-identity tabs (privacy: the system enforces it, nobody "watches"). */
+const PUBLIC_TABS = new Set(['brief', 'personality', 'avatar', 'documents']);
+
 export function CloneTabs({ cloneId, isOwner = false }: { cloneId: string; isOwner?: boolean }) {
   const path = usePathname();
   const router = useRouter();
+  const visible = isOwner ? TABS : TABS.filter((t) => PUBLIC_TABS.has(t.key));
   const hrefFor = (t: { key: string }) => {
     const short = t.key === 'documents' ? 'docs' : t.key;
     return isOwner ? (t.key === 'thinking' ? '/me' : `/me/${short}`) : `/clones/${cloneId}/${t.key}`;
@@ -31,7 +36,7 @@ export function CloneTabs({ cloneId, isOwner = false }: { cloneId: string; isOwn
     <>
     {/* phones: every section visible as a pill — nothing hidden behind a popup */}
     <div className="flex flex-wrap gap-1.5 py-1 md:hidden" role="tablist" aria-label="Persona sections">
-      {TABS.map((t) => {
+      {visible.map((t) => {
         const active = isActive(t);
         return (
           <button
@@ -54,7 +59,7 @@ export function CloneTabs({ cloneId, isOwner = false }: { cloneId: string; isOwn
     </div>
     <div className="hidden md:block">
     <div className="nav-scroll gap-1 border-b border-neutral-200 dark:border-neutral-800">
-      {TABS.map((t) => {
+      {visible.map((t) => {
         const href = hrefFor(t);
         const active = isActive(t);
         return (

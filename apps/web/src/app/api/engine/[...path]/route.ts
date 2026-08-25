@@ -62,8 +62,11 @@ async function authorize(ctx: OrgCtx, method: string, path: string[]): Promise<A
     const mine = conv.userId === ctx.userId;
     const access = await getCloneAccess(ctx, conv.cloneId);
     if (!access && !mine) return deny(403, 'not your conversation');
-    if (leaf === 'events' && method === 'GET') return { ok: true, cloneId: conv.cloneId, conversationId: conv.id };
-    if (leaf === 'files' && method === 'GET') return { ok: true, cloneId: conv.cloneId, conversationId: conv.id };
+    // Chat content is private: only the conversation's author, or the persona's owner
+    // reviewing a visitor conversation with THEIR persona. Org admins get no content.
+    const contentOk = mine || !!access?.isOwner;
+    if (leaf === 'events' && method === 'GET') return contentOk ? { ok: true, cloneId: conv.cloneId, conversationId: conv.id } : deny(403, 'private conversation');
+    if (leaf === 'files' && method === 'GET') return contentOk ? { ok: true, cloneId: conv.cloneId, conversationId: conv.id } : deny(403, 'private conversation');
     if ((leaf === 'messages' || leaf === 'end') && method === 'POST') {
       // Only the conversation's creator writes into it: the owner in their own chats, a visitor
       // in theirs. The owner reviews visitor conversations read-only; org admins stay read-only.
@@ -95,7 +98,8 @@ async function authorize(ctx: OrgCtx, method: string, path: string[]): Promise<A
   if (root === 'clones' && id && UUID.test(id) && path.length === 3) {
     const access = await getCloneAccess(ctx, id);
     if (!access) return deny(404, 'clone not found');
-    if ((leaf === 'prompt' || leaf === 'export') && method === 'GET') return { ok: true, cloneId: id };
+    // The rendered prompt and full export carry fingerprint evidence (verbatim chat quotes) — owner only.
+    if ((leaf === 'prompt' || leaf === 'export') && method === 'GET') return access.isOwner ? { ok: true, cloneId: id } : deny(403, 'owner-only');
     // The vault contains episodic memory + verbatim evidence quotes — strictly owner-only.
     if (leaf === 'export-vault' && method === 'GET') return access.isOwner ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can export the vault');
     // Self-test accuracy is part of the persona's public stats — readable by anyone with access.
@@ -120,7 +124,7 @@ async function authorize(ctx: OrgCtx, method: string, path: string[]): Promise<A
     const [, , , sub, tokenId, tail] = path;
     const access = await getCloneAccess(ctx, id);
     if (!access) return deny(404, 'clone not found');
-    if (sub === 'sessions' && method === 'GET' && path.length === 4) return { ok: true, cloneId: id };
+    if (sub === 'sessions' && method === 'GET' && path.length === 4) return access.isOwner ? { ok: true, cloneId: id } : deny(403, 'owner-only');
     if (method !== 'POST') return deny(404, 'unknown engine path');
     if (!access.canWrite) return deny(403, 'only the persona owner can teach their persona');
     if (path.length === 4 && (sub === 'tokens' || sub === 'upload' || sub === 'scan')) return { ok: true, cloneId: id };

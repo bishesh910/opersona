@@ -13,6 +13,8 @@ export default async function MemoryPage({ params }: { params: Promise<{ id: str
   const ctx = await requireOrg();
   const access = await getCloneAccess(ctx, rawId);
   if (!access) notFound();
+  // Chat + learning content is private to the persona's owner — admins see metadata only.
+  if (!access.isOwner) notFound();
   const id = access.clone.id;
   const [facts, playbooks, episodes] = await Promise.all([
     db.select().from(schema.facts).where(eq(schema.facts.cloneId, id)).orderBy(desc(schema.facts.pinned), desc(schema.facts.updatedAt)).limit(500),
