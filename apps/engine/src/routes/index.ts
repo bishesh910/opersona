@@ -83,7 +83,7 @@ routes.post('/approvals/:id', async (c) => {
 
 // ─── avatar ─────────────────────────────────────────────────────────────────
 routes.post('/avatar/from-selfie', async (c) => {
-  const body = await parse(c, z.object({ orgId: z.string(), imageBase64: z.string().min(100).max(20_000_000), mime: z.enum(['image/jpeg', 'image/png', 'image/webp']) }));
+  const body = await parse(c, z.object({ orgId: z.string(), imageBase64: z.string().min(100).max(20_000_000), mime: z.string().regex(/^(image\/[\w.+-]+|application\/octet-stream)$/).max(60) })); // sharp decides decodability; a friendly error covers formats it can't read
   const cfg = await orgModelConfig(body.orgId);
   const out = await recipeFromSelfie({ orgId: body.orgId, apiKey: cfg.apiKey, model: cfg.chatModel, imageBase64: body.imageBase64, mime: body.mime });
   return c.json(out);

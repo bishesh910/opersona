@@ -77,7 +77,12 @@ async function extractViaAgentSdk(orgId: string, model: string, jpegB64: string)
 export async function recipeFromSelfie(args: { orgId: string; apiKey: string | null; model: string; imageBase64: string; mime: string }): Promise<{ recipe: AvatarRecipe; confidence: Record<string, number> }> {
   // Normalise: strip EXIF, cap at 512px, re-encode as JPEG — the model never sees the original bytes.
   const input = Buffer.from(args.imageBase64, 'base64');
-  const jpeg = await sharp(input).rotate().resize(512, 512, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+  let jpeg: Buffer;
+  try {
+    jpeg = await sharp(input).rotate().resize(512, 512, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+  } catch {
+    throw new Error('Could not read this photo format. Use a JPG or PNG — screenshotting the photo and uploading the screenshot always works.');
+  }
   let x: Extracted;
   if (!args.apiKey) {
     x = await extractViaAgentSdk(args.orgId, args.model, jpeg.toString('base64'));
