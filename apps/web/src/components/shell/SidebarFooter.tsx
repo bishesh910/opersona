@@ -19,7 +19,7 @@ function HeadTile({ recipe, name, size = 22, className = '' }: { recipe: AvatarR
   // ~24×24 window at (6,3). Center that window inside a `size` tile.
   const off = (24 - size) / 2;
   return (
-    <span className={'overflow-hidden rounded-[6px] ring-2 ring-neutral-50 dark:ring-neutral-900 ' + className} style={{ width: size, height: size }}>
+    <span className={'overflow-hidden ' + className} style={{ width: size, height: size }}>
       <span className="block" style={{ marginLeft: -(6 + off), marginTop: -(3 + off) }}>
         <AvatarThumb recipe={recipe} name={name} scale={2} />
       </span>
