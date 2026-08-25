@@ -82,7 +82,7 @@ export function renderPortraitV2(r: AvatarRecipe): Uint8ClampedArray {
     hrow(x0, x1, y, s.base);
   }
   // ears (stick out, rounded, inner shadow) — hidden under long side hair
-  for (const ex of r.hair === 'styleFrame' ? [] : [10, 25]) {
+  for (const ex of ['styleFrame', 'styleBob', 'styleLong'].includes(r.hair) ? [] : [10, 25]) {
     put(ex, 16, s.base); put(ex, 17, s.base); put(ex, 18, s.base); put(ex, 19, s.base);
     put(ex === 10 ? 9 : 26, 17, s.base); put(ex === 10 ? 9 : 26, 18, s.base);
     put(ex, 17, s.sh); // inner-ear shadow
@@ -201,6 +201,29 @@ export function renderPortraitV2(r: AvatarRecipe): Uint8ClampedArray {
       for (let y = 1; y <= 8; y++) hair(16, 19, y, hairC);
       break;
     }
+    case 'styleBob': {
+      // chin-length bob (reference: rounded, ends curling in at the jaw, side-parted fringe)
+      for (let y = 4; y <= 7; y++) { const x0 = y === 4 ? 13 : y === 5 ? 11 : 10; hair(x0, mirror(x0), y, hairC); }
+      for (let y = 8; y <= 22; y++) { hair(9, 12, y, hairC); hair(23, 26, y, hairC); } // masses over the ears
+      hair(9, 12, 23, hairC); hair(23, 26, 23, hairC);
+      hair(10, 12, 24, hairC); hair(23, 25, 24, hairC); // rounded ends at the jaw
+      // side-parted fringe sweeping across the forehead
+      for (let d = 11; d <= 24; d++) {
+        const fy = d < 14 ? 8 : Math.min(11, 8 + Math.floor((d - 14) / 3));
+        for (let y = 8; y <= fy; y++) hpx(flip(d), y, hairC);
+      }
+      break;
+    }
+    case 'styleLong': {
+      // long centre-part (reference: tall crown, a widening peek of forehead at the centre,
+      // wide masses over the ears; the lengths drape over the shoulders after the dome)
+      for (let y = 3; y <= 7; y++) { const x0 = y === 3 ? 13 : y === 4 ? 11 : y === 5 ? 10 : 9; hair(x0, mirror(x0), y, hairC); }
+      hair(11, 16, 8, hairC); hair(19, 24, 8, hairC);   // centre part: skin ∧ at x17-18…
+      hair(11, 14, 9, hairC); hair(21, 24, 9, hairC);   // …widening…
+      hair(11, 12, 10, hairC); hair(23, 24, 10, hairC); // …to full brow width
+      for (let y = 8; y <= 20; y++) { hair(8, 10, y, hairC); hair(25, 27, y, hairC); } // sides over ears
+      break;
+    }
     case 'styleBald': break;
   }
 
@@ -254,16 +277,28 @@ export function renderPortraitV2(r: AvatarRecipe): Uint8ClampedArray {
   if (r.clothAccent) { for (let x = 2; x <= 33; x++) { const top = domeTopAt(x); if (top < V2_H) { put(x, top, r.clothAccent); put(x, top + 1, r.clothAccent); } } }
   if (r.tie) { for (let y = 35; y <= 40; y++) hrow(17, 18, y, r.tie); put(16, 35, r.tie); put(19, 35, r.tie); }
 
-  // ── long hair drapes over the shoulders (styleFrame), reference-style ──────
-  if (r.hair === 'styleFrame') {
-    for (let y = 7; y <= 41; y++) { hair(7, 10, y, hairC); hair(25, 28, y, hairC); }
-    hair(8, 10, 42, hairC); hair(25, 27, 42, hairC); // rounded ends
+  // ── long hair drapes over the shoulders (styleFrame / styleLong) ───────────
+  if (r.hair === 'styleFrame' || r.hair === 'styleLong') {
+    const wide = r.hair === 'styleLong';
+    for (let y = 7; y <= 41; y++) { hair(wide ? 6 : 7, 10, y, hairC); hair(25, wide ? 29 : 28, y, hairC); }
+    hair(wide ? 7 : 8, 10, 42, hairC); hair(25, wide ? 28 : 27, 42, hairC); // rounded ends
+    if (wide) { // extra outer sweep: big volume spilling onto the dome
+      for (let y = 22; y <= 40; y++) { hpx(5, y, hairC); hpx(30, y, hairC); }
+      hair(6, 9, 43, hairC); hair(26, 29, 43, hairC);
+    }
     for (let y = 8; y <= 26; y++) { hpx(11, y, hairC); hpx(24, y, hairC); } // frame the face edge
   }
-  // dip-dye: recolour the lowest hair pixel of every column
+  // dip-dye: recolour the lowest hair pixel of every column. On long styles the crown
+  // rows are the "lowest hair" for centre columns (the face interrupts the mask), which
+  // would paint a tip stripe across the TOP of the head — so long styles only tint
+  // columns whose ends actually hang low.
   if (r.hairTip) {
+    const longHair = r.hair === 'styleFrame' || r.hair === 'styleLong' || r.hair === 'styleBob';
     for (let x = 0; x < V2_W; x++) {
-      for (let y = V2_H - 1; y >= 0; y--) if (hairMask[y * V2_W + x]) { put(x, y, r.hairTip); if (y > 0 && hairMask[(y - 1) * V2_W + x]) put(x, y - 1, r.hairTip); break; }
+      for (let y = V2_H - 1; y >= 0; y--) if (hairMask[y * V2_W + x]) {
+        if (!longHair || y >= 20) { put(x, y, r.hairTip); if (y > 0 && hairMask[(y - 1) * V2_W + x]) put(x, y - 1, r.hairTip); }
+        break;
+      }
     }
   }
 

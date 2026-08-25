@@ -44,7 +44,7 @@ const Extraction = z.object({
 
 const SYSTEM = `You convert one selfie into parameters for a tiny 36x56-pixel cartoon portrait engine. Pick the CLOSEST option from each enum — the engine can only draw those. Rules:
 - skin: choose the palette step (light/tan/brown/dark) that best matches the visible skin tone. This is a drawing palette, not an ethnicity guess.
-- hair: styleShort (short, parted), styleFloppy (mid-length floppy fringe), styleFrame (hair framing the face to the jaw or longer), styleBun (tied up), styleCurly (curly/voluminous), styleMessy (tousled), styleRecede (receding hairline), styleSpiky (short spiky), styleBald (bald or shaved head), styleMohawk (ONLY a clear mohawk: shaved sides with a central strip), styleBuzz (ONLY a clear buzz cut: clipper-short all over).
+- hair: styleShort (short, parted), styleFloppy (mid-length floppy fringe), styleFrame (hair framing the face to the jaw or longer), styleBun (tied up), styleCurly (curly/voluminous), styleMessy (tousled), styleRecede (receding hairline), styleSpiky (short spiky), styleBald (bald or shaved head), styleMohawk (ONLY a clear mohawk: shaved sides with a central strip), styleBuzz (ONLY a clear buzz cut: clipper-short all over), styleBob (chin-length bob, rounded ends), styleLong (long loose hair past the shoulders, centre part — use styleFrame instead when there is a straight fringe/bangs).
 - hairc / c1: real RGB values sampled from the photo (hair colour, main clothing colour).
 - glasses and facial hair only if clearly visible. facial=none when absent. part=none if hair has no visible part or is bald/bun.
 - glassesStyle: only when glasses are clearly worn AND the style is obvious; otherwise 'none' (renders as classic clear frames).
