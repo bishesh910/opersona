@@ -358,7 +358,7 @@ export function ChatView({
     <div className="flex h-full min-h-0 flex-1 flex-col gap-2" data-chat-view>
       {/* Title row: sidebar toggle (mobile), editable title, "+ New", delete. */}
       {/* Untitled chats show no heading — the nav already says New chat; the title appears once the chat names itself. */}
-      {!/^(New chat|Persona test)/.test(title) && (
+      {title !== '' && !/^(New chat|Persona test)/.test(title) && (
       <div className="flex items-center gap-1">
         <div className="min-w-0 flex-1">
           <Title conversationId={conversationId} title={title} canEdit={!readOnly && !visitorView} editing={editingTitle} setEditing={setEditingTitle} onRenamed={(t) => { setTitle(t); router.refresh(); }} />
