@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { renameConversationAction, deleteChatAction, pinChatAction } from '@/actions/conversations';
 import { ConfirmDialog, PromptDialog } from './Dialog';
 
-export interface SidebarChat { id: string; slug: string; title: string; pinned: boolean }
+export interface SidebarChat { id: string; slug: string; title: string; pinned: boolean; href: string; mode: 'claude' | 'clone'; mine: boolean; personaName?: string }
 
 function Item({ c, active }: { c: SidebarChat; active: boolean }) {
   const router = useRouter();
@@ -23,7 +23,7 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
   return (
     <div ref={ref} className="group relative">
       <Link
-        href={`/c/${c.slug}`}
+        href={c.href}
         className={
           'block truncate rounded-md py-1.5 pl-2 pr-7 text-sm ' +
           (active
@@ -33,7 +33,14 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
         title={c.title}
       >
         {c.pinned && <span aria-hidden className="mr-1 text-[10px]">📌</span>}
-        {c.title}
+        {c.mode === 'clone' && (
+          <span
+            aria-hidden
+            title={c.mine ? 'Persona test — replies as you' : `${c.personaName}'s persona`}
+            className={'mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ' + (c.mine ? 'bg-amber-500' : 'bg-violet-500')}
+          />
+        )}
+        {!c.mine && c.personaName ? `${c.personaName} · ${c.title}` : c.title}
       </Link>
       <button
         type="button"
@@ -44,11 +51,15 @@ function Item({ c, active }: { c: SidebarChat; active: boolean }) {
       >⋮</button>
       {open && (
         <div role="menu" className="card absolute right-0 top-full z-30 mt-1 w-44 p-1 shadow-lg">
-          <a href={`/c/${c.slug}`} target="_blank" rel="noreferrer" role="menuitem" className={item} onClick={() => setOpen(false)}>Open in new tab</a>
+          <a href={c.href} target="_blank" rel="noreferrer" role="menuitem" className={item} onClick={() => setOpen(false)}>Open in new tab</a>
           <button type="button" role="menuitem" className={item} onClick={async () => { setOpen(false); await pinChatAction(c.id, !c.pinned); router.refresh(); }}>{c.pinned ? 'Unpin' : 'Pin'}</button>
-          <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); setDlg('rename'); }}>Rename</button>
-          <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
-          <button type="button" role="menuitem" className={`${item} text-red-600 dark:text-red-400`} onClick={() => { setOpen(false); setDlg('delete'); }}>Delete</button>
+          {c.mine && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); setDlg('rename'); }}>Rename</button>}
+          {c.mine && (
+            <>
+              <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
+              <button type="button" role="menuitem" className={`${item} text-red-600 dark:text-red-400`} onClick={() => { setOpen(false); setDlg('delete'); }}>Delete</button>
+            </>
+          )}
         </div>
       )}
       {dlg === 'delete' && (
@@ -80,7 +91,7 @@ export function SidebarChats({ items }: { items: SidebarChat[] }) {
     <div className="mt-5 flex min-h-0 flex-1 flex-col">
       <div className="muted px-2 pb-1 text-[11px] font-medium uppercase tracking-wide">Chats</div>
       <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1 [scrollbar-width:thin]">
-        {items.map((c) => <Item key={c.slug} c={c} active={path === `/c/${c.slug}`} />)}
+        {items.map((c) => <Item key={c.id} c={c} active={path === c.href} />)}
       </div>
       <Link href="/me/chat" className="muted mt-1 block px-2 py-1 text-xs hover:underline">All chats →</Link>
     </div>
