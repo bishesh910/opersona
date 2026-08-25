@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <SideNav include={['/chat']} />
         <div className="my-3 border-t border-neutral-200 dark:border-neutral-800" />
         <SidebarChats items={recentChats} />
-        <div className={(recentChats.length ? 'mt-3 ' : 'mt-auto ') + 'border-t border-neutral-200 pt-3 dark:border-neutral-800'}>
+        <div className={(recentChats.length ? 'mt-3 ' : 'mt-auto ') + 'border-t border-neutral-200 py-2 dark:border-neutral-800'}>
           <SideNav include={['/approvals']} />
         </div>
         <div className="relative mt-auto -mx-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800">
