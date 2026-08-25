@@ -17,10 +17,10 @@ export function SideNav({ horizontal = false }: { horizontal?: boolean }) {
   const items = horizontal ? ITEMS : ITEMS.filter((it) => LEAN.has(it.href));
   return (
     <ul className={horizontal ? 'nav-scroll gap-1' : 'space-y-0.5'}>
-      {items.map((it) => {
+      {items.map((it, idx) => {
         const active = path === it.href || path.startsWith(it.href + '/');
         return (
-          <li key={it.href}>
+          <li key={it.href} className={!horizontal && idx > 0 ? 'mt-3 border-t border-neutral-200 pt-3 dark:border-neutral-800' : undefined}>
             <Link
               href={it.href}
               className={
