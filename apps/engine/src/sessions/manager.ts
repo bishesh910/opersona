@@ -77,12 +77,41 @@ export interface Attachment { name: string; mime: string; dataBase64: string }
 type UserBlock = { type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string } };
 
 /** Images become image blocks; text-like files are inlined; PDFs are text-extracted. */
+const ZIP_TEXT_EXT = /\.(txt|md|markdown|json|csv|tsv|log|yaml|yml|xml|html|htm|css|py|js|jsx|ts|tsx|sh|bash|zsh|sql|toml|ini|conf|cfg|env|rb|go|rs|java|kt|c|h|cpp|hpp|cs|php|swift|diff|patch|gitignore|dockerfile|makefile)$/i;
+
+/** Unpack a zip attachment in memory: file tree + text contents, hard-capped so a
+ *  zip bomb costs nothing (no disk writes, entry/size/total budgets, binaries listed only). */
+async function zipToText(name: string, buf: Buffer): Promise<string> {
+  const AdmZip = (await import('adm-zip')).default;
+  let entries;
+  try { entries = new AdmZip(buf).getEntries(); } catch { return `<attachment name="${name}">\n[could not read this zip — corrupted or unsupported format]\n</attachment>`; }
+  const files = entries.filter((e) => !e.isDirectory);
+  const tree = files.map((e) => `  ${e.entryName} (${e.header.size} B)`).slice(0, 200).join('\n');
+  const parts: string[] = [`Files (${files.length}):`, tree, ''];
+  let budget = 180_000; let shown = 0; let skipped = 0;
+  for (const e of files) {
+    if (shown >= 40 || budget <= 0) { skipped++; continue; }
+    const base = e.entryName.split('/').pop() ?? e.entryName;
+    if (!(ZIP_TEXT_EXT.test(base) || /^(readme|license|changelog|makefile|dockerfile)$/i.test(base))) { skipped++; continue; }
+    if (e.header.size > 2_000_000) { skipped++; continue; }
+    let text: string;
+    try { text = e.getData().toString('utf8'); } catch { skipped++; continue; }
+    if (text.includes('\u0000')) { skipped++; continue; }
+    const take = text.slice(0, Math.min(20_000, budget));
+    budget -= take.length; shown++;
+    parts.push(`--- ${e.entryName} ---`, take, '');
+  }
+  if (skipped > 0) parts.push(`[${skipped} file(s) not inlined — binary, oversized, or over budget; the tree above lists everything]`);
+  return `<attachment name="${name.replace(/"/g, '')}" type="zip">\n${parts.join('\n')}\n</attachment>`;
+}
+
 async function attachmentBlocks(atts: Attachment[]): Promise<UserBlock[]> {
   const out: UserBlock[] = [];
   for (const a of atts.slice(0, 8)) {
     const buf = Buffer.from(a.dataBase64, 'base64');
     if (/^image\/(jpeg|png|gif|webp)$/.test(a.mime)) { out.push({ type: 'image', source: { type: 'base64', media_type: a.mime as 'image/png', data: a.dataBase64 } }); continue; }
     let text: string;
+    if (/zip/.test(a.mime) || /\.zip$/i.test(a.name)) { out.push({ type: 'text', text: redactSecrets(await zipToText(a.name, buf)).slice(0, 200_000) }); continue; }
     if (a.mime === 'application/pdf') { const pdfParse = (await import('pdf-parse')).default; text = (await pdfParse(buf)).text; }
     else text = buf.toString('utf8');
     out.push({ type: 'text', text: `<attachment name="${a.name.replace(/"/g, '')}">\n${redactSecrets(text).slice(0, 200_000)}\n</attachment>` });

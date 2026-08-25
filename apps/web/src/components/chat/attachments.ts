@@ -5,7 +5,7 @@ export const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_EDGE = 1600;
 
 const TEXT_EXT = /\.(txt|md|markdown|json|csv|tsv|log|yaml|yml|xml|html|htm|css|py|js|jsx|ts|tsx|sh|bash|zsh|sql|toml|ini|conf|cfg|env|rb|go|rs|java|kt|c|h|cpp|hpp|cs|php|swift|diff|patch)$/i;
-export const ACCEPT = 'image/*,.pdf,.txt,.md,.markdown,.json,.csv,.tsv,.log,.yaml,.yml,.xml,.html,.htm,.css,.py,.js,.jsx,.ts,.tsx,.sh,.bash,.sql,.toml,.ini,.conf,.cfg,.rb,.go,.rs,.java,.kt,.c,.h,.cpp,.hpp,.cs,.php,.swift,.diff,.patch';
+export const ACCEPT = 'image/*,.pdf,.zip,.txt,.md,.markdown,.json,.csv,.tsv,.log,.yaml,.yml,.xml,.html,.htm,.css,.py,.js,.jsx,.ts,.tsx,.sh,.bash,.sql,.toml,.ini,.conf,.cfg,.rb,.go,.rs,.java,.kt,.c,.h,.cpp,.hpp,.cs,.php,.swift,.diff,.patch';
 
 export interface PendingFile {
   id: string;
@@ -18,10 +18,11 @@ export interface OutAttachment { name: string; mime: string; dataBase64: string 
 
 export function isImage(f: File) { return f.type.startsWith('image/'); }
 
-/** Accept images, PDFs and common text/code files. Returns a reason string when rejected. */
+/** Accept images, PDFs, zips and common text/code files. Returns a reason string when rejected. */
 export function rejectReason(f: File): string | null {
   if (f.size > MAX_BYTES) return `${f.name}: larger than 10 MB`;
   if (isImage(f) || f.type === 'application/pdf') return null;
+  if (/\.zip$/i.test(f.name) || /zip/.test(f.type)) return null;
   if (f.type.startsWith('text/') || TEXT_EXT.test(f.name)) return null;
   return `${f.name}: unsupported type`;
 }
