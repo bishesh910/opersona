@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
 import './globals.css';
 
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', maximumScale: 5 };
@@ -12,10 +12,14 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get('x-nonce') ?? undefined;
+  const theme = (await cookies()).get('theme')?.value; // 'dark' | 'light' | undefined (= follow system)
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={theme === 'dark' ? 'dark' : undefined} suppressHydrationWarning>
       <body className="min-h-full bg-white font-sans text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})()" }} />
+        {/* Only when no explicit choice: follow the system, live. Explicit themes are server-stamped above. */}
+        {!theme && (
+          <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "(function(){try{var m=matchMedia('(prefers-color-scheme: dark)');var f=function(){document.documentElement.classList.toggle('dark',m.matches)};f();m.addEventListener('change',f);}catch(e){}})()" }} />
+        )}
         {children}
       </body>
     </html>

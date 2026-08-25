@@ -3,17 +3,22 @@ import { useEffect, useState } from 'react';
 
 type Mode = 'light' | 'auto' | 'dark';
 
+function readMode(): Mode {
+  const m = document.cookie.match(/(?:^|;\s*)theme=(dark|light)/);
+  return (m?.[1] as Mode) ?? 'auto';
+}
+
 function apply(mode: Mode) {
-  try {
-    if (mode === 'auto') localStorage.removeItem('theme'); else localStorage.setItem('theme', mode);
-    const dark = mode === 'dark' || (mode === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.classList.toggle('dark', dark);
-  } catch { /* private mode */ }
+  const secure = location.protocol === 'https:' ? '; secure' : '';
+  if (mode === 'auto') document.cookie = `theme=; max-age=0; path=/; samesite=lax${secure}`;
+  else document.cookie = `theme=${mode}; max-age=31536000; path=/; samesite=lax${secure}`;
+  const dark = mode === 'dark' || (mode === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('dark', dark);
 }
 
 export function ThemeToggle() {
   const [mode, setMode] = useState<Mode>('auto');
-  useEffect(() => { try { const t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') setMode(t); } catch { /* ignore */ } }, []);
+  useEffect(() => { setMode(readMode()); }, []);
   const opts: { m: Mode; label: string }[] = [{ m: 'light', label: 'Light' }, { m: 'auto', label: 'Auto' }, { m: 'dark', label: 'Dark' }];
   return (
     <div className="flex items-center gap-1 rounded-lg bg-neutral-100 p-0.5 dark:bg-neutral-800">
