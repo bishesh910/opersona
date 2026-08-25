@@ -87,7 +87,7 @@ function Section({ label, storageKey, chats, path, first }: { label: string; sto
         onClick={toggle}
         className={'muted flex w-full items-center gap-1 px-2 pb-1 text-[11px] font-medium uppercase tracking-wide hover:text-neutral-700 dark:hover:text-neutral-300 ' + (first ? '' : 'mt-4')}
       >
-        <span aria-hidden className={'inline-block text-[9px] transition-transform ' + (open ? 'rotate-90' : '')}>▶</span>
+        <span aria-hidden className={'inline-block text-[9px] ' + (open ? '' : 'opacity-50')}>▶</span>
         {label}
         {!open && <span className="ml-auto normal-case tracking-normal">{chats.length}</span>}
       </button>
