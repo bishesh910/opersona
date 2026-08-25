@@ -19,7 +19,8 @@ export function SignUpForm({ social = { google: false, apple: false }, next, pre
     e.preventDefault();
     setBusy(true); setError(null);
     if (password !== confirm) { setError('Passwords do not match'); setBusy(false); return; }
-    const res = await signUp.email({ name, email, password });
+    const inviteId = next?.match(/^\/accept-invite\/([\w-]{1,64})$/)?.[1];
+    const res = await signUp.email({ name, email, password, fetchOptions: inviteId ? { headers: { 'x-invite-id': inviteId } } : undefined });
     setBusy(false);
     if (res.error) { setError(res.error.message ?? 'Sign-up failed'); return; }
     router.push(next ?? '/onboarding');

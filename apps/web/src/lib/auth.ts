@@ -15,10 +15,11 @@ export const SIGNUP_OPEN = process.env.ALLOW_SIGNUP === 'true';
 export const PLATFORM_ADMINS = (process.env.PLATFORM_ADMIN_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 export const isPlatformAdmin = (email?: string | null) => !!email && PLATFORM_ADMINS.includes(email.toLowerCase());
 
-async function hasPendingInvitation(email: string): Promise<boolean> {
-  const rows = await db.select({ id: authSchema.invitation.id }).from(authSchema.invitation)
-    .where(and(eq(authSchema.invitation.email, email), eq(authSchema.invitation.status, 'pending'), gt(authSchema.invitation.expiresAt, new Date()))).limit(1);
-  return rows.length > 0;
+async function pendingInvitationMatches(inviteId: string, email: string): Promise<boolean> {
+  if (!/^[\w-]{1,64}$/.test(inviteId)) return false;
+  const rows = await db.select({ email: authSchema.invitation.email }).from(authSchema.invitation)
+    .where(and(eq(authSchema.invitation.id, inviteId), eq(authSchema.invitation.status, 'pending'), gt(authSchema.invitation.expiresAt, new Date()))).limit(1);
+  return rows.length > 0 && rows[0]!.email.toLowerCase() === email.toLowerCase();
 }
 
 const trusted = (process.env.TRUSTED_ORIGINS ?? 'http://localhost:3000,http://127.0.0.1:3000').split(',').map((s) => s.trim()).filter(Boolean);
@@ -47,9 +48,12 @@ export const auth = betterAuth({
         }
       }
       if (ctx.path === '/sign-up/email' && !SIGNUP_OPEN) {
+        // Possession of the invite LINK is required (x-invite-id), and the invitation must
+        // be live and match the signup email — knowing an invited email is not enough.
         const email = String((ctx.body as { email?: string } | undefined)?.email ?? '').trim();
-        if (!email || !(await hasPendingInvitation(email))) {
-          throw new APIError('FORBIDDEN', { message: 'Sign-ups are invite-only. Ask your organization owner for an invitation.' });
+        const inviteId = ctx.headers?.get('x-invite-id') ?? '';
+        if (!email || !inviteId || !(await pendingInvitationMatches(inviteId, email))) {
+          throw new APIError('FORBIDDEN', { message: 'Sign-ups are invite-only. Open your invitation link to create your account.' });
         }
       }
     }),
