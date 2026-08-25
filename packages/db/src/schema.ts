@@ -320,6 +320,8 @@ export const conversations = pgTable('conversations', {
   model: text('model'),
   effort: text('effort').$type<'low' | 'medium' | 'high' | 'xhigh' | 'max'>(),
   status: text('status').$type<'live' | 'idle' | 'closed'>().notNull().default('idle'),
+  /** Per-conversation working directory for code execution + file outputs (null = legacy per-clone workspace). */
+  cwd: text('cwd'),
   extractedAt: timestamp('extracted_at', { withTimezone: true }),
   lastActivityAt: timestamp('last_activity_at', { withTimezone: true }).defaultNow().notNull(),
   createdAt: now(),
@@ -332,6 +334,8 @@ export const turns = pgTable('turns', {
   role: text('role').$type<'user' | 'assistant' | 'system'>().notNull(),
   content: text('content').notNull(), // redacted
   toolUses: jsonb('tool_uses').$type<{ id: string; name: string; input: unknown; ok?: boolean; preview?: string }[]>().notNull().default([]),
+  /** Files created/changed in the conversation workdir during this assistant turn. */
+  files: jsonb('files').$type<{ path: string; size: number }[]>(),
   editedContent: text('edited_content'),
   createdAt: now(),
 }, (t) => [index('turns_conv_idx').on(t.conversationId, t.createdAt)]);

@@ -18,11 +18,12 @@ import { redactSecrets, type EngineEvent } from '@opersona/shared';
 import { maybeTitleConversation } from '../learning/title.js';
 import { config } from '../config.js';
 import { orgModelConfig, authMode } from '../keys.js';
-import { ensureWorkspace } from '../isolation/workspace.js';
+import { ensureWorkspace, conversationWorkdir } from '../isolation/workspace.js';
 import { activePrompt, PLAIN_CLAUDE_PROMPT } from '../persona/assemble.js';
 import { createPersonaServer, PERSONA_SERVER, PERSONA_TOOLS } from '../persona/mcp.js';
 import { publish } from './events.js';
 import { requestApproval } from './approvals.js';
+import { EXEC_BUILTINS, WRITE_TOOLS, wrapBash, writeToolInWorkspace, scanDir, diffFiles, type FileStat } from './sandbox.js';
 
 /** Minimal push-based async iterable for SDKUserMessage. */
 export class InputQueue implements AsyncIterable<SDKUserMessage> {
@@ -46,6 +47,7 @@ interface Live {
   conversationId: string; orgId: string; cloneId: string; userId: string;
   input: InputQueue; q: Query; abort: AbortController; idle?: NodeJS.Timeout;
   sdkSessionId?: string; promptHash: string; model: string; textBuf: string; toolUses: { id: string; name: string; input: unknown; ok?: boolean; preview?: string }[];
+  workdir: string; filesBefore: Map<string, FileStat>;
   done: Promise<void>;
 }
 
@@ -123,6 +125,7 @@ export async function sendMessage(args: { conversationId: string; orgId: string;
   let s = live.get(args.conversationId);
   if (!s) s = await start(args);
   touch(s);
+  s.filesBefore = scanDir(s.workdir);
   const text = args.text;
   const header = `[context] today: ${new Date().toISOString().slice(0, 10)}\n\n`;
   // Volatile context goes in the user turn, never the system prompt (prefix cache).
@@ -158,6 +161,8 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
 
   const cfg = await orgModelConfig(args.orgId);
   const ws = ensureWorkspace(args.orgId, args.cloneId);
+  const workdir = conversationWorkdir(args.orgId, args.cloneId, args.conversationId);
+  if (conv.cwd !== workdir) await db.update(conversations).set({ cwd: workdir }).where(eq(conversations.id, args.conversationId));
   const cloneMode = conv.mode === 'clone';
   const visitor = conv.userId !== clone.ownerUserId; // anyone but the owner gets the shareable-only persona
   const { prompt, promptHash } = cloneMode ? await activePrompt(args.orgId, args.cloneId, visitor ? 'visitor' : 'owner') : { prompt: PLAIN_CLAUDE_PROMPT, promptHash: 'plain' };
@@ -167,13 +172,26 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
   const input = new InputQueue();
 
   const canUseTool: Options['canUseTool'] = async (toolName, toolInput, opts) => {
+    const inp = toolInput as Record<string, unknown>;
     // Persona MCP tools are free; WebSearch runs server-side at Anthropic (WebFetch stays unavailable);
-    // read-only built-ins are jailed to the per-clone workspace.
+    // read-only built-ins are jailed to the conversation workdir.
     if (toolName.startsWith(`mcp__${PERSONA_SERVER}__`) || toolName === 'WebSearch') return { behavior: 'allow', updatedInput: toolInput };
     if (toolName === 'Read' || toolName === 'Glob' || toolName === 'Grep') {
-      return readToolInWorkspace(toolName, toolInput as Record<string, unknown>, ws.cwd)
+      return readToolInWorkspace(toolName, inp, workdir)
         ? { behavior: 'allow', updatedInput: toolInput }
-        : { behavior: 'deny', message: 'outside this persona\'s workspace' };
+        : { behavior: 'deny', message: 'outside this chat\'s workspace' };
+    }
+    // Making files: Write/Edit stay inside the workdir; no host path is reachable.
+    if (WRITE_TOOLS.includes(toolName)) {
+      return writeToolInWorkspace(toolName, inp, workdir)
+        ? { behavior: 'allow', updatedInput: toolInput }
+        : { behavior: 'deny', message: 'can only write inside this chat\'s workspace' };
+    }
+    // Running code: the command is rewritten to execute inside the sandbox (no network,
+    // workdir-only filesystem), so it needs no human approval. If the sandbox is disabled,
+    // fall through to the owner-approval path below.
+    if (toolName === 'Bash' && config.sbxEnabled) {
+      return { behavior: 'allow', updatedInput: wrapBash(inp, workdir) };
     }
     if (!cloneMode) return { behavior: 'deny', message: 'not available in this chat' };
     const r = await requestApproval({ ...ctx, kind: 'tool', tool: toolName, input: toolInput, signal: opts.signal });
@@ -189,11 +207,12 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
     model: conv.model ?? cfg.chatModel,
     effort: (conv.effort ?? cfg.chatEffort) as Options['effort'],
     systemPrompt: prompt,
-    cwd: ws.cwd,
+    cwd: workdir,
     env: sessionEnv(ws, cfg.apiKey),
     settingSources: [],
-    // Plain-Claude chats get no built-in tools and only search_documents from the persona server; clone mode gets the lot.
-    tools: cloneMode ? ['Read', 'Glob', 'Grep', 'WebSearch'] : ['WebSearch'],
+    // Both modes get the sandboxed exec toolset + WebSearch. Plain-Claude still only sees
+    // search_documents from the persona server (other persona tools disallowed below).
+    tools: [...(config.sbxEnabled ? EXEC_BUILTINS : ['Read', 'Glob', 'Grep']), 'WebSearch'],
     ...(cloneMode ? {} : { disallowedTools: PERSONA_TOOLS.filter((t) => t !== 'search_documents').map((t) => `mcp__${PERSONA_SERVER}__${t}`) }),
     mcpServers: { [PERSONA_SERVER]: server },
     canUseTool,
@@ -209,7 +228,7 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
   };
 
   const q = query({ prompt: input, options });
-  const s: Live = { conversationId: args.conversationId, orgId: args.orgId, userId: args.userId, cloneId: args.cloneId, input, q, abort, sdkSessionId: conv.sdkSessionId ?? undefined, promptHash, model: conv.model ?? cfg.chatModel, textBuf: '', toolUses: [], done: Promise.resolve() };
+  const s: Live = { conversationId: args.conversationId, orgId: args.orgId, userId: args.userId, cloneId: args.cloneId, input, q, abort, sdkSessionId: conv.sdkSessionId ?? undefined, promptHash, model: conv.model ?? cfg.chatModel, textBuf: '', toolUses: [], workdir, filesBefore: scanDir(workdir), done: Promise.resolve() };
   s.done = consume(s);
   live.set(args.conversationId, s);
   return s;
@@ -255,12 +274,16 @@ async function consume(s: Live): Promise<void> {
         case 'result': {
           const ok = m.subtype === 'success';
           const text = s.textBuf.trim() || (ok ? m.result : '');
+          // Any files the turn created/changed in the workdir become downloads.
+          const files = diffFiles(s.workdir, s.filesBefore);
+          s.filesBefore = scanDir(s.workdir);
           let turnId: string | undefined;
-          if (text || s.toolUses.length) {
-            const [row] = await db.insert(turns).values({ conversationId: s.conversationId, orgId: s.orgId, role: 'assistant', content: redactSecrets(text), toolUses: s.toolUses }).returning({ id: turns.id });
+          if (text || s.toolUses.length || files.length) {
+            const [row] = await db.insert(turns).values({ conversationId: s.conversationId, orgId: s.orgId, role: 'assistant', content: redactSecrets(text), toolUses: s.toolUses, files: files.length ? files : null }).returning({ id: turns.id });
             turnId = row?.id;
           }
           if (text) emit({ type: 'assistant_message', text, turn_id: turnId });
+          if (files.length) emit({ type: 'files', files, turn_id: turnId });
           void maybeTitleConversation(s.orgId, s.cloneId, s.conversationId).catch((e) => console.error('[title]', e));
           const u = m.usage;
           const cost = m.total_cost_usd ?? null;

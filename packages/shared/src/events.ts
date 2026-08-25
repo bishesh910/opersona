@@ -8,5 +8,7 @@ export type EngineEvent =
   | { type: 'approval_request'; id: string; tool: string; input: unknown; question?: string; options?: string[] }
   | { type: 'approval_resolved'; id: string; behavior: 'allow' | 'deny' }
   | { type: 'result'; ok: boolean; cost_usd: number | null; input_tokens: number; output_tokens: number; cache_read_input_tokens: number; error?: string }
+  /** Files created/changed in the conversation workdir during this turn — offered as downloads. */
+  | { type: 'files'; files: { path: string; size: number }[]; turn_id?: string }
   | { type: 'status'; message: string; attempt?: number; max?: number }
   | { type: 'error'; message: string };

@@ -17,6 +17,7 @@ export interface HistoryTurn {
   role: 'user' | 'assistant' | 'system';
   content: string;
   toolUses: { id: string; name: string; input: unknown; ok?: boolean; preview?: string }[];
+  files?: { path: string; size: number }[];
 }
 
 type Item =
@@ -25,6 +26,7 @@ type Item =
   | { kind: 'assistant'; key: string; text: string; streaming: boolean; turnId?: string; settled?: boolean }
   | { kind: 'tool'; key: string; tool: ToolItem; settled?: boolean }
   | { kind: 'approval'; key: string; approval: ApprovalItem }
+  | { kind: 'files'; key: string; files: { path: string; size: number }[]; turnId?: string }
   | { kind: 'result'; key: string; ok: boolean; cost: number | null; input: number; output: number; cacheRead: number; error?: string }
   | { kind: 'error'; key: string; message: string }
   | { kind: 'status'; key: string; message: string; attempt?: number; max?: number }
@@ -48,9 +50,48 @@ function fromHistory(h: HistoryTurn[]): Item[] {
     else if (t.role === 'assistant') {
       for (const tu of t.toolUses) out.push({ kind: 'tool', key: `${t.id}-${tu.id}`, tool: tu, settled: true });
       if (t.content) out.push({ kind: 'assistant', key: t.id, text: t.content, streaming: false, turnId: t.id, settled: true });
+      if (t.files && t.files.length) out.push({ kind: 'files', key: `${t.id}-files`, files: t.files, turnId: t.id });
     } else out.push({ kind: 'system', key: t.id, text: t.content });
   }
   return out;
+}
+
+function fmtSize(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10 * 1024 ? 1 : 0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const IMG_RE = /\.(png|jpe?g|gif|webp|svg)$/i;
+
+/** Download chips for files the chat produced in its workspace. Images preview inline. */
+function FileChips({ conversationId, files }: { conversationId: string; files: { path: string; size: number }[] }) {
+  const href = (p: string) => `/api/engine/conversations/${conversationId}/files?path=${encodeURIComponent(p)}`;
+  return (
+    <div className="flex flex-wrap gap-2" data-files>
+      {files.map((f) => {
+        const name = f.path.split('/').pop() || f.path;
+        const isImg = IMG_RE.test(name) && !/\.svg$/i.test(name);
+        return (
+          <a
+            key={f.path}
+            href={href(f.path)}
+            download={name}
+            className="group flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs no-underline transition hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-500"
+            title={`${f.path} · ${fmtSize(f.size)} — click to download`}
+          >
+            {isImg
+              ? <img src={href(f.path)} alt={name} className="h-9 w-9 shrink-0 rounded object-cover" style={{ imageRendering: 'auto' }} />
+              : <span className="grid h-9 w-9 shrink-0 place-items-center rounded bg-neutral-100 text-sm dark:bg-neutral-800">↓</span>}
+            <span className="min-w-0">
+              <span className="block max-w-52 truncate font-medium">{name}</span>
+              <span className="muted">{fmtSize(f.size)}</span>
+            </span>
+          </a>
+        );
+      })}
+    </div>
+  );
 }
 
 export type FeedbackVerdict = 'me' | 'not_me';
@@ -236,6 +277,11 @@ export function ChatView({
         case 'approval_resolved': {
           const idx = next.findIndex((i) => i.kind === 'approval' && i.approval.id === ev.id);
           if (idx >= 0) { const it = next[idx] as Extract<Item, { kind: 'approval' }>; next[idx] = { ...it, approval: { ...it.approval, resolved: ev.behavior } }; }
+          return next;
+        }
+        case 'files': {
+          if (ev.turn_id && next.some((i) => i.kind === 'files' && i.turnId === ev.turn_id)) return prev;
+          next.push({ kind: 'files', key: k(), files: ev.files, turnId: ev.turn_id });
           return next;
         }
         case 'result': {
@@ -432,6 +478,8 @@ export function ChatView({
                   <ApprovalCard key={it.key} item={it.approval} canResolve={canResolveApprovals}
                     onResolved={(id, behavior) => apply({ type: 'approval_resolved', id, behavior })} />
                 );
+              case 'files':
+                return <FileChips key={it.key} conversationId={conversationId} files={it.files} />;
               case 'result':
                 return (
                   <div key={it.key} className="muted flex flex-wrap gap-x-3 text-xs" data-result>

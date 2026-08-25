@@ -24,3 +24,16 @@ export function uploadPath(orgId: string, documentId: string): string {
   const safe = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, '_');
   return join(config.dataDir, 'orgs', safe(orgId), 'uploads', safe(documentId));
 }
+
+/**
+ * Per-conversation working directory for code execution and file outputs. Each chat
+ * gets its own folder so one conversation's files never bleed into another's, and it
+ * is the ONLY writable path inside the sandbox. Disposable — nothing here is memory.
+ *   <dataDir>/orgs/<org>/clones/<clone>/conversations/<conv>/
+ */
+export function conversationWorkdir(orgId: string, cloneId: string, conversationId: string): string {
+  const safe = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, '_');
+  const dir = join(config.dataDir, 'orgs', safe(orgId), 'clones', safe(cloneId), 'conversations', safe(conversationId));
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  return dir;
+}

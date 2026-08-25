@@ -19,7 +19,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
       eq(schema.conversations.cloneId, access.clone.id), eq(schema.conversations.orgId, ctx.orgId))).limit(1);
   if (!conv) notFound();
   const turns = await db.select().from(schema.turns).where(eq(schema.turns.conversationId, conv.id)).orderBy(asc(schema.turns.createdAt));
-  const history: HistoryTurn[] = turns.map((t) => ({ id: t.id, role: t.role, content: t.editedContent ?? t.content, toolUses: t.toolUses }));
+  const history: HistoryTurn[] = turns.map((t) => ({ id: t.id, role: t.role, content: t.editedContent ?? t.content, toolUses: t.toolUses, files: t.files ?? undefined }));
   const fb = await db.select({ turnId: schema.reasoningFeedback.turnId, verdict: schema.reasoningFeedback.verdict })
     .from(schema.reasoningFeedback).where(eq(schema.reasoningFeedback.conversationId, conv.id));
   const feedback: Record<string, FeedbackVerdict> = {};

@@ -11,6 +11,13 @@ export const config = {
   approvalTimeoutMs: Number(process.env.ENGINE_APPROVAL_TIMEOUT_MS ?? 10 * 60_000),
   maxTurns: Number(process.env.ENGINE_MAX_TURNS ?? 40),
   maxBudgetUsdPerSession: Number(process.env.ENGINE_MAX_BUDGET_USD ?? 5),
+  /** Sandboxed code execution in chats (bubblewrap). Off → Bash/Write/Edit fall back to owner approval. */
+  sbxEnabled: process.env.OPERSONA_SBX_ENABLED !== 'false',
+  sbxRunner: resolve(process.env.OPERSONA_SBX_RUNNER ?? '../../sbx/run.sh'),
+  /** Default per-command wall-clock; the model may ask for less, capped at 600s in the runner. */
+  sbxTimeoutMs: Number(process.env.OPERSONA_SBX_TIMEOUT_MS ?? 120_000),
+  /** Largest single generated file offered as a download. */
+  sbxMaxFileBytes: Number(process.env.OPERSONA_SBX_MAX_FILE_BYTES ?? 25 * 1024 * 1024),
   version: '0.0.1',
 };
 

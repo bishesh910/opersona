@@ -7,6 +7,7 @@ import { portraitPNG, spriteSheetPNG } from '@opersona/pixel-avatar';
 import { AvatarRecipe } from '@opersona/shared';
 import { config } from '../config.js';
 import { sendMessage, endSession } from '../sessions/manager.js';
+import { registerDownloads } from './downloads.js';
 import { subscribe } from '../sessions/events.js';
 import { resolveApproval } from '../sessions/approvals.js';
 import { publishSnapshot, activePrompt } from '../persona/assemble.js';
@@ -28,6 +29,7 @@ import { createSelfTestBatch, regenerateSelfTests, rateSelfTest, accuracy } from
 import Anthropic from '@anthropic-ai/sdk';
 
 export const routes = new Hono();
+registerDownloads(routes);
 
 const parse = async <T extends z.ZodTypeAny>(c: { req: { json: () => Promise<unknown> } }, schema: T): Promise<z.infer<T>> => schema.parse(await c.req.json().catch(() => ({})));
 
