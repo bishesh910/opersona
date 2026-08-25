@@ -6,6 +6,7 @@ import { SettingsForm } from '@/components/settings/SettingsForm';
 import { ApiKeyForm } from '@/components/settings/ApiKeyForm';
 import { TwoFactorCard } from '@/components/settings/TwoFactorCard';
 import { NamesCard } from '@/components/settings/NamesCard';
+import { ChangePasswordCard } from '@/components/settings/ChangePasswordCard';
 import { MembersCard } from '@/components/settings/MembersCard';
 import { engineFetch } from '@/lib/engine';
 
@@ -58,6 +59,7 @@ export default async function SettingsPage() {
         />
       )}
       <TwoFactorCard enabled={!!userRow?.twoFactorEnabled} />
+      <ChangePasswordCard />
       <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg={isOrgAdmin(ctx)} />
       {admin && <MembersCard orgId={ctx.orgId} selfUserId={ctx.userId} />}
       <section className="card space-y-2">
