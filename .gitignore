@@ -10,3 +10,7 @@ data/
 .DS_Store
 coverage/
 e2e/.scratch/
+
+# Office tilesets: LimeZu 'Modern Interiors' — licensed per-deployment, never redistributed.
+# Deploy your own copy into apps/web/public/office-assets/ (see docs/self-hosting.md).
+apps/web/public/office-assets/*.png
