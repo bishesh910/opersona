@@ -1,5 +1,6 @@
 'use server';
 import { and, asc, desc, eq } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
 import { getAskAccess } from '@/lib/clones';
@@ -71,4 +72,19 @@ export async function openOfficeChat(cloneId: string): Promise<OfficeChatPayload
     showCost: authMode !== 'host-login',
     userFirstName: (ctx.user.name?.trim().split(/\s+/)[0]) || '',
   };
+}
+
+/** Star a persona as the office boss (org owner/admin only). Starring the current
+ *  boss again removes the star. The boss runs the floor: delegates work and hires
+ *  temporary specialist personas. */
+export async function setBossAction(cloneId: string | null): Promise<void> {
+  const ctx = await requireOrg();
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') throw new Error('Only org admins can choose the boss');
+  if (cloneId) {
+    const ask = await getAskAccess(ctx, cloneId);
+    if (!ask) throw new Error('Persona not found');
+  }
+  await db.insert(schema.orgSettings).values({ orgId: ctx.orgId, bossCloneId: cloneId })
+    .onConflictDoUpdate({ target: schema.orgSettings.orgId, set: { bossCloneId: cloneId } });
+  revalidatePath('/office');
 }

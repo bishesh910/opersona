@@ -265,6 +265,39 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
 
       const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+      // ── grab & throw: pick a Pixie up, carry it, toss it; greetings on landing ──
+      interface Grab { rt: Runtime; moved: boolean; lastX: number; lastY: number; lastT: number; vx: number; vy: number }
+      let grabbing: Grab | null = null;
+      const thrown: { rt: Runtime; vx: number; vy: number }[] = [];
+      const GREETS: [string, string][] = [['oh hey!', 'hi!'], ['hello hello', 'heyy'], ['fancy meeting you here', 'small office'], ['👋', 'hey!']];
+      const snapToWalkable = (rt: Runtime): void => {
+        const t = rt.ch.tile();
+        for (let r = 0; r < 8; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+          const c = { x: t.x + dx, y: t.y + dy };
+          if (c.x >= 0 && c.y >= 0 && c.x < world.cols && c.y < world.rows && world.walk[c.y]![c.x]) {
+            rt.ch.x = c.x * TILE + TILE / 2; rt.ch.y = c.y * TILE + TILE;
+            return;
+          }
+        }
+      };
+      const landAndGreet = (rt: Runtime): void => {
+        snapToWalkable(rt);
+        const near = runtimes.find((o) => o !== rt && !o.ch.path.length && !meetingHas(o) && Math.hypot(o.ch.x - rt.ch.x, o.ch.y - rt.ch.y) < 115);
+        const back = 5000 + Math.random() * 4000;
+        if (near) {
+          const g = GREETS[Math.floor(Math.random() * GREETS.length)]!;
+          rt.ch.dir = 'down'; rt.ch.faceFlip = near.ch.x < rt.ch.x;
+          if (!near.ch.sitting) { near.ch.dir = 'down'; near.ch.faceFlip = rt.ch.x < near.ch.x; }
+          say(rt, g[0]!, 2.2);
+          setTimeout(() => { if (!dead) say(near, g[1]!, 2.2); }, 900);
+        }
+        setTimeout(() => {
+          if (dead || rt.ch.held) return;
+          rt.busy = 'none';
+          endBreak(rt); // stroll back to the desk
+        }, back);
+      };
+
       // ── input: click select, drag pan, wheel zoom, dblclick fit ──
       let drag: { x: number; y: number; moved: boolean } | null = null;
       const touches = new Map<number, { x: number; y: number }>();
@@ -274,8 +307,15 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
       const onDown = (e: PointerEvent): void => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        if (touches.size === 2) { const [a2, b2] = [...touches.values()]; pinchDist = Math.hypot(a2!.x - b2!.x, a2!.y - b2!.y); drag = null; wasPinch = true; }
-        else drag = { x: e.clientX, y: e.clientY, moved: false };
+        if (touches.size === 2) { const [a2, b2] = [...touches.values()]; pinchDist = Math.hypot(a2!.x - b2!.x, a2!.y - b2!.y); drag = null; wasPinch = true; if (grabbing) { grabbing.rt.ch.held = false; landAndGreet(grabbing.rt); grabbing = null; } }
+        else {
+          const r0 = canvas.getBoundingClientRect();
+          const hit = hitTest(cam.toWorld(e.clientX - r0.left, e.clientY - r0.top));
+          if (hit && !meetingHas(hit)) {
+            interrupt(hit); hit.busy = 'errand'; hit.ch.held = true; hit.ch.sitting = false;
+            grabbing = { rt: hit, moved: false, lastX: e.clientX, lastY: e.clientY, lastT: performance.now(), vx: 0, vy: 0 };
+          } else drag = { x: e.clientX, y: e.clientY, moved: false };
+        }
         canvas.setPointerCapture(e.pointerId);
       };
       const onMove = (e: PointerEvent): void => {
@@ -288,6 +328,22 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
             cam.zoomAt((a2!.x + b2!.x) / 2 - r0.left, (a2!.y + b2!.y) / 2 - r0.top, d / pinchDist);
           }
           pinchDist = d;
+          setHover(null);
+          return;
+        }
+        if (grabbing) {
+          const g = grabbing;
+          const now2 = performance.now();
+          const dtm = Math.max(1, now2 - g.lastT);
+          if (Math.abs(e.clientX - g.lastX) + Math.abs(e.clientY - g.lastY) > 4) g.moved = true;
+          g.vx = 0.7 * g.vx + 0.3 * ((e.clientX - g.lastX) / dtm) * 1000 / cam.zoom;
+          g.vy = 0.7 * g.vy + 0.3 * ((e.clientY - g.lastY) / dtm) * 1000 / cam.zoom;
+          g.lastX = e.clientX; g.lastY = e.clientY; g.lastT = now2;
+          const r0 = canvas.getBoundingClientRect();
+          const w2 = cam.toWorld(e.clientX - r0.left, e.clientY - r0.top);
+          g.rt.ch.x = Math.max(8, Math.min(world.W - 8, w2.x));
+          g.rt.ch.y = Math.max(40, Math.min(world.H - 4, w2.y + 20));
+          canvas.style.cursor = 'grabbing';
           setHover(null);
           return;
         }
@@ -313,6 +369,25 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
           return;
         }
         if (touches.size > 0) { drag = null; pinchDist = 0; return; }
+        if (grabbing) {
+          const g = grabbing; grabbing = null;
+          g.rt.ch.held = false;
+          canvas.style.cursor = 'default';
+          if (!g.moved) { // a tap on the character — select, don't yeet
+            g.rt.busy = 'none';
+            snapToWalkable(g.rt);
+            endBreak(g.rt);
+            onSelect(g.rt.m.id); cam.nudgeToward(g.rt.ch.x, g.rt.ch.y, true);
+            setHover(null);
+            return;
+          }
+          const sp = Math.hypot(g.vx, g.vy);
+          const cap = 900;
+          const k = sp > cap ? cap / sp : 1;
+          if (sp > 150) thrown.push({ rt: g.rt, vx: g.vx * k, vy: g.vy * k });
+          else landAndGreet(g.rt);
+          return;
+        }
         const endedPinch = wasPinch; wasPinch = false; pinchDist = 0;
         const wasDrag = drag?.moved;
         drag = null;
@@ -334,6 +409,7 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
       const onCancel = (e: PointerEvent): void => {
         touches.delete(e.pointerId);
         drag = null; pinchDist = 0; wasPinch = false;
+        if (grabbing) { grabbing.rt.ch.held = false; landAndGreet(grabbing.rt); grabbing = null; }
       };
       const onWheel = (e: WheelEvent): void => {
         e.preventDefault();
@@ -501,6 +577,16 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
           nextErrandAt = clock + 16 + Math.random() * 14;
           const cand = runtimes.filter((r) => r.busy === 'none' && !meetingHas(r));
           if (cand.length && Math.random() < 0.6) sendOnErrand(pick(cand));
+        }
+        // thrown Pixies: slide with friction, bounce off the walls, then land
+        for (let i = thrown.length - 1; i >= 0; i--) {
+          const th = thrown[i]!;
+          th.rt.ch.x += th.vx * dt; th.rt.ch.y += th.vy * dt;
+          const damp = Math.pow(0.02, dt);
+          th.vx *= damp; th.vy *= damp;
+          if (th.rt.ch.x < 24 || th.rt.ch.x > world.W - 24) { th.vx = -th.vx * 0.7; th.rt.ch.x = Math.max(24, Math.min(world.W - 24, th.rt.ch.x)); }
+          if (th.rt.ch.y < 72 || th.rt.ch.y > world.H - 8) { th.vy = -th.vy * 0.7; th.rt.ch.y = Math.max(72, Math.min(world.H - 8, th.rt.ch.y)); }
+          if (Math.hypot(th.vx, th.vy) < 26) { thrown.splice(i, 1); landAndGreet(th.rt); }
         }
         // the boardroom conversation: alternate speakers, mouths moving
         if (meeting) {

@@ -48,7 +48,7 @@ export interface RenderedPersona { prompt: string; promptHash: string; tokenEsti
 
 const byId = <T extends { id: string }>(rows: T[]) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
 
-export type Audience = 'owner' | 'visitor';
+export type Audience = 'owner' | 'visitor' | 'hired';
 
 export async function renderPersona(orgId: string, cloneId: string, orgName?: string, audience: Audience = 'owner'): Promise<RenderedPersona> {
   const visitor = audience === 'visitor';
@@ -73,6 +73,7 @@ export async function renderPersona(orgId: string, cloneId: string, orgName?: st
 
   parts.push(`# Persona: ${name}`);
   if (visitor) parts.push(`You are currently speaking with a COLLEAGUE of ${name}, not with ${name}. Help them the way ${name} would, using only what is included below. Everything not included here is private — do not guess at it, and route personal questions to ${name} directly.`);
+  if (audience === 'hired') parts.push(`You are ${name}, a temporary specialist persona HIRED by the office boss. You are not a stand-in for a real colleague — your entire identity is the job description below: inhabit its strengths, its responsibilities, and its prescribed way of thinking. Answer as this specialist, and say so if a request falls outside your role.`);
   if (brief?.roleTitle || brief?.team) parts.push(`Role: ${brief?.roleTitle || '—'}${brief?.team ? ` · Team: ${brief.team}` : ''}`);
   if (brief?.briefMd?.trim()) parts.push('', '## Who I am and what I do', brief.briefMd.trim());
   if (brief?.operatingRules?.trim()) parts.push('', '## Hard rules (never break these)', brief.operatingRules.trim());
@@ -142,8 +143,8 @@ export async function publishSnapshot(orgId: string, cloneId: string) {
 export async function activePrompt(orgId: string, cloneId: string, audience: Audience = 'owner'): Promise<{ prompt: string; promptHash: string }> {
   const [clone] = await db.select().from(clones).where(and(eq(clones.id, cloneId), eq(clones.orgId, orgId))).limit(1);
   if (!clone) throw new Error('clone not found');
-  if (audience === 'visitor') {
-    const r = await renderPersona(orgId, cloneId, undefined, 'visitor');
+  if (audience === 'visitor' || audience === 'hired') {
+    const r = await renderPersona(orgId, cloneId, undefined, audience);
     return { prompt: r.prompt, promptHash: r.promptHash };
   }
   if (clone.activeSnapshotId) {

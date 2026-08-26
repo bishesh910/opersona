@@ -9,7 +9,7 @@ export type AuthMode = 'api-key' | 'host-login';
  *  person on their own box; a multi-tenant deployment must use `api-key` (BYO key). */
 export const authMode: AuthMode = (process.env.ENGINE_AUTH_MODE as AuthMode) === 'host-login' ? 'host-login' : 'api-key';
 
-export interface OrgModelConfig { apiKey: string | null; chatModel: string; extractModel: string; condenseModel: string; chatEffort: string }
+export interface OrgModelConfig { apiKey: string | null; chatModel: string; extractModel: string; condenseModel: string; chatEffort: string; bossCloneId: string | null }
 
 /** BYO key per org; platform key is only a fallback for the pilot. */
 export async function orgModelConfig(orgId: string): Promise<OrgModelConfig> {
@@ -25,5 +25,6 @@ export async function orgModelConfig(orgId: string): Promise<OrgModelConfig> {
     extractModel: row?.extractModel ?? 'claude-sonnet-5',
     condenseModel: row?.condenseModel ?? 'claude-haiku-4-5',
     chatEffort: row?.chatEffort ?? 'high',
+    bossCloneId: row?.bossCloneId ?? null,
   };
 }

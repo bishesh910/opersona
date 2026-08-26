@@ -52,6 +52,8 @@ export const orgSettings = pgTable('org_settings', {
   chatEffort: text('chat_effort').notNull().default('high'),
   monthlyBudgetUsd: real('monthly_budget_usd'),
   timezone: text('timezone').notNull().default('UTC'),
+  /** The starred persona who runs the floor: delegates work, hires temp personas. */
+  bossCloneId: uuid('boss_clone_id'),
   updatedAt: updated(),
 });
 
@@ -63,10 +65,15 @@ export const clones = pgTable('clones', {
   name: text('name').notNull(),
   avatarRecipe: jsonb('avatar_recipe').$type<AvatarRecipe>(),
   activeSnapshotId: uuid('active_snapshot_id'),
+  /** 'member': a colleague's learned persona. 'hired': a temp persona the boss created. */
+  kind: text('kind').$type<'member' | 'hired'>().notNull().default('member'),
+  /** hired personas park here between engagements; rehiring clears it */
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
   createdAt: now(),
   updatedAt: updated(),
 }, (t) => [
-  uniqueIndex('clones_org_owner_uq').on(t.orgId, t.ownerUserId),
+  // one learned persona per member; hired personas (kind='hired') share the hirer's owner id
+  uniqueIndex('clones_org_owner_uq').on(t.orgId, t.ownerUserId).where(sql`kind = 'member'`),
   index('clones_org_idx').on(t.orgId),
 ]);
 

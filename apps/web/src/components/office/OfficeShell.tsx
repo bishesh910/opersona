@@ -5,15 +5,24 @@
  * and a roster strip along the bottom (click a card → select + camera nudge).
  * On phones the panel becomes a slide-up sheet.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { OfficeFloor, type FloorMember } from '@/office/OfficeFloor';
+import { setBossAction } from '@/actions/office';
 import { PersonaPanel, type PanelMember } from './PersonaPanel';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
 
 const MIN_W = 300, MAX_W = 560, DEF_W = 380;
 
-export function OfficeShell({ members }: { members: PanelMember[] }) {
+export function OfficeShell({ members, canStar = false, bossCloneId = null }: { members: PanelMember[]; canStar?: boolean; bossCloneId?: string | null }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const star = (cloneId: string): void => {
+    startTransition(async () => {
+      try { await setBossAction(cloneId === bossCloneId ? null : cloneId); router.refresh(); } catch { /* not admin */ }
+    });
+  };
   const [panelW, setPanelW] = useState(DEF_W);
   const dragRef = useRef<{ x: number; w: number; cur: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -21,9 +30,15 @@ export function OfficeShell({ members }: { members: PanelMember[] }) {
   // Escape deselects (closes panel/sheet)
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setSelected(null); };
+    // a boss hire/archive changes the floor roster — pull fresh members
+    const onToolResult = (e: Event): void => {
+      const d = (e as CustomEvent<{ name?: string }>).detail;
+      if (d?.name?.endsWith('hire_persona') || d?.name?.endsWith('archive_persona')) router.refresh();
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+    window.addEventListener('opersona:tool-result', onToolResult);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('opersona:tool-result', onToolResult); };
+  }, [router]);
 
   useEffect(() => {
     try { const n = parseInt(localStorage.getItem('office.panelW') ?? '', 10); if (n >= MIN_W && n <= MAX_W) setPanelW(n); } catch { /* ok */ }
@@ -84,9 +99,18 @@ export function OfficeShell({ members }: { members: PanelMember[] }) {
           >
             <AvatarThumb recipe={m.recipe} name={m.name} scale={1} />
             <span className="min-w-0">
-              <span className="block max-w-28 truncate text-xs font-medium">{m.name}{m.boss ? ' ★' : ''}</span>
-              <span className="muted block max-w-28 truncate text-[10px]">{m.role || (m.id ? 'persona' : 'no persona yet')}</span>
+              <span className="block max-w-28 truncate text-xs font-medium">{m.name}</span>
+              <span className="muted block max-w-28 truncate text-[10px]">{m.hired ? 'hired' : m.role || (m.id ? 'persona' : 'no persona yet')}</span>
             </span>
+            {m.id && (canStar || m.boss) && (
+              <span
+                role={canStar ? 'button' : undefined}
+                aria-label={canStar ? (m.boss ? `Remove ${m.name} as boss` : `Make ${m.name} the boss`) : `${m.name} is the boss`}
+                title={canStar ? 'The boss runs the floor: delegates work, hires specialists' : 'Office boss'}
+                onClick={canStar ? (e) => { e.stopPropagation(); star(m.id!); } : undefined}
+                className={'ml-0.5 text-sm leading-none ' + (m.boss ? 'text-amber-500' : 'text-neutral-300 hover:text-amber-400 dark:text-neutral-600')}
+              >★</span>
+            )}
           </button>
         ))}
       </div>

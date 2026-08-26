@@ -30,6 +30,7 @@ export class Character {
   talking = false;
   talkFrames: HTMLCanvasElement[] | null = null; // [closed, open]
   faceFlip = false; // mirrored front pose (turn toward a partner)
+  held = false;     // picked up by the user's cursor
   private animT = 0;
   private animI = 0;
   private pauseT = 0;
@@ -178,6 +179,15 @@ export class Character {
       ctx.restore();
     }
     ctx.save();
+    if (this.held) { // dangling from the cursor: a happy little sway + shadow
+      ctx.translate(px + WALKER_W / 2, py + drawH / 2);
+      ctx.rotate(Math.sin(t * 9) * 0.09);
+      ctx.translate(-(px + WALKER_W / 2), -(py + drawH / 2));
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.ellipse(this.x, this.y + 6, 12, 4, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     if (flip) { ctx.translate(px + WALKER_W, py); ctx.scale(-1, 1); ctx.drawImage(frame, 0, 0, WALKER_W, drawH, 0, 0, WALKER_W, drawH); }
     else ctx.drawImage(frame, 0, 0, WALKER_W, drawH, px, py, WALKER_W, drawH);
     ctx.restore();

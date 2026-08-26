@@ -53,6 +53,19 @@ interface Live {
 
 const live = new Map<string, Live>();
 
+/** Appended to the starred persona's prompt: it runs the floor. */
+const BOSS_ADDENDUM = `
+
+## You are the OFFICE BOSS (the starred persona)
+You run the floor. When the human brings work: decide who on the team fits it best
+(list_team shows everyone and their roles), then delegate_task to that persona and
+report their result back with attribution. When the team is busy or a skill is
+missing, hire_persona a TEMPORARY specialist — define their job, strengths,
+responsibilities and how they should think; they get a desk immediately. Archive
+hires when the engagement ends (archive_persona); rehiring the same name brings
+them back. Consults and delegations are on the record and visible to the people
+involved. Distribute work; do not hoard it.`;
+
 export function cleanEnv(extra: Record<string, string>): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
@@ -174,8 +187,11 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
   if (conv.cwd !== workdir) await db.update(conversations).set({ cwd: workdir }).where(eq(conversations.id, args.conversationId));
   const cloneMode = conv.mode === 'clone';
   const visitor = conv.userId !== clone.ownerUserId; // anyone but the owner gets the shareable-only persona
-  const { prompt, promptHash } = cloneMode ? await activePrompt(args.orgId, args.cloneId, visitor ? 'visitor' : 'owner') : { prompt: PLAIN_CLAUDE_PROMPT, promptHash: 'plain' };
-  const ctx = { orgId: args.orgId, cloneId: args.cloneId, conversationId: args.conversationId, userId: args.userId, visitor: conv.userId !== clone.ownerUserId };
+  const isBoss = cloneMode && cfg.bossCloneId === args.cloneId;
+  const audience = clone.kind === 'hired' ? 'hired' as const : visitor ? 'visitor' as const : 'owner' as const;
+  let { prompt, promptHash } = cloneMode ? await activePrompt(args.orgId, args.cloneId, audience) : { prompt: PLAIN_CLAUDE_PROMPT, promptHash: 'plain' };
+  if (isBoss) { prompt += BOSS_ADDENDUM; promptHash += '.boss'; }
+  const ctx = { orgId: args.orgId, cloneId: args.cloneId, conversationId: args.conversationId, userId: args.userId, visitor: conv.userId !== clone.ownerUserId, isBoss };
   const server = createPersonaServer(ctx);
   const abort = new AbortController();
   const input = new InputQueue();

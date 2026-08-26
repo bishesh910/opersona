@@ -33,6 +33,7 @@ export async function askColleagueOnce(args: {
   fromUserId: string;
   targetCloneId: string;
   question: string;
+  mode?: 'consult' | 'task';
 }): Promise<string> {
   if (args.targetCloneId === args.fromCloneId) throw new Error('cannot consult yourself');
   const [target] = await db.select().from(clones)
@@ -48,7 +49,7 @@ export async function askColleagueOnce(args: {
   // visitor conversation. New row per consult keeps each exchange legible.
   const [conv] = await db.insert(conversations).values({
     orgId: args.orgId, cloneId: target.id, userId: args.fromUserId, mode: 'clone',
-    title: `Asked by ${first} (via ${viaName}’s persona)`,
+    title: args.mode === 'task' ? `Task from ${viaName} (boss), for ${first}` : `Asked by ${first} (via ${viaName}’s persona)`,
   }).returning();
   const question = redactSecrets(args.question).slice(0, 20_000);
   await db.insert(turns).values({
@@ -59,14 +60,14 @@ export async function askColleagueOnce(args: {
   const cfg = await orgModelConfig(args.orgId);
   const ws = ensureWorkspace(args.orgId, target.id);
   const workdir = conversationWorkdir(args.orgId, target.id, conv!.id);
-  const { prompt, promptHash } = await activePrompt(args.orgId, target.id, visitor ? 'visitor' : 'owner');
+  const { prompt, promptHash } = await activePrompt(args.orgId, target.id, target.kind === 'hired' ? 'hired' : visitor ? 'visitor' : 'owner');
   const server = createPersonaServer({
     orgId: args.orgId, cloneId: target.id, conversationId: conv!.id,
     userId: args.fromUserId, visitor, relay: true,
   });
 
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), RELAY_TIMEOUT_MS);
+  const timer = setTimeout(() => abort.abort(), args.mode === 'task' ? 300_000 : RELAY_TIMEOUT_MS);
   const options: Options = {
     model: cfg.chatModel,
     effort: cfg.chatEffort as Options['effort'],
@@ -87,7 +88,9 @@ export async function askColleagueOnce(args: {
     persistSession: false,
   };
 
-  const preface = `[This question is relayed by ${viaName}’s persona on behalf of ${first}. Answer it directly and completely — the reply is returned verbatim to them. You cannot ask follow-up questions here.]\n\n`;
+  const preface = args.mode === 'task'
+    ? `[Task assignment from ${viaName} (the office boss), on behalf of ${first}. Do the task now and return the complete deliverable — not a plan to do it later. You cannot ask follow-up questions here; state assumptions inline.]\n\n`
+    : `[This question is relayed by ${viaName}’s persona on behalf of ${first}. Answer it directly and completely — the reply is returned verbatim to them. You cannot ask follow-up questions here.]\n\n`;
   let text = '';
   const toolUses: { id: string; name: string; input: unknown; ok?: boolean }[] = [];
   try {

@@ -20,6 +20,7 @@ export interface PanelMember {
   owner: string;
   mine: boolean;
   boss: boolean;
+  hired: boolean;
   recipe: AvatarRecipe | null;
   role: string;
   team: string;
@@ -59,7 +60,8 @@ export function PersonaPanel({ member, total, onClose }: { member: PanelMember |
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <h2 className="truncate text-sm font-semibold">{member.name}</h2>
-            {member.boss && <span className="chip shrink-0">owner</span>}
+            {member.boss && <span className="chip shrink-0">★ boss</span>}
+            {member.hired && <span className="chip shrink-0">hired</span>}
             {member.mine && <span className="chip shrink-0">you</span>}
           </div>
           <p className="muted truncate text-xs">

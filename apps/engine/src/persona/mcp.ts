@@ -4,8 +4,8 @@
  */
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import { and, eq, sql } from 'drizzle-orm';
-import { db, clones, playbooks, corrections, learningEvents } from '@opersona/db';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import { db, clones, personaBriefs, playbooks, corrections, learningEvents } from '@opersona/db';
 import { recallMemory, searchDocuments, type Layer } from './retrieval.js';
 import { requestApproval } from '../sessions/approvals.js';
 
@@ -13,9 +13,25 @@ export const PERSONA_SERVER = 'persona';
 export const PERSONA_TOOLS = ['recall_memory', 'get_playbook', 'propose_playbook', 'record_lesson', 'search_documents', 'ask_human', 'ask_colleague'] as const;
 export const personaToolNames = () => PERSONA_TOOLS.map((t) => `mcp__${PERSONA_SERVER}__${t}`);
 
-export interface ToolContext { orgId: string; cloneId: string; conversationId: string; userId: string; visitor?: boolean; relay?: boolean }
+export interface ToolContext { orgId: string; cloneId: string; conversationId: string; userId: string; visitor?: boolean; relay?: boolean; isBoss?: boolean }
 
 const text = (s: string) => ({ content: [{ type: 'text' as const, text: s }] });
+
+/** Hired personas are fictional, so an invented look is fine — derived from the name. */
+function hiredRecipe(name: string): Record<string, unknown> {
+  let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  h = Math.abs(h);
+  const pick = <T,>(arr: T[], n: number): T => arr[n % arr.length]!;
+  return {
+    skin: pick(['light', 'tan', 'brown', 'dark'], h),
+    hairc: pick([[72, 52, 38], [28, 24, 22], [188, 148, 82], [90, 70, 50], [140, 60, 40], [60, 60, 70]], h >> 2),
+    hair: pick(['styleShort', 'styleMessy', 'styleFloppy', 'styleCurly', 'styleBob', 'styleLob', 'styleSpiky', 'styleBun'], h >> 4),
+    cloth: pick(['sweater', 'polo', 'cardigan', 'dressshirt', 'blouse'], h >> 7),
+    c1: pick([[100, 106, 120], [92, 116, 96], [70, 100, 150], [168, 124, 108], [120, 90, 140], [180, 120, 70], [78, 106, 112], [150, 110, 90]], h >> 9),
+    pants: pick([[56, 58, 70], [70, 60, 50], [48, 52, 64]], h >> 12),
+    ...(h % 3 === 0 ? { glasses: true } : {}),
+  };
+}
 
 export function createPersonaServer(ctx: ToolContext) {
   const recall = tool(
@@ -131,5 +147,86 @@ export function createPersonaServer(ctx: ToolContext) {
     },
   );
 
-  return createSdkMcpServer({ name: PERSONA_SERVER, version: '0.0.1', tools: [recall, getPlaybook, propose, lesson, docs, ask, colleague] });
+  // ── boss-only tools: the starred persona runs the floor ────────────────────
+  const listTeam = tool(
+    'list_team',
+    'List everyone on the office floor: colleagues\' personas and hired specialists, with roles. Use before delegating so you pick the right person.',
+    {},
+    async () => {
+      const rows = await db.select({ id: clones.id, name: clones.name, kind: clones.kind, archivedAt: clones.archivedAt }).from(clones).where(eq(clones.orgId, ctx.orgId));
+      const briefs = await db.select({ cloneId: personaBriefs.cloneId, roleTitle: personaBriefs.roleTitle, team: personaBriefs.team }).from(personaBriefs);
+      const bmap = new Map(briefs.map((b2) => [b2.cloneId, b2]));
+      const line = (r: typeof rows[number]) => {
+        const b2 = bmap.get(r.id);
+        return `- ${r.name}${r.id === ctx.cloneId ? ' (you)' : ''} — ${b2?.roleTitle || 'no role recorded'}${b2?.team ? `, ${b2.team}` : ''}${r.kind === 'hired' ? (r.archivedAt ? ' [hired · ARCHIVED — rehire with hire_persona]' : ' [hired]') : ''}`;
+      };
+      const active = rows.filter((r) => !r.archivedAt).map(line).join('\n');
+      const archived = rows.filter((r) => r.archivedAt).map(line).join('\n');
+      return text(`Active:\n${active || '(nobody)'}${archived ? `\n\nArchived hires:\n${archived}` : ''}`);
+    },
+  );
+
+  const hire = tool(
+    'hire_persona',
+    'Hire a TEMPORARY specialist persona for the office (like spawning a focused agent). Define who they are: job description, strengths, responsibilities, and how they should think. If an archived hire with the same name exists, they are rehired (and their description updated). Hired personas can then be consulted or delegated to by name.',
+    {
+      name: z.string().describe('short human name for the specialist, e.g. "Rex QA"'),
+      roleTitle: z.string().describe('their job title, e.g. "QA Engineer"'),
+      team: z.string().optional(),
+      jobDescription: z.string().describe('what this specialist does and is good at'),
+      responsibilities: z.string().describe('their concrete roles and responsibilities'),
+      thinkingStyle: z.string().describe('how they should think and approach problems'),
+    },
+    async (a) => {
+      const rows = await db.select().from(clones).where(and(eq(clones.orgId, ctx.orgId), eq(clones.kind, 'hired')));
+      const existing = rows.find((r) => r.name.toLowerCase().trim() === a.name.toLowerCase().trim());
+      const briefMd = `${a.jobDescription.trim()}\n\n## Responsibilities\n${a.responsibilities.trim()}\n\n## How I think\n${a.thinkingStyle.trim()}`;
+      if (existing) {
+        await db.update(clones).set({ archivedAt: null }).where(eq(clones.id, existing.id));
+        await db.update(personaBriefs).set({ roleTitle: a.roleTitle, team: a.team ?? '', briefMd }).where(eq(personaBriefs.cloneId, existing.id));
+        return text(`Rehired ${existing.name} (${a.roleTitle}). They are back on the floor — delegate or consult them by name.`);
+      }
+      const [row] = await db.insert(clones).values({
+        orgId: ctx.orgId, ownerUserId: ctx.userId, name: a.name.trim(), kind: 'hired',
+        avatarRecipe: hiredRecipe(a.name.trim()) as never,
+      }).returning();
+      await db.insert(personaBriefs).values({ cloneId: row!.id, orgId: ctx.orgId, displayName: a.name.trim(), roleTitle: a.roleTitle, team: a.team ?? '', briefMd, operatingRules: 'Stay within your hired role. Say so when a request falls outside it.' });
+      return text(`Hired ${a.name.trim()} (${a.roleTitle}). They now have a desk on the floor — delegate or consult them by name. Archive them with archive_persona when the engagement ends.`);
+    },
+  );
+
+  const archive = tool(
+    'archive_persona',
+    'Archive a HIRED specialist when their engagement ends (they leave the floor; rehire later with hire_persona). Real colleagues\' personas can never be archived.',
+    { name: z.string() },
+    async (a) => {
+      const rows = await db.select().from(clones).where(and(eq(clones.orgId, ctx.orgId), eq(clones.kind, 'hired'), isNull(clones.archivedAt)));
+      const target = rows.find((r) => r.name.toLowerCase().trim() === a.name.toLowerCase().trim());
+      if (!target) return { ...text(`No active hired persona named \u201c${a.name}\u201d. Only hired specialists can be archived.`), isError: true };
+      await db.update(clones).set({ archivedAt: new Date() }).where(eq(clones.id, target.id));
+      return text(`${target.name} is archived. Rehire them any time with hire_persona (same name).`);
+    },
+  );
+
+  const delegate = tool(
+    'delegate_task',
+    'Assign a task to the best-suited persona on the floor (colleague or hired specialist) and return their result. Pick who fits using list_team first. The task should be self-contained: goal, context, constraints, expected output.',
+    { colleague: z.string().describe('the assignee\'s name'), task: z.string().describe('the full task briefing') },
+    async (a) => {
+      const rows = await db.select({ id: clones.id, name: clones.name, archivedAt: clones.archivedAt }).from(clones).where(eq(clones.orgId, ctx.orgId));
+      const norm = (v: string) => v.toLowerCase().trim();
+      const target = rows.filter((r) => r.id !== ctx.cloneId && !r.archivedAt).find((r) => norm(r.name) === norm(a.colleague) || norm(r.name).includes(norm(a.colleague)));
+      if (!target) return { ...text(`Nobody active matches \u201c${a.colleague}\u201d. Use list_team.`), isError: true };
+      const { askColleagueOnce } = await import('../sessions/relay.js');
+      try {
+        const answer = await askColleagueOnce({ orgId: ctx.orgId, fromCloneId: ctx.cloneId, fromUserId: ctx.userId, targetCloneId: target.id, question: a.task, mode: 'task' });
+        return text(`${target.name} delivered:\n\n${answer}`);
+      } catch (e) { return { ...text(e instanceof Error ? e.message : String(e)), isError: true }; }
+    },
+  );
+
+  return createSdkMcpServer({
+    name: PERSONA_SERVER, version: '0.0.1',
+    tools: [recall, getPlaybook, propose, lesson, docs, ask, colleague, ...(ctx.isBoss && !ctx.relay ? [listTeam, hire, archive, delegate] : [])],
+  });
 }

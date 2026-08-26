@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from 'drizzle-orm';
+import { desc, eq, inArray, isNull } from 'drizzle-orm';
 import { db, schema, authSchema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
 import { engineFetch } from '@/lib/engine';
@@ -15,9 +15,15 @@ export const metadata = { title: 'Office' };
  */
 export default async function OfficePage() {
   const ctx = await requireOrg();
+  const { and: andOp } = await import('drizzle-orm');
   const clones = await db
-    .select({ id: schema.clones.id, name: schema.clones.name, avatarRecipe: schema.clones.avatarRecipe, ownerUserId: schema.clones.ownerUserId })
-    .from(schema.clones).where(eq(schema.clones.orgId, ctx.orgId)).orderBy(desc(schema.clones.createdAt));
+    .select({ id: schema.clones.id, name: schema.clones.name, avatarRecipe: schema.clones.avatarRecipe, ownerUserId: schema.clones.ownerUserId, kind: schema.clones.kind })
+    .from(schema.clones)
+    .where(andOp(eq(schema.clones.orgId, ctx.orgId), isNull(schema.clones.archivedAt))) // archived hires stay off the floor
+    .orderBy(desc(schema.clones.createdAt));
+  const [settings] = await db.select({ bossCloneId: schema.orgSettings.bossCloneId }).from(schema.orgSettings).where(eq(schema.orgSettings.orgId, ctx.orgId)).limit(1);
+  const bossCloneId = settings?.bossCloneId ?? null;
+  const isAdmin = ctx.role === 'owner' || ctx.role === 'admin';
   const memberRows = await db
     .select({ uid: authSchema.user.id, name: authSchema.user.name, email: authSchema.user.email, role: authSchema.member.role })
     .from(authSchema.member).innerJoin(authSchema.user, eq(authSchema.user.id, authSchema.member.userId))
@@ -48,7 +54,6 @@ export default async function OfficePage() {
     ]).catch(() => null)));
   const briefOf = new Map(briefs.map((b) => [b.cloneId, b]));
   const builders = new Set(clones.map((c) => c.ownerUserId));
-  const bossUid = memberRows.find((r) => r.role === 'owner')?.uid ?? memberRows.find((r) => r.role === 'admin')?.uid; // nobody gets a fake 'owner' badge
 
   const members: PanelMember[] = [
     ...clones.map((c, i) => ({
@@ -56,8 +61,9 @@ export default async function OfficePage() {
       key: c.id,
       name: c.name || ownerOf.get(c.ownerUserId) || 'Pixie',
       owner: ownerOf.get(c.ownerUserId) ?? '',
-      mine: c.ownerUserId === ctx.userId,
-      boss: c.ownerUserId === bossUid,
+      mine: c.ownerUserId === ctx.userId && c.kind === 'member',
+      boss: c.id === bossCloneId,
+      hired: c.kind === 'hired',
       recipe: c.avatarRecipe,
       role: briefOf.get(c.id)?.roleTitle ?? '',
       team: briefOf.get(c.id)?.team ?? '',
@@ -70,7 +76,8 @@ export default async function OfficePage() {
       name: m.name || m.email.split('@')[0] || 'New hire',
       owner: m.name,
       mine: m.uid === ctx.userId,
-      boss: m.uid === bossUid,
+      boss: false,
+      hired: false,
       recipe: null,
       role: '',
       team: '',
@@ -89,7 +96,7 @@ export default async function OfficePage() {
         <p className="muted hidden text-xs sm:block">ambient animation — never anyone&apos;s real activity</p>
       </div>
       <div className="min-h-0 flex-1">
-        <OfficeShell members={members} />
+        <OfficeShell members={members} canStar={isAdmin} bossCloneId={bossCloneId} />
       </div>
     </div>
   );
