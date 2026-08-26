@@ -62,7 +62,7 @@ export function CommandCenterView({ members, bossCloneId, canStar }: {
   if (!boss) {
     return (
       <div className="mx-auto flex h-full max-w-xl flex-col items-center justify-center gap-4 text-center">
-        <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-500">Command Center</p>
+        <p className="font-mono text-[11px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-500">Command Center <span className="ml-1 rounded bg-amber-100 px-1 py-px text-[9px] normal-case tracking-wide text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">beta</span></p>
         <h1 className="text-lg font-semibold">No one runs the floor yet</h1>
         <p className="muted max-w-md text-sm">
           Appoint a boss: a persona that distributes work to whoever fits it best and hires
@@ -92,7 +92,7 @@ export function CommandCenterView({ members, bossCloneId, canStar }: {
       <div className="flex items-center gap-3 pb-3">
         <AvatarThumb recipe={boss.recipe} name={boss.name} scale={2} />
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-500">Command Center</p>
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-500">Command Center <span className="ml-1 rounded bg-amber-100 px-1 py-px text-[9px] normal-case tracking-wide text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">beta</span></p>
           <div className="flex items-baseline gap-2">
             <h1 className="truncate text-lg font-semibold">{boss.name}</h1>
             <span className="muted truncate text-sm">{boss.name.split(' ')[0]} runs the floor</span>

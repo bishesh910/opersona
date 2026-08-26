@@ -15,7 +15,7 @@ const ITEMS = [
   { href: '/chat', label: 'New chat', shortLabel: 'New', icon: I.plus },
   { href: '/me', label: 'Me', icon: I.persona },
   { href: '/clones', label: 'Opersonas', icon: I.users },
-  { href: '/office', label: 'Command Center', shortLabel: 'Center', icon: I.office },
+  { href: '/office', label: 'Command Center', shortLabel: 'Center', icon: I.office, badge: 'beta' },
   { href: '/approvals', label: 'Approvals', icon: I.check },
   { href: '/settings', label: 'Settings', icon: I.gear },
 ];
@@ -40,7 +40,7 @@ export function SideNav({ horizontal = false, include }: { horizontal?: boolean;
                   : 'text-neutral-700 hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800/60')
               }
             >
-              <span className="opacity-70">{it.icon}</span>{horizontal && 'shortLabel' in it && it.shortLabel ? it.shortLabel : it.label}
+              <span className="opacity-70">{it.icon}</span>{horizontal && 'shortLabel' in it && it.shortLabel ? it.shortLabel : it.label}{'badge' in it && it.badge ? <span className="ml-1 rounded bg-amber-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">{it.badge}</span> : null}
             </Link>
           </li>
         );
