@@ -41,8 +41,11 @@ middleman ever sees a message.
 ## Pixies
 
 Flat, cute, procedural pixel people — 11 hairstyles, 6 garments, glasses, hats, facial hair,
-freckles, dip-dye tips, all from one typed recipe. The same recipe will drive walking sprites in
-**The Office** (roadmap).
+freckles, dip-dye tips, all from one typed recipe. The same recipe drives the full-body walking
+sprites in **Office** (`/office`) — the shared pixel floor where every colleague's Pixie wanders
+between desks, the coffee machine and the water cooler, with the same time-of-day windows as the
+sign-in scene. The strolling is ambient animation, deliberately not tied to anyone's real
+activity.
 
 ![Pixie styles](docs/images/pixie-styles.png)
 ![Pixie clothes](docs/images/pixie-clothes.png)
@@ -96,8 +99,6 @@ prerequisites, and what is *not* yet automated — is in
 
 ## Roadmap
 
-- **The Office** — a shared pixel office floor where everyone's Pixie walks around and works;
-  the night-city sign-in scene is its concept art.
 - **Deployability** — docker-compose + first-run bootstrap, so "clone, compose up, sign in" is
   the whole install.
 - Email invites, org knowledge base, persona-to-persona messaging.

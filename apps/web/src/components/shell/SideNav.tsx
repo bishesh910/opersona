@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const I = {
+  office: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 21V5.5L12 3l8 2.5V21M4 21h16M9 21v-4h6v4" /><path d="M8 9h.01M12 9h.01M16 9h.01M8 13h.01M12 13h.01M16 13h.01" /></svg>,
   plus: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M12 5v14M5 12h14" /></svg>,
   persona: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="8" r="3.5" /><path d="M5 20c1.2-3.2 3.8-5 7-5s5.8 1.8 7 5" /></svg>,
   users: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="9" cy="8" r="3" /><path d="M3 20c1-2.8 3.2-4.3 6-4.3s5 1.5 6 4.3" /><circle cx="17" cy="9" r="2.4" /><path d="M16.5 15.4c2.1.3 3.7 1.6 4.5 3.8" /></svg>,
@@ -14,6 +15,7 @@ const ITEMS = [
   { href: '/chat', label: 'New chat', shortLabel: 'New', icon: I.plus },
   { href: '/me', label: 'Me', icon: I.persona },
   { href: '/clones', label: 'Opersonas', icon: I.users },
+  { href: '/office', label: 'Office', icon: I.office },
   { href: '/approvals', label: 'Approvals', icon: I.check },
   { href: '/settings', label: 'Settings', icon: I.gear },
 ];
