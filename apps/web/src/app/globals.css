@@ -173,6 +173,21 @@ code, kbd { overflow-wrap: anywhere; }
 /* Time-of-day auth scenes (visitor-local; night is the default above). */
 html[data-daypart="morning"] .auth-bg { background-image: url('/auth-bg-morning.png'); }
 html[data-daypart="day"] .auth-bg { background-image: url('/auth-bg-day.png'); }
+
+/* Wider than 16:9 (ultrawide / very wide windows): the 16:9 art would scale
+   width-driven and blow the crowd up. Switch to 32:9 canvases (right 2880px is
+   byte-identical to the 16:9 art, sky extended left) sized by HEIGHT and
+   anchored right — the pixies stay the same size as on a 16:9 screen and the
+   extra width just shows more sky. */
+@media (min-aspect-ratio: 16/9) and (min-width: 641px) {
+  .auth-bg {
+    background-image: url('/auth-bg-wide.png');
+    background-size: auto 100%;
+    background-position: right bottom;
+  }
+  html[data-daypart="morning"] .auth-bg { background-image: url('/auth-bg-morning-wide.png'); }
+  html[data-daypart="day"] .auth-bg { background-image: url('/auth-bg-day-wide.png'); }
+}
 @media (max-width: 640px), (max-aspect-ratio: 3/4) {
   html[data-daypart="morning"] .auth-bg { background-image: url('/auth-bg-morning-mobile.png'); }
   html[data-daypart="day"] .auth-bg { background-image: url('/auth-bg-day-mobile.png'); }
