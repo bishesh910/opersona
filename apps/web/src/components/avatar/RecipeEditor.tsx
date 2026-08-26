@@ -1,5 +1,6 @@
 'use client';
 import { SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, EARRINGS, HEADWEAR, GLASSES_STYLES, type AvatarRecipe, type RGB } from '@opersona/shared';
+import { SwatchGrid } from './SwatchGrid';
 
 const rgbToHex = (c: RGB) => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
 const hexToRgb = (h: string): RGB => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
@@ -59,20 +60,28 @@ export function RecipeEditor({ recipe, onChange, disabled }: { recipe: AvatarRec
   };
   return (
     <fieldset disabled={disabled} className="space-y-4 disabled:opacity-60">
+      {/* try-on grids: every option rendered as YOUR pixie with that one thing changed */}
+      <SwatchGrid label="Hair style" options={HAIR_STYLES} value={recipe.hair} recipe={recipe} crop="full"
+        apply={(r, v) => (v ? { ...r, hair: v } : r)} onPick={(v) => v && set('hair', v)} />
+      <SwatchGrid label="Skin tone" options={SKIN_TONES} value={recipe.skin} recipe={recipe}
+        apply={(r, v) => (v ? { ...r, skin: v } : r)} onPick={(v) => v && set('skin', v)} />
+      <SwatchGrid label="Clothes" options={CLOTHES} value={recipe.cloth} recipe={recipe} crop="full"
+        apply={(r, v) => (v ? { ...r, cloth: v } : r)} onPick={(v) => v && set('cloth', v)} />
+      <SwatchGrid label="Brows" options={BROWS} value={recipe.brow} none recipe={recipe}
+        apply={(r, v) => ({ ...r, brow: v })} onPick={(v) => set('brow', v)} />
+      <SwatchGrid label="Mouth" options={MOUTHS} value={recipe.mouth} none recipe={recipe}
+        apply={(r, v) => ({ ...r, mouth: v })} onPick={(v) => set('mouth', v)} />
+      <SwatchGrid label="Facial hair" options={FACIAL} value={recipe.facial} none recipe={recipe}
+        apply={(r, v) => ({ ...r, facial: v })} onPick={(v) => set('facial', v)} />
+      <SwatchGrid label="Glasses" options={GLASSES_STYLES} value={recipe.glassesStyle ?? (recipe.glasses ? 'classic' : undefined)} none recipe={recipe}
+        apply={(r, v) => ({ ...r, glassesStyle: v === 'classic' ? undefined : v, glasses: v ? true : undefined })}
+        onPick={(v) => onChange({ ...recipe, glassesStyle: v === 'classic' ? undefined : v, glasses: v ? true : undefined })} />
       <div className="grid gap-3 sm:grid-cols-2">
-        <Select label="Skin tone" value={recipe.skin} options={SKIN_TONES} onChange={(v) => v && set('skin', v)} />
-        <Select label="Hair style" value={recipe.hair} options={HAIR_STYLES} onChange={(v) => v && set('hair', v)} />
         <Color label="Hair colour" value={recipe.hairc} onChange={(v) => v && set('hairc', v)} />
-        <Select label="Clothes" value={recipe.cloth} options={CLOTHES} onChange={(v) => v && set('cloth', v)} />
         <Color label="Primary colour (c1)" value={recipe.c1} onChange={(v) => v && set('c1', v)} />
         <Color label="Secondary colour (c2)" value={recipe.c2} onChange={(v) => set('c2', v)} optional />
         <Color label="Tie" value={recipe.tie} onChange={(v) => set('tie', v)} optional />
         <Color label="Pants" value={recipe.pants} onChange={(v) => set('pants', v)} optional />
-        <Select label="Brows" value={recipe.brow} options={BROWS} onChange={(v) => set('brow', v)} allowNone />
-        <Select label="Mouth" value={recipe.mouth} options={MOUTHS} onChange={(v) => set('mouth', v)} allowNone />
-        <Select label="Facial hair" value={recipe.facial} options={FACIAL} onChange={(v) => set('facial', v)} allowNone />
-        <Select label="Glasses style" value={recipe.glassesStyle ?? (recipe.glasses ? 'classic' : undefined)} options={GLASSES_STYLES}
-          onChange={(v) => onChange({ ...recipe, glassesStyle: v === 'classic' ? undefined : v, glasses: v ? true : undefined })} allowNone />
       </div>
       <div className="flex flex-wrap gap-4">
         <Check label="Glasses" value={recipe.glasses || !!recipe.glassesStyle} onChange={(v) => onChange({ ...recipe, glasses: v || undefined, ...(v ? {} : { glassesStyle: undefined }) })} />
@@ -84,9 +93,11 @@ export function RecipeEditor({ recipe, onChange, disabled }: { recipe: AvatarRec
         <summary className="cursor-pointer text-sm font-medium">Details</summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Color label="Eye colour" value={recipe.eyes} onChange={(v) => set('eyes', v)} optional />
-          <div className="grid grid-cols-2 gap-3">
-            <Select label="Earrings" value={recipe.earrings} options={EARRINGS} onChange={(v) => set('earrings', v)} allowNone />
-            <Select label="Headwear" value={recipe.headwear} options={HEADWEAR} onChange={(v) => set('headwear', v)} allowNone />
+          <div className="sm:col-span-2 space-y-3">
+            <SwatchGrid label="Headwear" options={HEADWEAR} value={recipe.headwear} none recipe={recipe}
+              apply={(r, v) => ({ ...r, headwear: v })} onPick={(v) => set('headwear', v)} />
+            <SwatchGrid label="Earrings" options={EARRINGS} value={recipe.earrings} none recipe={recipe}
+              apply={(r, v) => ({ ...r, earrings: v })} onPick={(v) => set('earrings', v)} />
           </div>
           <Color label="Earring colour (default gold)" value={recipe.earringColor} onChange={(v) => set('earringColor', v)} optional />
           <Color label="Headwear colour" value={recipe.headwearColor} onChange={(v) => set('headwearColor', v)} optional />
