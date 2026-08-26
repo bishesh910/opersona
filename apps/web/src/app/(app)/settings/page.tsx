@@ -1,4 +1,4 @@
-import { and, eq, gt } from 'drizzle-orm';
+import { and, desc, eq, gt, lt } from 'drizzle-orm';
 import { db, schema, authSchema } from '@opersona/db';
 import { requireOrg, isOrgAdmin } from '@/lib/session';
 import { InviteCard } from '@/components/settings/InviteCard';
@@ -7,6 +7,7 @@ import { ApiKeyForm } from '@/components/settings/ApiKeyForm';
 import { TwoFactorCard } from '@/components/settings/TwoFactorCard';
 import { NamesCard } from '@/components/settings/NamesCard';
 import { ChangePasswordCard } from '@/components/settings/ChangePasswordCard';
+import { DevicesCard } from '@/components/settings/DevicesCard';
 import { MembersCard } from '@/components/settings/MembersCard';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
 import { engineFetch } from '@/lib/engine';
@@ -30,6 +31,19 @@ export default async function SettingsPage() {
         .from(authSchema.invitation)
         .where(and(eq(authSchema.invitation.organizationId, ctx.orgId), eq(authSchema.invitation.status, 'pending'), gt(authSchema.invitation.expiresAt, new Date())))
     : [];
+  // opportunistic tidy-up: drop this user's expired session rows
+  await db.delete(authSchema.session).where(and(eq(authSchema.session.userId, ctx.userId), lt(authSchema.session.expiresAt, new Date())));
+  const deviceSessions = await db
+    .select({
+      id: authSchema.session.id,
+      userAgent: authSchema.session.userAgent,
+      ipAddress: authSchema.session.ipAddress,
+      createdAt: authSchema.session.createdAt,
+      updatedAt: authSchema.session.updatedAt,
+    })
+    .from(authSchema.session)
+    .where(and(eq(authSchema.session.userId, ctx.userId), gt(authSchema.session.expiresAt, new Date())))
+    .orderBy(desc(authSchema.session.updatedAt));
   const baseUrl = (process.env.BETTER_AUTH_URL ?? '').replace(/\/$/, '');
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -42,6 +56,16 @@ export default async function SettingsPage() {
           <>
             <TwoFactorCard enabled={!!userRow?.twoFactorEnabled} email={ctx.user.email} />
             <ChangePasswordCard />
+            <DevicesCard
+              sessions={deviceSessions.map((r) => ({
+                id: r.id,
+                userAgent: r.userAgent,
+                ipAddress: r.ipAddress,
+                createdAt: r.createdAt.toISOString(),
+                updatedAt: r.updatedAt.toISOString(),
+                current: r.id === ctx.sessionId,
+              }))}
+            />
             <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg={false} />
           </>
         }

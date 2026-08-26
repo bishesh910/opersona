@@ -14,6 +14,11 @@ abuse technically impossible, not by anyone reading anyone's messages.
 - **Mandatory TOTP two-factor auth** for every account, with backup codes. 2FA enrollment
   happens at first sign-in and cannot be skipped.
 - Rate-limiting and auth-failure tracking on the auth endpoints.
+- **Long-lived, revocable sessions** — a 60-day sliding window (each active day renews it),
+  so people are effectively never logged out. Safety comes from revocation, not expiry:
+  every session is a database row checked on each request, and Settings -> Account -> Devices
+  lists them all (device, IP, last active) with per-device sign-out and a
+  "sign out all other devices" sweep. Changing your password also revokes other sessions.
 
 ## Boundary between browser, web, and engine
 

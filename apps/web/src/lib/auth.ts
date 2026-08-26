@@ -80,7 +80,11 @@ export const auth = betterAuth({
   },
   // Brute-force protection: 10 auth requests per minute per IP, stricter on sign-in.
   rateLimit: { enabled: true, storage: 'database', window: 60, max: 20, customRules: { '/sign-in/email': { window: 300, max: 8 }, '/sign-up/email': { window: 3600, max: 5 }, '/forget-password': { window: 3600, max: 5 } } },
-  session: { expiresIn: 60 * 60 * 24 * 14, updateAge: 60 * 60 * 24 },
+  // 60-day sliding window: any request more than a day after the last refresh
+  // re-stamps the session for another 60 days, so active users stay signed in
+  // indefinitely. The matching safety valve is Settings -> Account -> Devices
+  // (review active sessions, sign out any of them).
+  session: { expiresIn: 60 * 60 * 24 * 60, updateAge: 60 * 60 * 24 },
   advanced: { useSecureCookies: (process.env.BETTER_AUTH_URL ?? '').startsWith('https://') },
   socialProviders: {
     ...(SOCIAL.google ? { google: { clientId: process.env.GOOGLE_CLIENT_ID!, clientSecret: process.env.GOOGLE_CLIENT_SECRET! } } : {}),
