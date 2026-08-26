@@ -57,8 +57,12 @@ export function ThemeToggle() {
       <datalist id="theme-ticks">
         {MODES.map((_, i) => <option key={i} value={i} />)}
       </datalist>
-      <div className="mt-0.5 flex justify-between text-[9px] leading-none text-neutral-400">
-        <span>Light</span><span>Soft</span><span>Auto</span><span>Dim</span><span>Dark</span>
+      {/* labels centred under the actual thumb stops: track is inset ~8px (half thumb)
+          on each side, stops at i/4 across the remainder */}
+      <div className="relative mx-2 mt-0.5 h-3 text-[9px] leading-none text-neutral-400">
+        {(['Light', 'Soft', 'Auto', 'Dim', 'Dark'] as const).map((l, i) => (
+          <span key={l} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${(i / 4) * 100}%` }}>{l}</span>
+        ))}
       </div>
     </div>
   );
