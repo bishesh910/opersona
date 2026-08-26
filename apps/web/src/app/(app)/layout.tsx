@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { SidebarResizer } from '@/components/shell/SidebarResizer';
+import { SidebarResizer, SidebarToggle } from '@/components/shell/SidebarResizer';
 import { requireOrg, require2FA } from '@/lib/session';
 import { and, desc, eq } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
@@ -45,7 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen">
       {/* sidebar width/collapse persist per device; applied pre-paint (no flash) */}
       <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "(function(){try{var w=parseInt(localStorage.getItem('sb.w'),10);var c=localStorage.getItem('sb.collapsed')==='1';if(!(w>=180&&w<=400))w=224;document.documentElement.style.setProperty('--sb-w',(c?0:w)+'px');if(c)document.documentElement.setAttribute('data-sb-collapsed','');}catch(e){}})()" }} />
-      <aside style={{ width: 'var(--sb-w, 224px)' }} className="app-sidebar sticky top-0 hidden h-dvh shrink-0 flex-col self-start border-r border-neutral-200 bg-neutral-50 p-4 md:flex dark:border-neutral-800 dark:bg-neutral-900/40">
+      <aside style={{ width: 'var(--sb-w, 224px)' }} className="app-sidebar sticky top-0 hidden h-dvh shrink-0 flex-col self-start relative border-r border-neutral-200 bg-neutral-50 p-4 md:flex dark:border-neutral-800 dark:bg-neutral-900/40">
         <Link href="/chat" className="mb-6 block px-2 text-lg font-semibold tracking-tight">opersona.me</Link>
         <SideNav include={['/chat']} />
         <div className="my-2 border-t border-neutral-200 dark:border-neutral-800" />
@@ -58,6 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="relative mt-auto -mx-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800">
           <SidebarFooter name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} />
         </div>
+        <SidebarToggle />
       </aside>
       <SidebarResizer />
       <div className="flex min-w-0 flex-1 flex-col">
