@@ -7,7 +7,7 @@
  */
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { openCommandCenter, setHiredArchivedAction, type CommandCenterData } from '@/actions/office';
+import { openCommandCenter, openActivity, setHiredArchivedAction, type ActivityEvent, type CommandCenterData } from '@/actions/office';
 
 function ago(iso: string): string {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -93,6 +93,31 @@ export function TasksTab() {
         </Link>
       ))}
       <p className="muted pt-1 text-[11px]">Your delegations only — amber pulse means the persona is still working.</p>
+    </div>
+  );
+}
+
+export function ActivityTab() {
+  const [events, setEvents] = useState<ActivityEvent[] | null>(null);
+  useEffect(() => {
+    const reload = (): void => { openActivity().then((d) => setEvents(d.events)).catch(() => {}); };
+    reload();
+    const onToolResult = (): void => reload();
+    window.addEventListener('opersona:tool-result', onToolResult);
+    return () => window.removeEventListener('opersona:tool-result', onToolResult);
+  }, []);
+  if (!events) return <p className="muted p-3 text-xs">loading the floor log…</p>;
+  if (events.length === 0) return <p className="muted p-3 text-xs">Quiet so far — hires, rehires and archives land here.</p>;
+  return (
+    <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3" data-cc-activity>
+      {events.map((e, i) => (
+        <div key={i} className="flex items-center gap-2 rounded-lg bg-neutral-50 px-2 py-1.5 dark:bg-neutral-800/50">
+          <span className={'h-[7px] w-[7px] shrink-0 ' + (e.kind === 'hired' ? 'bg-emerald-500' : e.kind === 'archived' ? 'bg-neutral-400' : 'bg-amber-500')} aria-hidden />
+          <span className="min-w-0 flex-1 truncate text-xs">{e.text}</span>
+          <span className="muted shrink-0 text-[10px]">{ago(e.at)}</span>
+        </div>
+      ))}
+      <p className="muted pt-1 text-[11px]">Staffing only — never anyone&apos;s conversations.</p>
     </div>
   );
 }

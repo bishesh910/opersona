@@ -47,6 +47,12 @@ export function OfficeShell({ members, canStar = false, bossCloneId = null }: { 
   }, []);
 
   const floorMembers: FloorMember[] = members.map((m) => ({ id: m.key, name: m.name, recipe: m.recipe, boss: m.boss }));
+  const [tabReq, setTabReq] = useState<{ tab: 'chat' | 'team' | 'tasks' | 'activity' | 'about'; seq: number } | null>(null);
+  const onProp = useCallback((prop: 'tasks' | 'boss') => {
+    if (!bossCloneId) return;
+    setSelected(bossCloneId);
+    if (prop === 'tasks') setTabReq((r) => ({ tab: 'tasks', seq: (r?.seq ?? 0) + 1 }));
+  }, [bossCloneId]);
   const sel = members.find((m) => m.key === selected) ?? null;
   const onSelect = useCallback((id: string | null) => setSelected(id), []);
 
@@ -54,7 +60,7 @@ export function OfficeShell({ members, canStar = false, bossCloneId = null }: { 
     <div className="flex h-full min-h-[420px] flex-col gap-2">
       <div className="flex min-h-0 flex-1">
         <div className="min-w-0 flex-1">
-          <OfficeFloor members={floorMembers} selectedId={selected} onSelect={onSelect} />
+          <OfficeFloor members={floorMembers} selectedId={selected} onSelect={onSelect} bossId={bossCloneId} onProp={onProp} />
         </div>
         {/* splitter + panel — desktop only; phones get the sheet below */}
         <button
@@ -83,7 +89,7 @@ export function OfficeShell({ members, canStar = false, bossCloneId = null }: { 
           onDoubleClick={() => setPanelW(DEF_W)}
         />
         <div ref={panelRef} className="hidden shrink-0 md:block" style={{ width: panelW }}>
-          <PersonaPanel key={sel?.key ?? "none"} member={sel} total={members.length} onClose={() => setSelected(null)} noBossHint={canStar && !bossCloneId} />
+          <PersonaPanel key={sel?.key ?? "none"} member={sel} total={members.length} onClose={() => setSelected(null)} noBossHint={canStar && !bossCloneId} tabRequest={tabReq} />
         </div>
       </div>
       {starErr && <p className="text-xs text-red-600 dark:text-red-400" role="alert">{starErr}</p>}

@@ -53,13 +53,18 @@ interface Runtime {
   bubble: Bubble | null;
   busy: 'none' | 'break' | 'errand';
   cafeSeat: Pt | null;           // claimed cafe chair (released on endBreak)
+  workLabel: string | null;      // pinned while running a delegated task (viewer-local)
+  workSayAt: number;             // next time to re-bubble the work label
   termPhase: number;             // fake-terminal scroll phase
 }
 
-export function OfficeFloor({ members, selectedId, onSelect }: {
+export function OfficeFloor({ members, selectedId, onSelect, bossId = null, onProp }: {
   members: FloorMember[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  bossId?: string | null;
+  /** clickable furniture (munder-difflin style): the presentation screen and the CEO desk */
+  onProp?: (prop: 'tasks' | 'boss') => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -161,7 +166,7 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
         const top = { x: seat.x, y: seat.y - 2 };
         const hasMon = world.gidAt('furniture-above', top.x, top.y) === THEME.monitor.offTopLeftGid
           || world.gidAt('furniture-below', top.x, top.y) === THEME.monitor.offTopLeftGid;
-        return { m, ch, seatIdx, monitor: hasMon ? { top } : null, bubble: null, busy: 'none' as const, cafeSeat: null, termPhase: Math.random() * 10 };
+        return { m, ch, seatIdx, monitor: hasMon ? { top } : null, bubble: null, busy: 'none' as const, cafeSeat: null, workLabel: null, workSayAt: 0, termPhase: Math.random() * 10 };
       });
       rtRef.current = runtimes;
       setReady(true);
@@ -250,6 +255,37 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
         for (const rt of [a2, b2]) { rt.ch.talking = false; rt.ch.faceFlip = false; rt.bubble = null; }
         if (ok) a2.ch.setGlyph('success');
         endBreak(a2); endBreak(b2);
+      };
+      /* ── delegation choreography: the boss briefs the assignee, who gets to work ── */
+      const startAssignment = (boss: Runtime, worker: Runtime, task: string): void => {
+        if (worker === boss || meetingHas(worker)) return;
+        envelopes.push({ from: { x: boss.ch.x, y: boss.ch.y - WALKER_H / 2 }, to: { x: worker.ch.x, y: worker.ch.y - WALKER_H / 2 }, t: 0, dur: 1.4, color: '#f2df8a', burst: 0 });
+        interrupt(worker); worker.busy = 'errand';
+        const label = task.replace(/\s+/g, ' ').trim();
+        worker.workLabel = 'on it: ' + (label.length > 30 ? label.slice(0, 30) + '…' : label);
+        worker.workSayAt = clock + 7;
+        const seat = worker.ch.seatTile;
+        if (seat && worker.ch.walkTo(world, seat, () => {
+          worker.ch.sitAt(seat, worker.ch.seatFacing, true);
+          say(worker, 'on it!', 2.2);
+        })) { /* rushing to the desk */ } else say(worker, 'on it!', 2.2);
+        // the boss strolls over with the brief, then returns to the corner office
+        if (!meetingHas(boss) && boss.busy === 'none' && seat) {
+          const spot = { x: seat.x, y: seat.y + 1 };
+          boss.busy = 'errand';
+          if (boss.ch.walkTo(world, spot, () => {
+            say(boss, 'here’s the brief', 2.2);
+            setTimeout(() => { if (!dead) endBreak(boss); }, 2600);
+          })) { /* walking */ } else boss.busy = 'none';
+        }
+      };
+      const finishAssignment = (worker: Runtime, ok: boolean): void => {
+        worker.workLabel = null;
+        worker.busy = 'none';
+        if (ok) { worker.ch.setGlyph('success'); say(worker, 'done — sent it over ✓', 2.6); }
+        else say(worker, 'hit a wall on that one', 2.6);
+        const boss = runtimes.find((r) => r.m.id === bossId);
+        if (boss && boss !== worker) envelopes.push({ from: { x: worker.ch.x, y: worker.ch.y - WALKER_H / 2 }, to: { x: boss.ch.x, y: boss.ch.y - WALKER_H / 2 }, t: 0, dur: 1.4, color: '#a8e0b0', burst: 0 });
       };
       const sendOnErrand = (rt: Runtime): void => {
         const spots = THEME.errandSpots.filter((s) => (!s.bossOnly || rt.m.boss));
@@ -403,8 +439,12 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
         const r = canvas.getBoundingClientRect();
         const w = cam.toWorld(e.clientX - r.left, e.clientY - r.top);
         const hit = hitTest(w);
-        if (hit) { onSelect(hit.m.id); cam.nudgeToward(hit.ch.x, hit.ch.y, true); }
-        else onSelect(null);
+        if (hit) { onSelect(hit.m.id); cam.nudgeToward(hit.ch.x, hit.ch.y, true); return; }
+        // furniture: presentation screen → Tasks; the CEO desk → the boss
+        const tx = Math.floor(w.x / TILE), ty = Math.floor(w.y / TILE);
+        if (tx >= 11 && tx <= 12 && ty >= 7 && ty <= 9) { onProp?.('tasks'); return; }
+        if (tx >= 3 && tx <= 5 && ty >= 4 && ty <= 7) { onProp?.('boss'); return; }
+        onSelect(null);
       };
       const onCancel = (e: PointerEvent): void => {
         touches.delete(e.pointerId);
@@ -619,9 +659,12 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
           if (e.t < e.dur) e.t += dt;
           else { e.burst += dt; if (e.burst > 0.45) envelopes.splice(i, 1); }
         }
-        // seated workers occasionally think out loud
+        // seated workers occasionally think out loud; assignees re-pin their task
         for (const rt of runtimes) {
-          if (rt.busy === 'none' && rt.ch.sitting && rt.ch.working && !rt.bubble && Math.random() < dt / 45) {
+          if (rt.workLabel && clock > rt.workSayAt && !rt.bubble) {
+            say(rt, rt.workLabel, 3);
+            rt.workSayAt = clock + 9 + Math.random() * 5;
+          } else if (rt.busy === 'none' && !rt.workLabel && rt.ch.sitting && rt.ch.working && !rt.bubble && Math.random() < dt / 45) {
             say(rt, pick(SOLO_LINES.desk!), 2.4);
           }
         }
@@ -640,11 +683,21 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
         const q2 = (d.input?.colleague ?? '').toLowerCase().trim();
         const to = q2 ? runtimes.find((r) => r.m.name.toLowerCase().includes(q2) || q2.includes(r.m.name.toLowerCase())) : undefined;
         if (!from || !to || from === to) return;
+        if (d.name.endsWith('delegate_task')) {
+          startAssignment(from, to, String((d.input as { task?: string } | undefined)?.task ?? 'a task'));
+          return;
+        }
         envelopes.push({ from: { x: from.ch.x, y: from.ch.y - WALKER_H / 2 }, to: { x: to.ch.x, y: to.ch.y - WALKER_H / 2 }, t: 0, dur: 1.6, color: '#9ecbf0', burst: 0 });
         startMeeting(from, to);
       };
       const onToolResult = (e: Event): void => {
-        const d = (e as CustomEvent<{ name?: string; ok?: boolean }>).detail;
+        const d = (e as CustomEvent<{ name?: string; ok?: boolean; input?: { colleague?: string } }>).detail;
+        if (d?.name?.endsWith('delegate_task')) {
+          const q2 = (d.input?.colleague ?? '').toLowerCase().trim();
+          const worker = q2 ? runtimes.find((r) => r.m.name.toLowerCase().includes(q2) || q2.includes(r.m.name.toLowerCase())) : runtimes.find((r) => r.workLabel);
+          if (worker) finishAssignment(worker, d.ok !== false);
+          return;
+        }
         if (!d?.name?.endsWith('ask_colleague') || !meeting) return;
         // the relay can resolve faster than the walk — let the meetup play out:
         // give them time to arrive and trade a couple of beats before wrapping
@@ -657,7 +710,7 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
     })();
 
     return () => { dead = true; cleanup.forEach((fn) => fn()); };
-  }, [stable, onSelect]);
+  }, [stable, onSelect, bossId, onProp]);
 
   return (
     <div ref={hostRef} className="relative h-full w-full overflow-hidden rounded-xl border border-neutral-200 bg-[#191a20] dark:border-neutral-800">

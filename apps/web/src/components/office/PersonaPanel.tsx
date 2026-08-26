@@ -7,12 +7,12 @@
  *           patterns (exactly the colleague view of /clones/[id]/thinking)
  * No content of other people's chats, no live activity — ever.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { AvatarRecipe } from '@opersona/shared';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
 import { OfficeChat } from './OfficeChat';
-import { TeamTab, TasksTab } from './CommandCenter';
+import { TeamTab, TasksTab, ActivityTab } from './CommandCenter';
 
 export interface PanelMember {
   id: string | null;          // cloneId (null → no persona yet)
@@ -35,8 +35,10 @@ const DIM_LABEL: Record<string, string> = {
   tooling: 'Tools & methods', communication: 'How they explain', risk: 'Risk posture',
 };
 
-export function PersonaPanel({ member, total, onClose, noBossHint = false }: { member: PanelMember | null; total: number; onClose: () => void; noBossHint?: boolean }) {
-  const [tab, setTab] = useState<'chat' | 'team' | 'tasks' | 'about'>('chat');
+export function PersonaPanel({ member, total, onClose, noBossHint = false, tabRequest = null }: { member: PanelMember | null; total: number; onClose: () => void; noBossHint?: boolean; tabRequest?: { tab: 'chat' | 'team' | 'tasks' | 'activity' | 'about'; seq: number } | null }) {
+  const [tab, setTab] = useState<'chat' | 'team' | 'tasks' | 'activity' | 'about'>('chat');
+  // one-shot external tab request (clicking scene furniture — munder-difflin's ccTabRequest)
+  useEffect(() => { if (tabRequest) setTab(tabRequest.tab); }, [tabRequest]);
   if (!member) {
     return (
       <section className="card flex h-full flex-col items-center justify-center gap-2 text-center">
@@ -84,7 +86,7 @@ export function PersonaPanel({ member, total, onClose, noBossHint = false }: { m
       {member.id ? (
         <>
           <div role="tablist" aria-label="Persona panel" className="flex gap-1 border-b border-neutral-100 px-3 dark:border-neutral-800">
-            {(member.boss ? (['chat', 'team', 'tasks', 'about'] as const) : (['chat', 'about'] as const)).map((t) => (
+            {(member.boss ? (['chat', 'team', 'tasks', 'activity', 'about'] as const) : (['chat', 'about'] as const)).map((t) => (
               <button
                 key={t}
                 role="tab"
@@ -95,7 +97,7 @@ export function PersonaPanel({ member, total, onClose, noBossHint = false }: { m
                     ? 'border-amber-500 text-neutral-900 dark:text-neutral-100'
                     : 'border-transparent text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300')}
               >
-                {t === 'chat' ? (member.boss ? 'Dispatch' : member.mine ? 'Test chat' : 'Chat') : t === 'team' ? 'Team' : t === 'tasks' ? 'Tasks' : 'About'}
+                {t === 'chat' ? (member.boss ? 'Dispatch' : member.mine ? 'Test chat' : 'Chat') : t === 'team' ? 'Team' : t === 'tasks' ? 'Tasks' : t === 'activity' ? 'Activity' : 'About'}
               </button>
             ))}
           </div>
@@ -105,6 +107,8 @@ export function PersonaPanel({ member, total, onClose, noBossHint = false }: { m
             <TeamTab />
           ) : tab === 'tasks' ? (
             <TasksTab />
+          ) : tab === 'activity' ? (
+            <ActivityTab />
           ) : (
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
               {member.accuracyPct !== null && (

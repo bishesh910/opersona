@@ -140,3 +140,31 @@ export async function setHiredArchivedAction(cloneId: string, archived: boolean)
   await db.update(schema.clones).set({ archivedAt: archived ? new Date() : null }).where(eq(schema.clones.id, cloneId));
   revalidatePath('/office');
 }
+
+export interface ActivityEvent { kind: 'hired' | 'archived' | 'boss'; text: string; at: string }
+
+/** Org-visible staffing feed: hires, rehires/archives, and who runs the floor.
+ *  Deliberately derived only from org-visible tables (clones + settings) — never
+ *  from anyone's conversations. */
+export async function openActivity(): Promise<{ events: ActivityEvent[] }> {
+  const ctx = await requireOrg();
+  const [settings] = await db.select({ bossCloneId: schema.orgSettings.bossCloneId, updatedAt: schema.orgSettings.updatedAt }).from(schema.orgSettings).where(eq(schema.orgSettings.orgId, ctx.orgId)).limit(1);
+  const rows = await db
+    .select({ id: schema.clones.id, name: schema.clones.name, kind: schema.clones.kind, createdAt: schema.clones.createdAt, archivedAt: schema.clones.archivedAt })
+    .from(schema.clones).where(eq(schema.clones.orgId, ctx.orgId));
+  const briefs = await db.select({ cloneId: schema.personaBriefs.cloneId, roleTitle: schema.personaBriefs.roleTitle }).from(schema.personaBriefs);
+  const roleOf = new Map(briefs.map((b) => [b.cloneId, b.roleTitle]));
+  const events: ActivityEvent[] = [];
+  for (const r of rows) {
+    if (r.kind === 'hired') {
+      events.push({ kind: 'hired', text: `${r.name} hired${roleOf.get(r.id) ? ` · ${roleOf.get(r.id)}` : ''}`, at: r.createdAt.toISOString() });
+      if (r.archivedAt) events.push({ kind: 'archived', text: `${r.name} archived`, at: r.archivedAt.toISOString() });
+    }
+  }
+  if (settings?.bossCloneId) {
+    const boss = rows.find((r) => r.id === settings.bossCloneId);
+    if (boss) events.push({ kind: 'boss', text: `★ ${boss.name} runs the floor`, at: (settings.updatedAt ?? new Date()).toISOString() });
+  }
+  events.sort((a, b) => b.at.localeCompare(a.at));
+  return { events: events.slice(0, 25) };
+}
