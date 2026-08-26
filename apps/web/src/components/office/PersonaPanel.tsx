@@ -35,7 +35,7 @@ const DIM_LABEL: Record<string, string> = {
   tooling: 'Tools & methods', communication: 'How they explain', risk: 'Risk posture',
 };
 
-export function PersonaPanel({ member, total, onClose }: { member: PanelMember | null; total: number; onClose: () => void }) {
+export function PersonaPanel({ member, total, onClose, noBossHint = false }: { member: PanelMember | null; total: number; onClose: () => void; noBossHint?: boolean }) {
   const [tab, setTab] = useState<'chat' | 'team' | 'tasks' | 'about'>('chat');
   if (!member) {
     return (
@@ -48,6 +48,13 @@ export function PersonaPanel({ member, total, onClose }: { member: PanelMember |
         <p className="muted max-w-56 text-[11px]">
           Everything on the floor is ambient animation, never anyone&apos;s real activity.
         </p>
+        {noBossHint && (
+          <p className="max-w-60 rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+            No boss yet — tap the <span className="text-amber-500">★</span> on a roster card below to
+            appoint one. The boss unlocks the <span className="font-semibold">Command Center</span>:
+            delegating work, hiring temporary specialists, live task status.
+          </p>
+        )}
       </section>
     );
   }

@@ -18,9 +18,11 @@ export function OfficeShell({ members, canStar = false, bossCloneId = null }: { 
   const [selected, setSelected] = useState<string | null>(null);
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const [starErr, setStarErr] = useState<string | null>(null);
   const star = (cloneId: string): void => {
     startTransition(async () => {
-      try { await setBossAction(cloneId === bossCloneId ? null : cloneId); router.refresh(); } catch { /* not admin */ }
+      try { setStarErr(null); await setBossAction(cloneId === bossCloneId ? null : cloneId); router.refresh(); }
+      catch (e) { setStarErr(e instanceof Error ? e.message : 'Could not set the boss'); }
     });
   };
   const [panelW, setPanelW] = useState(DEF_W);
@@ -81,9 +83,10 @@ export function OfficeShell({ members, canStar = false, bossCloneId = null }: { 
           onDoubleClick={() => setPanelW(DEF_W)}
         />
         <div ref={panelRef} className="hidden shrink-0 md:block" style={{ width: panelW }}>
-          <PersonaPanel key={sel?.key ?? "none"} member={sel} total={members.length} onClose={() => setSelected(null)} />
+          <PersonaPanel key={sel?.key ?? "none"} member={sel} total={members.length} onClose={() => setSelected(null)} noBossHint={canStar && !bossCloneId} />
         </div>
       </div>
+      {starErr && <p className="text-xs text-red-600 dark:text-red-400" role="alert">{starErr}</p>}
       {/* roster strip */}
       <div className="flex shrink-0 gap-2 overflow-x-auto pb-1" aria-label="Colleagues">
         {members.map((m) => (
@@ -108,7 +111,7 @@ export function OfficeShell({ members, canStar = false, bossCloneId = null }: { 
                 aria-label={canStar ? (m.boss ? `Remove ${m.name} as boss` : `Make ${m.name} the boss`) : `${m.name} is the boss`}
                 title={canStar ? 'The boss runs the floor: delegates work, hires specialists' : 'Office boss'}
                 onClick={canStar ? (e) => { e.stopPropagation(); star(m.id!); } : undefined}
-                className={'ml-0.5 text-sm leading-none ' + (m.boss ? 'text-amber-500' : 'text-neutral-300 hover:text-amber-400 dark:text-neutral-600')}
+                className={'ml-0.5 text-sm leading-none transition-colors ' + (m.boss ? 'text-amber-500' : !bossCloneId && canStar ? 'animate-pulse text-amber-300 hover:text-amber-500 dark:text-amber-700' : 'text-neutral-300 hover:text-amber-400 dark:text-neutral-600')}
               >★</span>
             )}
           </button>
