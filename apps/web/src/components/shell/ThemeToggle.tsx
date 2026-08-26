@@ -32,7 +32,7 @@ export function ThemeToggle() {
   const [mode, setMode] = useState<Mode>(() => (typeof document === 'undefined' ? 'auto' : readMode()));
   const idx = MODES.indexOf(mode);
   return (
-    <div className="w-full min-w-44">
+    <div className="w-full">
       <div className="mb-0.5 flex items-center justify-between text-[10px] text-neutral-500">
         <span aria-hidden>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5 5l1.6 1.6M17.4 17.4 19 19M19 5l-1.6 1.6M6.6 17.4 5 19" /></svg>
