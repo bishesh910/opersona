@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 const TABS = [
   { key: 'account', label: 'Account' },
-  { key: 'org', label: 'Organization' },
+  { key: 'org', label: 'Workspace' },
   { key: 'models', label: 'Models' },
 ] as const;
 type Key = (typeof TABS)[number]['key'];

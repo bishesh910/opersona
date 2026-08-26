@@ -87,7 +87,7 @@ call (the live editor renders client-side; this is for cached PNGs).
 - `POST /imports/:id/start` `{ orgId }` → 202. Web saves the export file (claude.ai zip,
   ChatGPT/Codex export) under the org's uploads and inserts an `import_jobs` row first;
   progress lives in that row.
-- Claude Code: `POST /clones/:id/claude-code/{tokens,upload,scan}`,
+- Claude Code: `POST /clones/:id/claude-code/{tokens,upload}`,
   `POST /clones/:id/claude-code/tokens/:tokenId/revoke`,
   `GET /clones/:id/claude-code/sessions` (owner-only).
 
@@ -99,8 +99,7 @@ chunks, writes `document_chunks`. `{ chunks: n }`.
 
 ## Misc
 
-- `GET /health` → `{ ok, version, authMode, learningQueue }`.
-- `GET /auth/mode` → `{ mode: 'host-login' | 'api-key' }`.
+- `GET /health` → `{ ok, version, learningQueue }`.
 - `POST /keys/validate` `{ apiKey }` → `{ ok, model }` or `{ ok: false, status, error }`
   (always HTTP 200). Called before storing an org key — a bad key otherwise looks like a hang
   (the SDK retries 401s ~11× with backoff; `status` SSE events surface those retries).

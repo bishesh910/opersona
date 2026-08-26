@@ -18,8 +18,9 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
     .select({ uid: authSchema.user.id, name: authSchema.user.name, email: authSchema.user.email })
     .from(authSchema.member).innerJoin(authSchema.user, eq(authSchema.user.id, authSchema.member.userId))
     .where(eq(authSchema.member.organizationId, ctx.orgId));
+  const solo = memberRows.length <= 1; // personal workspace: no org furniture
   const builders = new Set(all.map((c) => c.ownerUserId));
-  const notBuilt = memberRows.filter((m) => !builders.has(m.uid));
+  const notBuilt = solo ? [] : memberRows.filter((m) => !builders.has(m.uid));
   const mine = all.find((c) => c.ownerUserId === ctx.userId);
   const ownerIds = [...new Set(all.map((c) => c.ownerUserId))];
   const owners = ownerIds.length
@@ -39,9 +40,9 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Personas</h1>
+        <h1 className="text-xl font-semibold">{solo ? 'My personas' : 'Personas'}</h1>
         <div className="flex items-center gap-2">
-          {admin && <InviteButton />}
+          {admin && !solo && <InviteButton />}
           {!mine && (
             <form action={createMyCloneAction}>
               <button className="btn-primary">Create my persona</button>

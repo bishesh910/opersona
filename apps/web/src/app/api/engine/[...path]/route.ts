@@ -10,6 +10,7 @@ import { redactSecrets } from '@opersona/shared';
 import { getSessionCtx, getOrgCtx, isOrgAdmin, type OrgCtx } from '@/lib/session';
 import { getCloneAccess } from '@/lib/clones';
 import { ENGINE_URL, ENGINE_INTERNAL_TOKEN } from '@/lib/env';
+import { engineLimitFor, rateLimit } from '@/lib/limits';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -118,7 +119,7 @@ async function authorize(ctx: OrgCtx, method: string, path: string[]): Promise<A
     return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can rate self-tests');
   }
 
-  // Learn from Claude Code: clones/:id/claude-code/{tokens,upload,scan} and tokens/:tokenId/revoke are owner-only;
+  // Learn from Claude Code: clones/:id/claude-code/{tokens,upload} and tokens/:tokenId/revoke are owner-only;
   // the sessions list is readable by anyone who can see the persona.
   if (root === 'clones' && id && UUID.test(id) && path[2] === 'claude-code') {
     const [, , , sub, tokenId, tail] = path;
@@ -127,7 +128,7 @@ async function authorize(ctx: OrgCtx, method: string, path: string[]): Promise<A
     if (sub === 'sessions' && method === 'GET' && path.length === 4) return access.isOwner ? { ok: true, cloneId: id } : deny(403, 'owner-only');
     if (method !== 'POST') return deny(404, 'unknown engine path');
     if (!access.canWrite) return deny(403, 'only the persona owner can teach their persona');
-    if (path.length === 4 && (sub === 'tokens' || sub === 'upload' || sub === 'scan')) return { ok: true, cloneId: id };
+    if (path.length === 4 && (sub === 'tokens' || sub === 'upload')) return { ok: true, cloneId: id };
     if (path.length === 6 && sub === 'tokens' && tokenId && UUID.test(tokenId) && tail === 'revoke') return { ok: true, cloneId: id };
     return deny(404, 'unknown engine path');
   }
@@ -177,6 +178,13 @@ async function handle(req: NextRequest, { params }: Ctx): Promise<Response> {
 
   const verdict = await authorize(ctx, req.method, path);
   if (!('ok' in verdict)) return NextResponse.json({ error: verdict.error }, { status: verdict.status });
+
+  // Cost guard: sliding-window limits on the expensive calls (per user, in-memory).
+  const lim = engineLimitFor(req.method, path);
+  if (lim) {
+    const r = rateLimit(`${ctx.userId}:${lim.bucket}`, lim.rule);
+    if (!r.ok) return NextResponse.json({ error: `Slow down — ${r.label}. Try again in ${r.retryAfterS}s.` }, { status: 429, headers: { 'Retry-After': String(r.retryAfterS) } });
+  }
 
   // Build upstream URL: forward query, force orgId.
   const upstream = new URL(path.map(encodeURIComponent).join('/'), ENGINE_URL.replace(/\/?$/, '/'));

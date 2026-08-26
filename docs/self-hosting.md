@@ -12,7 +12,7 @@ the map.
 | Linux host | tested on Ubuntu 24.04 |
 | Node | 22.x (fnm or nvm is fine) + pnpm 9 |
 | Postgres | plain 16 — full-text search uses the built-in `tsvector`; no extensions required |
-| Claude access | **host-login**: a machine signed into Claude Code (uses your subscription), or **api-key**: an Anthropic API key per org |
+| Claude access | each workspace stores its own Anthropic API key (Settings → Claude access); `ANTHROPIC_API_KEY` in `.env` is an optional install-wide fallback |
 | bubblewrap | for chat code execution (`apt install bubblewrap`) |
 | Reverse proxy | anything that can TLS + stream SSE (Caddy config is what we run) |
 
@@ -26,10 +26,12 @@ cp .env.example .env
 #   ENGINE_INTERNAL_TOKEN   long random string (web ↔ engine auth)
 #   BETTER_AUTH_SECRET      long random string
 #   BETTER_AUTH_URL         your public origin, e.g. https://opersona.example.com
-#   ENGINE_AUTH_MODE        host-login | api-key
-#   SECRETS_KEK             32 bytes base64 (openssl rand -base64 32) — required in
-#                           api-key mode; encrypts org API keys at rest
-#   ALLOW_SIGNUP            false in normal operation; true only while bootstrapping
+#   SECRETS_KEK             32 bytes base64 (openssl rand -base64 32); encrypts
+#                           workspace API keys at rest
+#   ALLOW_SIGNUP            true = anyone can register (each account gets a personal
+#                           workspace); false = invite-only
+#   RESEND_API_KEY/EMAIL_FROM  optional mailer — enables email verification + password reset
+#   REQUIRE_2FA             true to make two-factor mandatory (default: optional + nudged)
 #   PLATFORM_ADMIN_EMAILS   comma-separated emails allowed to create organizations
 pnpm install
 pnpm -C packages/db migrate

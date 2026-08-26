@@ -24,13 +24,13 @@ One conversation = one live `query()` from the Claude Agent SDK:
   is stored and the next message resumes the same transcript.
 - **Isolation.** Each conversation gets its own working directory (the only writable path for
   its sandboxed code, and the source of its downloadable files). Host `CLAUDE_*`/`ANTHROPIC_*`
-  env vars are stripped from the subprocess (host-login mode re-adds `CLAUDE_CONFIG_DIR` by
-  design — that is how the machine's Claude Code login is used).
+  env vars are stripped from the subprocess; each session gets an isolated HOME plus the
+  workspace's own API key, nothing else.
 - **Two chat modes.** `claude` = plain Claude (your persona only *learns* from it);
   `clone` = the persona answers *as you* (its replies are rateable: "That's me / Not me").
-- **Auth modes.** `host-login` (pilot): the machine's own Claude Code login is used — ideal for
-  a personal box on a Claude subscription. `api-key`: per-org BYO Anthropic key for multi-tenant
-  setups.
+- **Claude access.** Strictly BYO key: every workspace stores its own encrypted Anthropic key
+  and all its inference (chat, learning, selfie extraction, self-tests) bills to it. A monthly
+  budget is enforced at the single key-resolution chokepoint.
 
 ## Prompt assembly (cache-stable)
 

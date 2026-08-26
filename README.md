@@ -25,7 +25,7 @@ middleman ever sees a message.
 - **Remembers what happened.** An episodic memory distills each finished conversation
   ("what was the problem, what did we decide") that your persona can recall later — and that you
   can export as a Markdown vault (Obsidian-compatible). Owner-private, always.
-- **Imports your history.** claude.ai export zips, Claude Code sessions (local scan or upload),
+- **Imports your history.** claude.ai export zips, Claude Code sessions (hook or upload),
   and ChatGPT / Codex exports all feed the same extractor.
 - **A real chat, not a toy.** Web search, per-conversation model/effort settings, attachments
   (images, PDFs, code, zips), and **sandboxed code execution**: your chat can run Python/Node,
@@ -86,14 +86,13 @@ Key design choices, documented in [`docs/`](docs/):
 
 ## Running it
 
-opersona is **self-hosted by design** — you bring a machine and a Claude subscription
-(host-login mode) or an Anthropic API key. The short version:
+opersona is **self-hosted by design** — you bring a machine, and every workspace brings
+its own Anthropic API key (there is no shared platform account). The short version:
 
 ```bash
 # Node 22, pnpm 9, Postgres 16 required; bubblewrap for chat code execution
 cp .env.example .env      # set DATABASE_URL, ENGINE_INTERNAL_TOKEN, BETTER_AUTH_*, SECRETS_KEK;
-                          # ENGINE_AUTH_MODE=host-login to use this machine's Claude Code login
-                          # (the shipped default is api-key); see docs/self-hosting.md for first-run
+                          # see docs/self-hosting.md for first-run
 pnpm install
 pnpm -C packages/db migrate
 pnpm dev                  # web :3000, engine :4000

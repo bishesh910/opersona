@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, lt } from 'drizzle-orm';
+import { and, desc, eq, gt, lt, sql } from 'drizzle-orm';
 import { db, schema, authSchema } from '@opersona/db';
 import { requireOrg, isOrgAdmin } from '@/lib/session';
 import { InviteCard } from '@/components/settings/InviteCard';
@@ -29,6 +29,8 @@ export default async function SettingsPage() {
         .from(authSchema.invitation)
         .where(and(eq(authSchema.invitation.organizationId, ctx.orgId), eq(authSchema.invitation.status, 'pending'), gt(authSchema.invitation.expiresAt, new Date())))
     : [];
+  const [{ n: memberCount }] = await db.select({ n: sql<number>`count(*)::int` }).from(authSchema.member).where(eq(authSchema.member.organizationId, ctx.orgId));
+  const showOrgTab = admin && (memberCount > 1 || pendingInvites.length > 0);
   // opportunistic tidy-up: drop this user's expired session rows
   await db.delete(authSchema.session).where(and(eq(authSchema.session.userId, ctx.userId), lt(authSchema.session.expiresAt, new Date())));
   const deviceSessions = await db
@@ -68,7 +70,7 @@ export default async function SettingsPage() {
             <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg={false} />
           </>
         }
-        org={admin ? (
+        org={showOrgTab ? (
           <>
             <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg showSelf={false} />
             <MembersCard orgId={ctx.orgId} selfUserId={ctx.userId} />

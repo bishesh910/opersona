@@ -34,7 +34,12 @@ Until then the certificate is issued by Caddy's local CA: browsers warn once. To
 
 ## Before opening to the internet — checklist
 - [ ] Real domain + certificate (above)
-- [ ] `ALLOW_SIGNUP=false` in `.env` once your people have accounts (invite-only)
+- [ ] `ALLOW_SIGNUP` set deliberately: `true` = open registration (every account gets a
+      personal workspace and brings its own Anthropic key), `false` = invite-only
+- [ ] optional mailer (`RESEND_API_KEY` + `EMAIL_FROM`) if you want email verification + password reset
+- [ ] `REQUIRE_2FA=true` only for locked-down installs (default: optional + nudged)
+- [ ] upgrading a legacy multi-member org? `deploy/split-pilot-org.sh` (keep data) — or just
+      delete the old org and let people re-register (what opersona.me did)
 - [ ] Rotate `ENGINE_INTERNAL_TOKEN`, `BETTER_AUTH_SECRET`, `SECRETS_KEK` if they were ever shared
 - [ ] Backups: `pg_dump opersona` nightly (persona data lives entirely in Postgres)
 - [ ] Keep `pnpm audit --prod` clean
