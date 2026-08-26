@@ -169,3 +169,11 @@ code, kbd { overflow-wrap: anywhere; }
 }
 .night-card .btn-primary:hover { background-color: #efecdf; }
 .night-card .muted { color: #a3a3a3; }
+
+/* Time-of-day auth scenes (visitor-local; night is the default above). */
+html[data-daypart="morning"] .auth-bg { background-image: url('/auth-bg-morning.png'); }
+html[data-daypart="day"] .auth-bg { background-image: url('/auth-bg-day.png'); }
+@media (max-width: 640px), (max-aspect-ratio: 3/4) {
+  html[data-daypart="morning"] .auth-bg { background-image: url('/auth-bg-morning-mobile.png'); }
+  html[data-daypart="day"] .auth-bg { background-image: url('/auth-bg-day-mobile.png'); }
+}

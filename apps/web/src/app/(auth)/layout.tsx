@@ -1,9 +1,13 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { AuthPixieFrame } from '@/components/auth/AuthPixie';
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   return (
     <div className="auth-bg relative flex min-h-screen items-center justify-center bg-[#07070c] p-6 lg:justify-start lg:pl-[7vw]">
+      {/* The scene follows the visitor's clock: sunrise mornings, blue sky days, stars at night. */}
+      <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "(function(){try{var h=new Date().getHours();document.documentElement.setAttribute('data-daypart',h>=5&&h<11?'morning':h>=11&&h<18?'day':'night');}catch(e){}})()" }} />
       {/* desktop wordmark, top-left */}
       <Link href="/" className="absolute left-8 top-6 hidden text-xl font-semibold tracking-tight text-white lg:block">opersona.me</Link>
       <div className="w-full max-w-sm">
