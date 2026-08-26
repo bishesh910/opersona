@@ -1,5 +1,5 @@
 'use server';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, lt, ne } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db, authSchema } from '@opersona/db';
 import { requireSession } from '@/lib/session';
@@ -26,5 +26,24 @@ export async function revokeOtherDeviceSessions(): Promise<void> {
   await db
     .delete(authSchema.session)
     .where(and(eq(authSchema.session.userId, ctx.userId), ne(authSchema.session.id, ctx.sessionId)));
+  revalidatePath('/settings');
+}
+
+/** Sessions not used for this long are grouped as "inactive" and can be purged.
+ *  Must match the grouping cutoff computed in settings/page.tsx. */
+const INACTIVE_MS = 2 * 86400000;
+
+/** Sign out every session that has not been used in 2+ days (never the current one).
+ *  These are mostly orphans: a fresh sign-in replaces the browser cookie, so the
+ *  previous row can never be used again but lingers until its 60-day expiry. */
+export async function revokeInactiveDeviceSessions(): Promise<void> {
+  const ctx = await requireSession();
+  await db
+    .delete(authSchema.session)
+    .where(and(
+      eq(authSchema.session.userId, ctx.userId),
+      ne(authSchema.session.id, ctx.sessionId),
+      lt(authSchema.session.updatedAt, new Date(Date.now() - INACTIVE_MS)),
+    ));
   revalidatePath('/settings');
 }

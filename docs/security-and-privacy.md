@@ -18,7 +18,9 @@ abuse technically impossible, not by anyone reading anyone's messages.
   so people are effectively never logged out. Safety comes from revocation, not expiry:
   every session is a database row checked on each request, and Settings -> Account -> Devices
   lists them all (device, IP, last active) with per-device sign-out and a
-  "sign out all other devices" sweep. Changing your password also revokes other sessions.
+  "sign out all other devices" sweep. Sessions not used in 2+ days are grouped
+  separately as inactive — mostly orphaned rows from re-signing in, since a fresh
+  sign-in replaces the browser cookie — with a one-click purge. Changing your password also revokes other sessions.
 
 ## Boundary between browser, web, and engine
 

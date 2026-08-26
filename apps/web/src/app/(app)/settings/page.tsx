@@ -64,6 +64,7 @@ export default async function SettingsPage() {
                 createdAt: r.createdAt.toISOString(),
                 updatedAt: r.updatedAt.toISOString(),
                 current: r.id === ctx.sessionId,
+                stale: r.id !== ctx.sessionId && r.updatedAt.getTime() < Date.now() - 2 * 86400000,
               }))}
             />
             <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg={false} />
