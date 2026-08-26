@@ -267,7 +267,7 @@ const styleBuzz: HairFn = (buf, color) => {
 };
 
 // styleBob/styleLong are v2-only art; legacy scene sprites use the closest classic style.
-const HAIR_FNS: Record<HairStyle, HairFn> = { styleShort, styleFloppy, styleFrame, styleBun, styleCurly, styleMessy, styleRecede, styleSpiky, styleBald, styleMohawk, styleBuzz, styleBob: styleFrame, styleLong: styleFrame };
+const HAIR_FNS: Record<HairStyle, HairFn> = { styleShort, styleFloppy, styleFrame, styleBun, styleCurly, styleMessy, styleRecede, styleSpiky, styleBald, styleMohawk, styleBuzz, styleBob: styleFrame, styleLong: styleFrame, styleLob: styleFrame };
 
 // ─── facial hair ─────────────────────────────────────────────────────────────
 function drawFacial(buf: Buf, kind: Facial, color: RGB): void {
@@ -574,7 +574,7 @@ function drawHeadBack(buf: Buf, r: AvatarRecipe): void {
   ];
   for (const [y, a, b] of rows) rect(buf, a, y, b, y, base);
   // long styles drape down the sides past the head
-  const len = r.hair === 'styleFrame' || r.hair === 'styleBob' || r.hair === 'styleLong' ? (r.hairargs?.length ?? 17)
+  const len = r.hair === 'styleFrame' || r.hair === 'styleBob' || r.hair === 'styleLong' || r.hair === 'styleLob' ? (r.hairargs?.length ?? 17)
             : r.hair === 'styleMessy' ? (r.hairargs?.length ?? 9) : 0;
   for (let y = 11; y <= len; y++) { set(buf, HX0 - 1, y, base); set(buf, HX0, y, base); set(buf, HX1, y, base); set(buf, HX1 + 1, y, base); }
   // roundness: darken the side edges and the nape

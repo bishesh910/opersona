@@ -82,7 +82,7 @@ export function renderPortraitV2(r: AvatarRecipe): Uint8ClampedArray {
     hrow(x0, x1, y, s.base);
   }
   // ears (stick out, rounded, inner shadow) — hidden under long side hair
-  for (const ex of ['styleFrame', 'styleBob', 'styleLong'].includes(r.hair) ? [] : [10, 25]) {
+  for (const ex of ['styleFrame', 'styleBob', 'styleLong', 'styleLob'].includes(r.hair) ? [] : [10, 25]) {
     put(ex, 16, s.base); put(ex, 17, s.base); put(ex, 18, s.base); put(ex, 19, s.base);
     put(ex === 10 ? 9 : 26, 17, s.base); put(ex === 10 ? 9 : 26, 18, s.base);
     put(ex, 17, s.sh); // inner-ear shadow
@@ -224,6 +224,20 @@ export function renderPortraitV2(r: AvatarRecipe): Uint8ClampedArray {
       for (let y = 8; y <= 20; y++) { hair(8, 10, y, hairC); hair(25, 27, y, hairC); } // sides over ears
       break;
     }
+    case 'styleLob': {
+      // shoulder-length "lob" — between the bob and the long: masses past the jaw,
+      // rounded ends with a small outward flick right at the shoulder line,
+      // centre-parted curtain bangs framing the face.
+      for (let y = 4; y <= 7; y++) { const x0 = y === 4 ? 13 : y === 5 ? 11 : 10; hair(x0, mirror(x0), y, hairC); }
+      for (let y = 8; y <= 30; y++) { hair(9, 12, y, hairC); hair(23, 26, y, hairC); } // down past the jaw
+      hair(9, 12, 31, hairC); hair(23, 26, 31, hairC);
+      hpx(8, 31, hairC); hpx(27, 31, hairC);          // the flick
+      hair(10, 12, 32, hairC); hair(23, 25, 32, hairC); // rounded ends at the shoulders
+      hair(11, 15, 8, hairC); hair(20, 24, 8, hairC);   // curtain bangs…
+      hair(11, 13, 9, hairC); hair(22, 24, 9, hairC);   // …parting at the centre
+      hair(11, 12, 10, hairC); hair(23, 24, 10, hairC);
+      break;
+    }
     case 'styleBald': break;
   }
 
@@ -293,7 +307,7 @@ export function renderPortraitV2(r: AvatarRecipe): Uint8ClampedArray {
   // would paint a tip stripe across the TOP of the head — so long styles only tint
   // columns whose ends actually hang low.
   if (r.hairTip) {
-    const longHair = r.hair === 'styleFrame' || r.hair === 'styleLong' || r.hair === 'styleBob';
+    const longHair = ['styleFrame', 'styleLong', 'styleBob', 'styleLob'].includes(r.hair);
     for (let x = 0; x < V2_W; x++) {
       for (let y = V2_H - 1; y >= 0; y--) if (hairMask[y * V2_W + x]) {
         if (!longHair || y >= 20) { put(x, y, r.hairTip); if (y > 0 && hairMask[(y - 1) * V2_W + x]) put(x, y - 1, r.hairTip); }

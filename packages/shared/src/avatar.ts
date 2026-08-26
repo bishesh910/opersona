@@ -10,7 +10,7 @@ export const RGB = z.tuple([z.number().int().min(0).max(255), z.number().int().m
 export type RGB = z.infer<typeof RGB>;
 
 export const SKIN_TONES = ['light', 'tan', 'brown', 'dark'] as const;
-export const HAIR_STYLES = ['styleShort', 'styleFloppy', 'styleFrame', 'styleBun', 'styleCurly', 'styleMessy', 'styleRecede', 'styleSpiky', 'styleBald', 'styleMohawk', 'styleBuzz', 'styleBob', 'styleLong'] as const;
+export const HAIR_STYLES = ['styleShort', 'styleFloppy', 'styleFrame', 'styleBun', 'styleCurly', 'styleMessy', 'styleRecede', 'styleSpiky', 'styleBald', 'styleMohawk', 'styleBuzz', 'styleBob', 'styleLong', 'styleLob'] as const;
 export const CLOTHES = ['suit', 'dressshirt', 'polo', 'blouse', 'cardigan', 'sweater'] as const;
 export const BROWS = ['flat', 'angry', 'raised', 'soft'] as const;
 export const MOUTHS = ['neutral', 'smile', 'frown', 'grin'] as const;
