@@ -59,7 +59,7 @@ export function RecipeEditor({ recipe, onChange, disabled }: { recipe: AvatarRec
     onChange({ ...recipe, hairargs: Object.keys(next).length ? next : undefined });
   };
   return (
-    <fieldset disabled={disabled} className="space-y-4 disabled:opacity-60">
+    <fieldset disabled={disabled} className="min-w-0 space-y-4 disabled:opacity-60">
       {/* try-on grids: every option rendered as YOUR pixie with that one thing changed */}
       <SwatchGrid label="Hair style" options={HAIR_STYLES} value={recipe.hair} recipe={recipe} crop="full"
         apply={(r, v) => (v ? { ...r, hair: v } : r)} onPick={(v) => v && set('hair', v)} />

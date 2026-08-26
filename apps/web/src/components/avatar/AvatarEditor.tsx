@@ -43,7 +43,7 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
   }, [recipe, mode]);
 
   return (
-    <div className="grid gap-6 md:grid-cols-[auto_1fr]">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-[auto_minmax(0,1fr)]">
       <div className="space-y-3">
         <div className="card inline-block">
           <AvatarCanvas recipe={recipe} scale={8} title="preview" />
