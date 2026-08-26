@@ -32,7 +32,7 @@ export function ApprovalCard({ item, canResolve, onResolved }: { item: ApprovalI
   }
 
   return (
-    <div className="card border-amber-300 bg-amber-50/60 text-sm dark:border-amber-700 dark:bg-amber-950/30">
+    <div className="rounded-xl border border-amber-300/80 bg-amber-50/60 p-4 text-sm shadow-[0_2px_0_0_var(--color-amber-200)] dark:border-amber-700/60 dark:bg-amber-950/30 dark:shadow-[0_2px_0_0_rgb(120_53_15/0.5)]">
       <div className="mb-1 flex items-center justify-between">
         <span className="font-medium">{isQuestion ? 'Your persona has a question' : `Approve tool: ${item.tool}`}</span>
         {item.resolved && <span className="chip">{item.resolved === 'allow' ? (isQuestion ? 'answered' : 'allowed') : 'denied'}</span>}

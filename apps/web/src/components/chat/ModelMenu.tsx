@@ -58,7 +58,7 @@ export function ModelMenu({ model, effort, disabled, onModel, onEffort }: {
     <div ref={ref} className="relative">
       <button
         type="button"
-        className="inline-flex max-w-56 items-center gap-1 rounded-md px-2 py-1 text-xs text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+        className="inline-flex h-7 max-w-56 items-center gap-1 rounded-full px-2.5 text-xs text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
         onClick={() => setOpen((o) => !o)}
         disabled={disabled}
         aria-haspopup="menu"
@@ -69,8 +69,8 @@ export function ModelMenu({ model, effort, disabled, onModel, onEffort }: {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {open && (
-        <div role="menu" className="absolute bottom-full right-0 z-30 mb-1 max-h-72 w-52 overflow-y-auto rounded-md border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-800 dark:bg-neutral-900" data-model-menu-panel>
-          <div className="px-2 pb-0.5 pt-1 text-[11px] font-medium text-neutral-500 dark:text-neutral-400">Model</div>
+        <div role="menu" className="absolute bottom-full right-0 z-30 mb-1.5 max-h-72 w-56 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1.5 shadow-lg dark:border-neutral-800 dark:bg-neutral-900" data-model-menu-panel>
+          <div className="px-2 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Model</div>
           {MODELS.map((m) => (
             <button key={m.id ?? 'default'} type="button" role="menuitemradio" aria-checked={model === m.id} className={row} data-model-option={m.id ?? 'default'}
               onClick={() => { setOpen(false); if (m.id !== model) onModel(m.id); }}>

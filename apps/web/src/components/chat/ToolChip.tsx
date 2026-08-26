@@ -14,6 +14,9 @@ function label(name: string, running: boolean): string {
     Read: ['reading…', 'read a file'],
     Glob: ['looking around…', 'looked around'],
     Grep: ['searching files…', 'searched files'],
+    Bash: ['running code…', 'ran code'],
+    Write: ['writing a file…', 'wrote a file'],
+    Edit: ['editing a file…', 'edited a file'],
   };
   const m = map[name];
   if (m) return running ? m[0] : m[1];
@@ -21,31 +24,39 @@ function label(name: string, running: boolean): string {
   return running ? clean + '…' : clean;
 }
 
+/** Tool activity as a quiet micro-timeline row; expands to input/result. */
 export function ToolChip({ item }: { item: ToolItem }) {
   const [open, setOpen] = useState(false);
   const state = item.ok === undefined ? 'running' : item.ok ? 'ok' : 'failed';
   return (
-    <div className="my-1">
+    <div className="mb-1 mt-0.5" data-tool>
       <button
         type="button"
-        className={'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] transition-opacity ' + (state === 'failed' ? 'text-red-500 opacity-80' : 'text-neutral-400 opacity-60 hover:opacity-100 dark:text-neutral-500')}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         title={item.name}
+        className={'group -mx-1 flex h-6 items-center gap-2 rounded-md px-1 text-left font-mono text-[11px] transition '
+          + (state === 'failed'
+            ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30'
+            : 'text-neutral-400 hover:bg-neutral-100/70 hover:text-neutral-600 dark:text-neutral-500 dark:hover:bg-neutral-800/50 dark:hover:text-neutral-300')}
       >
-        <span className={'inline-block h-1 w-1 rounded-full ' + (state === 'running' ? 'animate-pulse bg-amber-500' : state === 'ok' ? 'bg-neutral-400 dark:bg-neutral-600' : 'bg-red-500')} />
-        <span className="italic">{label(item.name, state === 'running')}</span>
-        <span>{open ? '▾' : '▸'}</span>
+        <span className={'h-[5px] w-[5px] shrink-0 '
+          + (state === 'running' ? 'animate-pulse bg-amber-500' : state === 'ok' ? 'bg-neutral-300 dark:bg-neutral-600' : 'bg-red-500')} />
+        <span>{label(item.name, state === 'running')}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          className={'shrink-0 opacity-0 transition group-hover:opacity-100 ' + (open ? 'rotate-90 opacity-100' : '')}><path d="M9 6l6 6-6 6" /></svg>
       </button>
       {open && (
-        <div className="mt-1 space-y-1 rounded border border-neutral-200 bg-neutral-50 p-2 text-xs dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="muted">input</div>
-          <pre className="max-h-40 overflow-auto font-mono">{JSON.stringify(item.input, null, 2)}</pre>
+        <div className="ml-[1px] mt-1 space-y-2 border-l border-neutral-200 py-1 pl-4 dark:border-neutral-800">
+          <div>
+            <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">input</div>
+            <pre className="max-h-44 overflow-auto rounded-md bg-neutral-50 p-2 font-mono text-[11px] leading-relaxed text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">{JSON.stringify(item.input, null, 2)}</pre>
+          </div>
           {item.preview !== undefined && (
-            <>
-              <div className="muted">result</div>
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono">{item.preview}</pre>
-            </>
+            <div>
+              <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">result</div>
+              <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded-md bg-neutral-50 p-2 font-mono text-[11px] leading-relaxed text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">{item.preview}</pre>
+            </div>
           )}
         </div>
       )}

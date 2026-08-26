@@ -203,3 +203,34 @@ html[data-sb-drag] { user-select: none; }
 html[data-sb-collapsed] .app-sidebar { border-right-width: 0; padding-left: 0; padding-right: 0; overflow: hidden; }
 html[data-sb-collapsed] .sb-when-open { display: none; }
 html:not([data-sb-collapsed]) .sb-when-collapsed { display: none; }
+
+/* ── Chat surface: Quiet Canvas / Night-Shift Warmth ─────────── */
+
+/* Streaming caret: hard on/off steps() blink — pixel language, no fade. */
+@keyframes pixel-caret { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+.pixel-cursor { animation: pixel-caret 1.1s steps(1, end) infinite; }
+
+/* Empty-state entrance: one quiet rise, staggered ×3. */
+@keyframes hello-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.hello-rise { animation: hello-rise 0.32s ease-out both; }
+.hello-rise-2 { animation: hello-rise 0.32s ease-out 0.08s both; }
+.hello-rise-3 { animation: hello-rise 0.32s ease-out 0.16s both; }
+
+/* Empty-state creature: 2px bob in whole-pixel steps (no tween). */
+@keyframes pixie-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.pixie-float { animation: pixie-float 3.2s steps(2, end) infinite; }
+
+/* Thin, tone-aware scrollbar for the message canvas. */
+.chat-scroll { scrollbar-width: thin; scrollbar-color: var(--color-neutral-300) transparent; }
+.dark .chat-scroll { scrollbar-color: var(--color-neutral-700) transparent; }
+.chat-scroll::-webkit-scrollbar { width: 8px; }
+.chat-scroll::-webkit-scrollbar-thumb { border-radius: 8px; border: 2px solid transparent; background: var(--color-neutral-300); background-clip: content-box; }
+.dark .chat-scroll::-webkit-scrollbar-thumb { background: var(--color-neutral-700); background-clip: content-box; }
+
+/* Round send disc keeps a 40px touch target on phones. */
+@media (max-width: 640px) { .send-disc { min-width: 40px; min-height: 40px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-cursor { animation: none; opacity: 1; }
+  .hello-rise, .hello-rise-2, .hello-rise-3, .pixie-float { animation: none; }
+}

@@ -30,7 +30,7 @@ export default async function AskConversationPage({ params }: { params: Promise<
       <div className="flex items-center gap-2 px-1 pb-2">
         <Link href={`/ask/${ask.clone.id}`} className="muted text-xs hover:underline">← my questions to {ask.clone.name}</Link>
       </div>
-      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col">
+      <div className="mx-auto flex min-h-0 w-full w-full flex-1 flex-col">
         <ChatView
           key={conv.id}
           mode={conv.mode}

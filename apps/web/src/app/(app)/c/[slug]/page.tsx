@@ -31,7 +31,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
       <div className="flex items-center gap-2 px-1 pb-2">
         
       </div>
-      <div className="safe-b mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col">
+      <div className="flex min-h-0 w-full flex-1 flex-col">
         <ChatView
           key={conv.id}
           mode={conv.mode}

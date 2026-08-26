@@ -10,6 +10,7 @@ import { ToolChip, type ToolItem } from './ToolChip';
 import { ClaudeGlyph } from './ClaudeGlyph';
 import { Markdown } from './Markdown';
 import { Composer, type PendingAttachmentView } from './Composer';
+import { ConfirmDialog } from '@/components/shell/Dialog';
 import { MODEL_LABEL, EFFORT_LABEL, type EffortValue } from './ModelMenu';
 
 export interface HistoryTurn {
@@ -77,11 +78,11 @@ function FileChips({ conversationId, files }: { conversationId: string; files: {
             key={f.path}
             href={href(f.path)}
             download={name}
-            className="group flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs no-underline transition hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-500"
+            className="group flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-xs no-underline shadow-[0_2px_0_0_var(--color-neutral-200)] transition hover:-translate-y-px hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[0_2px_0_0_var(--color-neutral-800)] dark:hover:border-neutral-500"
             title={`${f.path} · ${fmtSize(f.size)} — click to download`}
           >
             {isImg
-              ? <img src={href(f.path)} alt={name} className="h-9 w-9 shrink-0 rounded object-cover" style={{ imageRendering: 'auto' }} />
+              ? <img src={href(f.path)} alt={name} className="h-9 w-9 shrink-0 rounded-lg object-cover" style={{ imageRendering: 'auto' }} />
               : <span className="grid h-9 w-9 shrink-0 place-items-center rounded bg-neutral-100 text-sm dark:bg-neutral-800">↓</span>}
             <span className="min-w-0">
               <span className="block max-w-52 truncate font-medium">{name}</span>
@@ -121,23 +122,28 @@ function TurnFeedback({ cloneId, conversationId, turnId, verdict, onSaved }: {
   }
 
   return (
-    <div className="space-y-1 text-xs" data-turn-feedback={turnId}>
-      <div className="flex items-center gap-1.5">
-        <button type="button" className="btn-secondary btn-sm" disabled={busy} onClick={() => send('me')}>That’s me</button>
-        <button type="button" className={'btn-secondary btn-sm ' + (mode === 'not_me' ? 'border-red-400' : '')} disabled={busy} onClick={() => setMode('not_me')}>Not me</button>
-        {err && <span className="text-red-600">{err}</span>}
+    <div className="mt-1.5 space-y-1.5 text-xs" data-turn-feedback={turnId}>
+      <div className="flex items-center gap-1.5 transition-opacity sm:opacity-60 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+        <button type="button" disabled={busy} onClick={() => send('me')}
+          className="inline-flex h-6 items-center rounded-full border border-neutral-200 bg-white px-2.5 text-[11px] text-neutral-600 transition hover:border-neutral-400 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:border-neutral-500 dark:hover:text-neutral-100">That’s me</button>
+        <button type="button" disabled={busy} onClick={() => setMode('not_me')}
+          className={'inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] transition '
+            + (mode === 'not_me'
+              ? 'border-amber-400/80 bg-amber-50 text-amber-700 dark:border-amber-600/70 dark:bg-amber-950/40 dark:text-amber-400'
+              : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:border-neutral-500 dark:hover:text-neutral-100')}>Not me</button>
+        {err && <span className="text-red-600 dark:text-red-400">{err}</span>}
       </div>
       {mode === 'not_me' && (
         <form className="flex items-center gap-1.5" onSubmit={(e) => { e.preventDefault(); void send('not_me'); }}>
           <input
-            className="input py-1 text-xs"
+            className="w-full rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs outline-none transition focus:border-amber-400/70 focus:ring-2 focus:ring-amber-200/60 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-amber-500/50 dark:focus:ring-amber-500/15"
             autoFocus
             placeholder="What would you have done instead? (optional — this is what teaches your persona)"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             disabled={busy}
           />
-          <button className="btn-primary btn-sm shrink-0" disabled={busy}>{busy ? 'Sending…' : 'Send'}</button>
+          <button className="btn-primary btn-sm h-7 shrink-0 rounded-full" disabled={busy}>{busy ? 'Sending…' : 'Send'}</button>
         </form>
       )}
     </div>
@@ -176,7 +182,7 @@ function Title({ conversationId, title, canEdit, editing, setEditing, onRenamed 
   return (
     <button
       type="button"
-      className={'max-w-full truncate rounded-md px-1.5 py-0.5 text-left text-sm ' + (canEdit ? 'hover:bg-neutral-200 dark:hover:bg-neutral-800' : 'cursor-default')}
+      className={'max-w-full truncate rounded-md px-1.5 py-0.5 text-left text-[13px] text-neutral-500 dark:text-neutral-400 ' + (canEdit ? 'hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200' : 'cursor-default')}
       onClick={() => canEdit && setEditing(true)}
       title={canEdit ? 'Rename' : undefined}
       disabled={busy}
@@ -385,6 +391,38 @@ export function ChatView({
   const pendingApprovals = items.filter((i) => i.kind === 'approval' && !i.approval.resolved).length;
   const empty = items.length === 0;
 
+  const headState = (() => { const last = items[items.length - 1]; return last && last.kind === 'assistant' && last.streaming && last.text.length > 0 ? 'talking' : replying ? 'thinking' : 'idle'; })();
+  const showTitle = title !== '' && !/^(New chat|Persona test)/.test(title);
+  const [seed, setSeed] = useState<{ text: string; nonce: number } | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [hour, setHour] = useState<number | null>(null);
+  useEffect(() => { setHour(new Date().getHours()); }, []);
+
+  const firstName = userFirstName ? `, ${userFirstName}` : '';
+  const daypart = hour === null ? null : hour < 5 ? 'night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+  const greeting = visitorView ? `Ask ${cloneName}’s persona`
+    : mode === 'clone' ? 'Does it sound like you?'
+    : daypart === null ? `Hello${firstName}.`
+    : daypart === 'night' ? `Night shift${firstName}?`
+    : daypart === 'morning' ? `Good morning${firstName}.`
+    : daypart === 'afternoon' ? `Good afternoon${firstName}.` : `Good evening${firstName}.`;
+  const suggestions = visitorView
+    ? ['What are you working on right now?', 'How do you like to receive feedback?', 'What should I know before our next meeting?']
+    : mode === 'clone'
+      ? ['How would I push back on an unrealistic deadline?', 'Summarize my week the way I would', 'How would I explain my current project to a new hire?']
+      : ['Help me think through a decision', 'Draft a tricky message with me', 'Explain something like I have five minutes'];
+
+  const modeChip = mode === 'clone' && !visitorView ? (
+    <span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full border border-amber-400/70 bg-amber-50/70 px-2 text-[11px] font-medium text-amber-700 dark:border-amber-700/70 dark:bg-amber-950/30 dark:text-amber-400" data-persona-chip title="persona test — replies as you; your ratings teach it">
+      <span className="h-1.5 w-1.5 shrink-0 bg-amber-500 dark:bg-amber-400" aria-hidden />
+      <span className="truncate">persona test<span className="hidden lg:inline"> — replies as you; your ratings teach it</span></span>
+    </span>
+  ) : visitorView ? (
+    <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-blue-400/60 bg-blue-50/60 px-2 text-[11px] font-medium text-blue-700 dark:border-blue-700/60 dark:bg-blue-950/30 dark:text-blue-400" data-visitor-chip>
+      <span className="h-1.5 w-1.5 rounded-full bg-blue-500" aria-hidden />{cloneName}’s persona
+    </span>
+  ) : null;
+
   const composer = !readOnly && (
     <Composer
       disabled={busy || replying}
@@ -398,67 +436,135 @@ export function ChatView({
       onEffort={(e) => changeSettings({ effort: e })}
       hideModelMenu={visitorView}
       placeholder={mode === 'clone' ? `Message ${cloneName}…` : 'Message Claude…'}
+      tone={mode === 'clone' && !visitorView ? 'persona' : 'neutral'}
+      seed={seed}
     />
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col gap-2" data-chat-view>
-      {/* Title row: sidebar toggle (mobile), editable title, "+ New", delete. */}
-      {/* Untitled chats show no heading — the nav already says New chat; the title appears once the chat names itself. */}
-      {title !== '' && !/^(New chat|Persona test)/.test(title) && (
-      <div className="flex items-center gap-1">
-        <div className="min-w-0 flex-1">
-          <Title conversationId={conversationId} title={title} canEdit={!readOnly && !visitorView} editing={editingTitle} setEditing={setEditingTitle} onRenamed={(t) => { setTitle(t); router.refresh(); }} />
+    <div className="flex h-full min-h-0 flex-1 flex-col" data-chat-view>
+      {/* ── Header: one slim hairline row ─────────────────────────── */}
+      <header className={
+        'relative z-10 flex h-12 shrink-0 items-center gap-2.5 border-b bg-white/85 px-3 backdrop-blur-sm sm:px-4 dark:bg-neutral-950/85 '
+        + (mode === 'clone' && !visitorView
+            ? 'border-amber-300/70 dark:border-amber-800/60'
+            : 'border-neutral-200/80 dark:border-neutral-800/80')
+      }>
+        <div className="relative shrink-0">
+          {mode === 'clone'
+            ? <AvatarThumb recipe={avatar} name={cloneName} scale={1.5} state={headState} />
+            : <ClaudeGlyph scale={2} state={headState} />}
+          <span className={'absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-white dark:ring-neutral-950 '
+              + (connected === 'open' ? 'bg-green-500' : connected === 'connecting' ? 'animate-pulse bg-amber-500' : 'bg-red-500')}
+            title={`stream ${connected}`} />
         </div>
 
-      </div>
-      )}
-
-      <div className="flex min-h-0 flex-1 flex-col border-neutral-200 sm:rounded-lg sm:border dark:border-neutral-800">
-        <div className={`flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2 text-xs ${mode === 'clone' && !visitorView ? 'border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/30' : 'border-neutral-200 dark:border-neutral-800'}`}>
-          <div className="flex items-center gap-2">
-            {mode === 'clone' ? (<><AvatarThumb recipe={avatar} name={cloneName} scale={1.5} state={(() => { const last = items[items.length - 1]; return last && last.kind === 'assistant' && last.streaming && last.text.length > 0 ? 'talking' : replying ? 'thinking' : 'idle'; })()} /><span className="font-medium">{cloneName}</span>{visitorView
-              ? <span className="chip border-blue-400 text-blue-700 dark:border-blue-700 dark:text-blue-400" data-visitor-chip>{cloneName}&rsquo;s persona</span>
-              : <span className="chip border-amber-400 text-amber-700 dark:text-amber-400">persona test — replies as you; your ratings teach it</span>}</>)
-              : (<><ClaudeGlyph scale={2} state={(() => { const last = items[items.length - 1]; return last && last.kind === 'assistant' && last.streaming && last.text.length > 0 ? 'talking' : replying ? 'thinking' : 'idle'; })()} /><span className="font-medium">Claude</span><span className="muted hidden sm:inline">· learns how you think, automatically</span></>)}
-            <span className={'inline-block h-1.5 w-1.5 rounded-full ' + (connected === 'open' ? 'bg-green-500' : connected === 'connecting' ? 'animate-pulse bg-amber-500' : 'bg-red-500')} title={`stream ${connected}`} />
-            {pendingApprovals > 0 && <span className="chip border-amber-400">{pendingApprovals} awaiting approval</span>}
-          </div>
-          {!readOnly && (
-            <div className="flex items-center gap-2">
-              {learning && (
-                <span className="muted text-xs" data-learning>
-                  {learning} — <Link href="/me" className="underline">see How I think</Link>
-                </span>
-              )}
-
-            </div>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="shrink-0 text-[13px] font-medium tracking-[-0.01em]">{mode === 'clone' ? cloneName : 'Claude'}</span>
+          {modeChip}
+          {mode === 'claude' && <span className="hidden text-xs text-neutral-400 md:inline dark:text-neutral-500">learns how you think, automatically</span>}
+          {showTitle && (
+            <>
+              <span className="hidden shrink-0 text-neutral-300 sm:inline dark:text-neutral-700">/</span>
+              <div className="min-w-0 flex-1">
+                <Title conversationId={conversationId} title={title} canEdit={!readOnly && !visitorView}
+                  editing={editingTitle} setEditing={setEditingTitle}
+                  onRenamed={(t) => { setTitle(t); router.refresh(); }} />
+              </div>
+            </>
           )}
         </div>
 
-        <div ref={scrollRef} onScroll={onScroll} className="scroll-touch flex-1 space-y-2 overflow-y-auto px-3 py-3">
-          {empty && <p className="muted text-sm">{visitorView ? `Ask ${cloneName}'s persona anything — it answers the way ${cloneName} would, from what they chose to share.` : mode === 'clone' ? 'Ask anything — see whether the answer sounds like you. What you type here is never mined for patterns — but your That\u2019s me / Not me ratings do teach your persona.' : 'Say hello. Ask anything, or walk through a problem the way you would — your persona learns from it.'}</p>}
+        <div className="flex shrink-0 items-center gap-1">
+          {pendingApprovals > 0 && (
+            <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-amber-400/70 bg-amber-50 px-2 text-[11px] font-medium text-amber-700 dark:border-amber-700/70 dark:bg-amber-950/40 dark:text-amber-400">
+              <span className="h-1.5 w-1.5 animate-pulse bg-amber-500" aria-hidden />
+              {pendingApprovals} awaiting approval
+            </span>
+          )}
+          {!readOnly && learning && (
+            <span className="hidden text-[11px] text-neutral-400 md:inline dark:text-neutral-500" data-learning>
+              {learning} — <Link href="/me" className="underline decoration-neutral-300 underline-offset-2 hover:decoration-current dark:decoration-neutral-600">see How I think</Link>
+            </span>
+          )}
+          {!readOnly && !visitorView && (
+            <>
+              <Link href={newHref ?? '/chat?new=1'} className="icon-btn h-7 w-7" title="New chat" aria-label="New chat" data-new-chat>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+              </Link>
+              <button type="button" className="icon-btn h-7 w-7 hover:text-red-600 dark:hover:text-red-400" title="Delete chat" aria-label="Delete chat" data-delete-chat
+                onClick={() => setConfirmingDelete(true)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg>
+              </button>
+            </>
+          )}
+        </div>
+      </header>
+      {confirmingDelete && (
+        <ConfirmDialog title="Delete this chat?" message="The conversation and its files are removed for good. Memories your persona already learned stay."
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={async () => { await deleteChatAction(conversationId); router.push(newHref ?? '/chat?new=1'); router.refresh(); }} />
+      )}
+
+      {/* ── Message canvas: full-bleed scroll, centered reading column ── */}
+      <div ref={scrollRef} onScroll={onScroll} className="chat-scroll scroll-touch min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 pb-4 pt-5 sm:px-6">
+          {empty && (
+            <div className="my-auto flex flex-col items-center gap-5 px-4 py-10 text-center" data-empty-state>
+              <div className="hello-rise pixie-float" aria-hidden>
+                {mode === 'clone'
+                  ? <AvatarThumb recipe={avatar} name={cloneName} scale={3} state="idle" />
+                  : <ClaudeGlyph scale={5} state="idle" />}
+              </div>
+              <div className="hello-rise-2 max-w-md space-y-2">
+                <p className="text-lg font-medium tracking-[-0.01em] text-neutral-900 dark:text-neutral-100" suppressHydrationWarning>{greeting}</p>
+                <p className="text-sm leading-6 text-neutral-500 dark:text-neutral-400">
+                  {visitorView
+                    ? `Ask ${cloneName}'s persona anything — it answers the way ${cloneName} would, from what they chose to share.`
+                    : mode === 'clone'
+                      ? 'Ask anything — see whether the answer sounds like you. What you type here is never mined for patterns — but your That\u2019s me / Not me ratings do teach your persona.'
+                      : 'Say hello. Ask anything, or walk through a problem the way you would — your persona learns from it.'}
+                </p>
+              </div>
+              {!readOnly && (
+                <div className="hello-rise-3 flex max-w-lg flex-wrap items-center justify-center gap-2" data-suggestions>
+                  {suggestions.map((sugg) => (
+                    <button key={sugg} type="button" data-suggestion
+                      onClick={() => setSeed({ text: sugg, nonce: Date.now() })}
+                      className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs text-neutral-700 shadow-[0_2px_0_0_var(--color-neutral-300)] transition hover:border-amber-400/70 hover:text-neutral-900 hover:shadow-[0_2px_0_0_var(--color-amber-300)] active:translate-y-[2px] active:shadow-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:shadow-[0_2px_0_0_var(--color-neutral-700)] dark:hover:border-amber-500/50 dark:hover:text-neutral-100">
+                      {sugg}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {mode === 'clone' && !visitorView && !readOnly && (
+                <p className="text-[11px] text-amber-700/80 dark:text-amber-300/70">It replies as you — rate each answer to teach it.</p>
+              )}
+            </div>
+          )}
           {items.map((it) => {
             switch (it.kind) {
               case 'user':
                 return (
-                  <div key={it.key} className="ml-auto max-w-[80%] space-y-1.5 rounded-lg bg-neutral-900 px-3 py-2 text-sm text-white dark:bg-neutral-100 dark:text-neutral-900" data-user-msg>
-                    {it.attachments && it.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {it.attachments.map((a) => a.previewUrl
-                          ? <img key={a.id} src={a.previewUrl} alt={a.name} className="h-24 max-w-48 rounded object-cover" />
-                          : <span key={a.id} className="chip max-w-60 truncate" title={a.name}>{a.name}</span>)}
-                      </div>
-                    )}
-                    {it.text && <Markdown text={it.text} className="md-on-dark" />}
+                  <div key={it.key} className="mt-6 flex justify-end first:mt-0" data-user-msg>
+                    <div className="max-w-[85%] space-y-1.5 rounded-2xl rounded-br-md bg-neutral-100 px-3.5 py-2 text-sm leading-6 text-neutral-900 sm:max-w-[75%] dark:bg-neutral-800/80 dark:text-neutral-100">
+                      {it.attachments && it.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {it.attachments.map((a) => a.previewUrl
+                            ? <img key={a.id} src={a.previewUrl} alt={a.name} className="h-24 max-w-48 rounded-lg object-cover" />
+                            : <span key={a.id} className="chip max-w-60 truncate" title={a.name}>{a.name}</span>)}
+                        </div>
+                      )}
+                      {it.text && <Markdown text={it.text} />}
+                    </div>
                   </div>
                 );
               case 'assistant':
                 return (
-                  <div key={it.key} className="max-w-[85%] space-y-1" data-assistant-msg>
-                    <div className="rounded-lg bg-neutral-100 px-3 py-2 text-sm dark:bg-neutral-800">
+                  <div key={it.key} className="group mt-5 first:mt-0" data-assistant-msg>
+                    <div className="text-sm leading-[1.7] text-neutral-800 dark:text-neutral-200">
                       <Markdown text={it.text} />
-                      {it.streaming && <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-neutral-500 align-middle" data-cursor />}
+                      {it.streaming && <span className="pixel-cursor ml-1 inline-block h-3.5 w-[6px] bg-amber-500/80 align-middle dark:bg-amber-300/80" data-cursor />}
                     </div>
                     {mode === 'clone' && !readOnly && !visitorView && !it.streaming && it.turnId && (
                       <TurnFeedback
@@ -475,51 +581,66 @@ export function ChatView({
                 return <ToolChip key={it.key} item={it.tool} />;
               case 'approval':
                 return (
-                  <ApprovalCard key={it.key} item={it.approval} canResolve={canResolveApprovals}
-                    onResolved={(id, behavior) => apply({ type: 'approval_resolved', id, behavior })} />
+                  <div key={it.key} className="mt-4">
+                    <ApprovalCard item={it.approval} canResolve={canResolveApprovals}
+                      onResolved={(id, behavior) => apply({ type: 'approval_resolved', id, behavior })} />
+                  </div>
                 );
               case 'files':
-                return <FileChips key={it.key} conversationId={conversationId} files={it.files} />;
+                return <div key={it.key} className="mt-3"><FileChips conversationId={conversationId} files={it.files} /></div>;
               case 'result':
                 return (
-                  <div key={it.key} className="muted flex flex-wrap gap-x-3 text-xs" data-result>
-                    <span>{it.ok ? 'done' : 'failed'}</span>
-                    {showCost && it.cost != null && <span title="API-price equivalent — informational on a Claude login, billed only in API-key mode">${it.cost.toFixed(4)}</span>}
-                    <span>in {it.input.toLocaleString()}</span>
-                    <span>out {it.output.toLocaleString()}</span>
-                    <span>cache read {it.cacheRead.toLocaleString()}</span>
-                    {it.error && <span className="text-red-600">{it.error}</span>}
+                  <div key={it.key} className="mt-2 flex flex-wrap items-baseline gap-x-2 text-[11px] tabular-nums text-neutral-400 dark:text-neutral-500" data-result>
+                    <span className={it.ok ? '' : 'font-medium text-red-500'}>{it.ok ? 'done' : 'failed'}</span>
+                    {showCost && it.cost != null && (<><span aria-hidden className="text-neutral-300 dark:text-neutral-700">·</span>
+                      <span title="API-price equivalent — informational on a Claude login, billed only in API-key mode">${it.cost.toFixed(4)}</span></>)}
+                    <span aria-hidden className="text-neutral-300 dark:text-neutral-700">·</span><span>{it.input.toLocaleString()} in</span>
+                    <span aria-hidden className="text-neutral-300 dark:text-neutral-700">·</span><span>{it.output.toLocaleString()} out</span>
+                    <span aria-hidden className="text-neutral-300 dark:text-neutral-700">·</span><span>{it.cacheRead.toLocaleString()} cached</span>
+                    {it.error && <span className="text-red-500">{it.error}</span>}
                   </div>
                 );
               case 'error':
-                return <div key={it.key} className="rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">{it.message}</div>;
+                return <div key={it.key} className="mt-3 border-l-2 border-red-400 py-0.5 pl-3 text-xs leading-5 text-red-600 dark:border-red-500/70 dark:text-red-400">{it.message}</div>;
               case 'status':
                 return (
-                  <div key={it.key} className="muted text-xs italic">
+                  <div key={it.key} className="mt-2 text-[11px] italic text-neutral-400 dark:text-neutral-500">
                     {it.message}{it.attempt != null && it.max != null && ` (attempt ${it.attempt}/${it.max})`}
                   </div>
                 );
               case 'system':
-                return <div key={it.key} className="muted text-center text-xs">{it.text}</div>;
+                return (
+                  <div key={it.key} className="mt-4 flex items-center gap-3 text-[11px] text-neutral-400 dark:text-neutral-500">
+                    <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" /><span className="max-w-[70%] text-center">{it.text}</span><span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
+                  </div>
+                );
             }
           })}
           {replying && !items.some((i) => i.kind === 'assistant' && i.streaming) && (
-            <div className="inline-flex items-center gap-1 rounded-lg bg-neutral-100 px-3 py-2.5 dark:bg-neutral-800" data-thinking aria-label="thinking">
-              <span className="think-dot inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500" />
-              <span className="think-dot inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500" />
-              <span className="think-dot inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500" />
+            <div className="mt-5 flex h-6 items-center gap-1.5" data-thinking aria-label="thinking">
+              <span className="think-dot inline-block h-1.5 w-1.5 bg-amber-500/70 dark:bg-amber-300/60" />
+              <span className="think-dot inline-block h-1.5 w-1.5 bg-amber-500/70 dark:bg-amber-300/60" />
+              <span className="think-dot inline-block h-1.5 w-1.5 bg-amber-500/70 dark:bg-amber-300/60" />
             </div>
           )}
           {replying && !items.some((i) => i.kind === 'assistant' && i.streaming) && (
-            <div className="muted text-xs italic" data-thinking>Thinking…</div>
+            <div className="mt-1 text-[11px] italic text-neutral-400 dark:text-neutral-500" data-thinking>Thinking…</div>
           )}
           <div ref={bottomRef} />
         </div>
+      </div>
 
+      {/* ── Composer dock: IN FLOW, fade overlaps the stream ────────── */}
+      <div className="relative shrink-0">
+        <div className="pointer-events-none absolute inset-x-0 -top-12 h-12 bg-gradient-to-t from-white to-transparent dark:from-neutral-950" aria-hidden />
         {readOnly ? (
-          <div className="muted border-t border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800">{visitorView ? 'Read-only: this is a colleague’s conversation with your persona — only they can write here.' : 'Read-only: only the persona owner can chat.'}</div>
+          <div className="safe-b mx-auto w-full max-w-3xl px-4 pb-4">
+            <p className="muted mx-auto w-fit rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2 text-center text-xs dark:border-neutral-800 dark:bg-neutral-900">
+              {visitorView ? 'Read-only: this is a colleague’s conversation with your persona — only they can write here.' : 'Read-only: only the persona owner can chat.'}
+            </p>
+          </div>
         ) : (
-          <div className="border-t border-neutral-200 p-2 dark:border-neutral-800">{composer}</div>
+          <div className="safe-b mx-auto w-full max-w-3xl px-4 pb-3 sm:px-6">{composer}</div>
         )}
       </div>
     </div>
