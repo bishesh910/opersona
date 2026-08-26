@@ -1,5 +1,5 @@
 'use server';
-import { and, asc, desc, eq, like } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, like, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
@@ -167,4 +167,92 @@ export async function openActivity(): Promise<{ events: ActivityEvent[] }> {
   }
   events.sort((a, b) => b.at.localeCompare(a.at));
   return { events: events.slice(0, 25) };
+}
+
+export interface MonitorRow {
+  cloneId: string; name: string; kind: 'member' | 'hired';
+  costUsd: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; sessions: number;
+}
+export interface MonitorData {
+  rows: MonitorRow[];
+  chatModel: string; chatEffort: string; monthlyBudgetUsd: number | null;
+  scope: 'org' | 'mine';
+}
+
+/** Monitor — per-persona usage for the last 30 days. Admins see the whole org
+ *  (usage costs are admin-governed metadata per the privacy model); members see
+ *  their own persona only. Never any content. */
+export async function openMonitor(): Promise<MonitorData> {
+  const ctx = await requireOrg();
+  const admin = ctx.role === 'owner' || ctx.role === 'admin';
+  const clones = await db
+    .select({ id: schema.clones.id, name: schema.clones.name, kind: schema.clones.kind, ownerUserId: schema.clones.ownerUserId })
+    .from(schema.clones).where(eq(schema.clones.orgId, ctx.orgId));
+  const visible = admin ? clones : clones.filter((c) => c.ownerUserId === ctx.userId);
+  const ids = visible.map((c) => c.id);
+  const since = new Date(Date.now() - 30 * 86400000);
+  const agg = ids.length
+    ? await db.select({
+        cloneId: schema.sessionCosts.cloneId,
+        costUsd: sql<number>`coalesce(sum(${schema.sessionCosts.costUsd}), 0)`,
+        inputTokens: sql<number>`coalesce(sum(${schema.sessionCosts.inputTokens}), 0)::bigint`,
+        outputTokens: sql<number>`coalesce(sum(${schema.sessionCosts.outputTokens}), 0)::bigint`,
+        cacheReadTokens: sql<number>`coalesce(sum(${schema.sessionCosts.cacheReadInputTokens}), 0)::bigint`,
+        sessions: sql<number>`count(*)::int`,
+      })
+        .from(schema.sessionCosts)
+        .where(and(eq(schema.sessionCosts.orgId, ctx.orgId), inArray(schema.sessionCosts.cloneId, ids), gte(schema.sessionCosts.createdAt, since)))
+        .groupBy(schema.sessionCosts.cloneId)
+    : [];
+  const aggOf = new Map(agg.map((a) => [a.cloneId, a]));
+  const [settings] = await db.select().from(schema.orgSettings).where(eq(schema.orgSettings.orgId, ctx.orgId)).limit(1);
+  const rows: MonitorRow[] = visible.map((c) => {
+    const a = aggOf.get(c.id);
+    return {
+      cloneId: c.id, name: c.name, kind: c.kind,
+      costUsd: Number(a?.costUsd ?? 0), inputTokens: Number(a?.inputTokens ?? 0), outputTokens: Number(a?.outputTokens ?? 0),
+      cacheReadTokens: Number(a?.cacheReadTokens ?? 0), sessions: Number(a?.sessions ?? 0),
+    };
+  }).sort((x, y) => y.costUsd - x.costUsd || y.outputTokens - x.outputTokens);
+  return {
+    rows,
+    chatModel: settings?.chatModel ?? 'claude-opus-5',
+    chatEffort: settings?.chatEffort ?? 'high',
+    monthlyBudgetUsd: settings?.monthlyBudgetUsd ?? null,
+    scope: admin ? 'org' : 'mine',
+  };
+}
+
+export interface AskMeItem {
+  id: string; cloneId: string; cloneName: string; conversationId: string | null;
+  kind: 'tool' | 'question'; tool: string; input: unknown; question?: string; options?: string[];
+  createdAt: string; canResolve: boolean;
+}
+
+/** Ask-me — everything personas are waiting on YOU for (same access rules as
+ *  /approvals: your own personas; org admins see the whole org). */
+export async function openAskMe(): Promise<{ items: AskMeItem[] }> {
+  const ctx = await requireOrg();
+  const admin = ctx.role === 'owner' || ctx.role === 'admin';
+  const cloneRows = await db.select({ id: schema.clones.id, name: schema.clones.name, ownerUserId: schema.clones.ownerUserId })
+    .from(schema.clones)
+    .where(admin ? eq(schema.clones.orgId, ctx.orgId) : and(eq(schema.clones.orgId, ctx.orgId), eq(schema.clones.ownerUserId, ctx.userId)));
+  const ids = cloneRows.map((c) => c.id);
+  const pending = ids.length
+    ? await db.select().from(schema.approvals)
+        .where(and(eq(schema.approvals.orgId, ctx.orgId), eq(schema.approvals.status, 'pending'), inArray(schema.approvals.cloneId, ids)))
+        .orderBy(desc(schema.approvals.createdAt)).limit(50)
+    : [];
+  const nameOf = new Map(cloneRows.map((c) => [c.id, c]));
+  return {
+    items: pending.map((a) => {
+      const c = nameOf.get(a.cloneId);
+      return {
+        id: a.id, cloneId: a.cloneId, cloneName: c?.name ?? a.cloneId, conversationId: a.conversationId,
+        kind: a.kind, tool: a.tool ?? '', input: a.input, question: a.question ?? undefined, options: a.options ?? undefined,
+        createdAt: a.createdAt.toISOString(),
+        canResolve: c?.ownerUserId === ctx.userId || ctx.role === 'owner',
+      };
+    }),
+  };
 }

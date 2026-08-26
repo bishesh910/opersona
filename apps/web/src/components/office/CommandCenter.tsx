@@ -7,7 +7,8 @@
  */
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { openCommandCenter, openActivity, setHiredArchivedAction, type ActivityEvent, type CommandCenterData } from '@/actions/office';
+import { openCommandCenter, openActivity, openMonitor, openAskMe, setHiredArchivedAction, type ActivityEvent, type AskMeItem, type CommandCenterData, type MonitorData } from '@/actions/office';
+import { ApprovalsList } from '@/components/approvals/ApprovalsList';
 
 function ago(iso: string): string {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -118,6 +119,57 @@ export function ActivityTab() {
         </div>
       ))}
       <p className="muted pt-1 text-[11px]">Staffing only — never anyone&apos;s conversations.</p>
+    </div>
+  );
+}
+
+const fmtTok = (n: number): string => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+
+export function MonitorTab() {
+  const [data, setData] = useState<MonitorData | null>(null);
+  useEffect(() => { openMonitor().then(setData).catch(() => {}); }, []);
+  if (!data) return <p className="muted p-3 text-xs">reading the meters…</p>;
+  const total = data.rows.reduce((a, r) => a + r.costUsd, 0);
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto p-3" data-cc-monitor>
+      <div className="mb-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
+        <span className="font-medium">last 30 days · {data.scope === 'org' ? 'whole org' : 'your persona'}</span>
+        <span className="muted">${total.toFixed(2)}{data.monthlyBudgetUsd ? ` of $${data.monthlyBudgetUsd} budget` : ''}</span>
+        <span className="muted">defaults: {data.chatModel.replace('claude-', '')} · {data.chatEffort}</span>
+      </div>
+      <div className="space-y-1">
+        {data.rows.map((r) => (
+          <div key={r.cloneId} className="rounded-lg bg-neutral-50 px-2 py-1.5 dark:bg-neutral-800/50">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="min-w-0 flex-1 truncate font-medium">{r.name}{r.kind === 'hired' ? <span className="chip ml-1.5">hired</span> : null}</span>
+              <span className="shrink-0 font-mono">${r.costUsd.toFixed(2)}</span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded bg-neutral-200 dark:bg-neutral-700">
+              <div className="h-full bg-amber-400 dark:bg-amber-600" style={{ width: `${total > 0 ? Math.max(2, (r.costUsd / total) * 100) : 0}%` }} />
+            </div>
+            <p className="muted mt-0.5 font-mono text-[10px]">{fmtTok(r.inputTokens)} in · {fmtTok(r.outputTokens)} out · {fmtTok(r.cacheReadTokens)} cached · {r.sessions} calls</p>
+          </div>
+        ))}
+        {data.rows.length === 0 && <p className="muted text-xs">No usage recorded yet.</p>}
+      </div>
+      <p className="muted pt-2 text-[11px]">Usage metadata only — models and budgets live in Settings.</p>
+    </div>
+  );
+}
+
+export function AskMeTab() {
+  const [items, setItems] = useState<AskMeItem[] | null>(null);
+  useEffect(() => {
+    const reload = (): void => { openAskMe().then((d) => setItems(d.items)).catch(() => {}); };
+    reload();
+    const t = setInterval(reload, 5000);
+    return () => clearInterval(t);
+  }, []);
+  if (!items) return <p className="muted p-3 text-xs">checking who needs you…</p>;
+  if (items.length === 0) return <p className="muted p-3 text-xs">Nothing waiting on you. Tool approvals and personas&apos; questions land here (they expire after 10 minutes).</p>;
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto p-3" data-cc-askme>
+      <ApprovalsList items={items} />
     </div>
   );
 }

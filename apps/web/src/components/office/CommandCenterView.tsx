@@ -15,7 +15,7 @@ import type { AvatarRecipe } from '@opersona/shared';
 import { setBossAction } from '@/actions/office';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
 import { OfficeChat } from './OfficeChat';
-import { TeamTab, TasksTab, ActivityTab } from './CommandCenter';
+import { TeamTab, TasksTab, ActivityTab, MonitorTab, AskMeTab } from './CommandCenter';
 
 export interface CCMember {
   id: string;
@@ -29,8 +29,10 @@ export interface CCMember {
 
 const TABS = [
   { key: 'dispatch', label: 'dispatch', icon: '>_' },
-  { key: 'team', label: 'team', icon: '⛉' },
+  { key: 'monitor', label: 'monitor', icon: '◇' },
   { key: 'tasks', label: 'tasks', icon: '✓' },
+  { key: 'askme', label: 'ask me', icon: '‼' },
+  { key: 'team', label: 'team', icon: '⛉' },
   { key: 'activity', label: 'activity', icon: '◷' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
@@ -133,10 +135,14 @@ export function CommandCenterView({ members, bossCloneId, canStar }: {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800">
         {tab === 'dispatch' ? (
           <OfficeChat key={boss.id} cloneId={boss.id} avatar={boss.recipe} />
-        ) : tab === 'team' ? (
-          <TeamTab />
+        ) : tab === 'monitor' ? (
+          <MonitorTab />
         ) : tab === 'tasks' ? (
           <TasksTab />
+        ) : tab === 'askme' ? (
+          <AskMeTab />
+        ) : tab === 'team' ? (
+          <TeamTab />
         ) : (
           <ActivityTab />
         )}
