@@ -48,7 +48,7 @@ export function SwatchGrid<T extends string>({ label, options, value, none, reci
 }) {
   const opts: (T | undefined)[] = none ? [undefined, ...options] : [...options];
   return (
-    <div>
+    <div className="min-w-0">
       <span className="label">{label}</span>
       <div
         role="radiogroup"

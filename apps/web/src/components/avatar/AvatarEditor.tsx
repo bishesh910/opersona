@@ -55,7 +55,7 @@ export function AvatarEditor({ cloneId, initial, readOnly }: { cloneId: string; 
         </div>
       </div>
 
-      <div className="space-y-5">
+      <div className="min-w-0 space-y-5">
         {mode === 'choose' && !readOnly ? (
           <div className="card space-y-4">
             <h2 className="font-medium">Your Pixie — start from a selfie, or pick by hand</h2>
