@@ -196,7 +196,7 @@ function Title({ conversationId, title, canEdit, editing, setEditing, onRenamed 
 export function ChatView({
   cloneId, cloneName, avatar, conversationId, history, readOnly, canResolveApprovals, feedback: initialFeedback = {}, mode = 'claude',
   title: initialTitle = '', model: initialModel = null, effort: initialEffort = null, userFirstName = '', showCost = true,
-  visitorView = false, newHref,
+  visitorView = false, newHref, embedded = false,
 }: {
   mode?: 'claude' | 'clone'; cloneId: string; cloneName: string; avatar: AvatarRecipe | null; conversationId: string; history: HistoryTurn[]; readOnly: boolean; canResolveApprovals: boolean;
   /**
@@ -205,6 +205,8 @@ export function ChatView({
    * no model menu (visitors use the org default), title not editable.
    */
   visitorView?: boolean;
+  /** Inside the office side panel: skip the header bar (the panel provides identity + actions). */
+  embedded?: boolean;
   /** Where "+ New" points (default: /chat?new=1). */
   newHref?: string;
   /** Existing "that's me / not me" verdicts by turn id (so they survive a reload). */
@@ -444,7 +446,7 @@ export function ChatView({
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col" data-chat-view>
       {/* ── Header: one slim hairline row ─────────────────────────── */}
-      <header className={
+      {!embedded && <header className={
         'relative z-10 flex h-12 shrink-0 items-center gap-2.5 border-b bg-white/85 px-3 backdrop-blur-sm sm:px-4 dark:bg-neutral-950/85 '
         + (mode === 'clone' && !visitorView
             ? 'border-amber-300/70 dark:border-amber-800/60'
@@ -499,7 +501,7 @@ export function ChatView({
             </>
           )}
         </div>
-      </header>
+      </header>}
       {confirmingDelete && (
         <ConfirmDialog title="Delete this chat?" message="The conversation and its files are removed for good. Memories your persona already learned stay."
           onCancel={() => setConfirmingDelete(false)}

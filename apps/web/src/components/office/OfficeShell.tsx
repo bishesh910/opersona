@@ -54,7 +54,7 @@ export function OfficeShell({ members }: { members: PanelMember[] }) {
           onDoubleClick={() => setPanelW(DEF_W)}
         />
         <div className="hidden shrink-0 md:block" style={{ width: panelW }}>
-          <PersonaPanel member={sel} total={members.length} onClose={() => setSelected(null)} />
+          <PersonaPanel key={sel?.key ?? "none"} member={sel} total={members.length} onClose={() => setSelected(null)} />
         </div>
       </div>
       {/* roster strip */}
@@ -81,8 +81,8 @@ export function OfficeShell({ members }: { members: PanelMember[] }) {
       </div>
       {/* phone: slide-up sheet */}
       {sel && (
-        <div className="fixed inset-x-0 bottom-0 z-30 max-h-[70dvh] overflow-y-auto rounded-t-2xl border-t border-neutral-200 bg-white p-1 shadow-2xl md:hidden dark:border-neutral-700 dark:bg-neutral-900">
-          <PersonaPanel member={sel} total={members.length} onClose={() => setSelected(null)} />
+        <div className="fixed inset-x-0 bottom-0 z-30 h-[78dvh] rounded-t-2xl border-t border-neutral-200 bg-white p-1 shadow-2xl md:hidden dark:border-neutral-700 dark:bg-neutral-900">
+          <PersonaPanel key={sel.key} member={sel} total={members.length} onClose={() => setSelected(null)} />
         </div>
       )}
     </div>
