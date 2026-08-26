@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
+import { SidebarResizer } from '@/components/shell/SidebarResizer';
 import { requireOrg, require2FA } from '@/lib/session';
 import { and, desc, eq } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
@@ -10,6 +12,7 @@ import { SidebarChats } from '@/components/shell/SidebarChats';
 import { TalkToPersona } from '@/components/shell/TalkToPersona';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   const ctx = await requireOrg();
   await require2FA(ctx);
   const [own] = await db.select({ id: schema.clones.id, r: schema.clones.avatarRecipe }).from(schema.clones).where(eq(schema.clones.ownerUserId, ctx.userId)).limit(1);
@@ -40,7 +43,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .sort((a, b) => Number(b.mine) - Number(a.mine) || a.name.localeCompare(b.name));
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col self-start border-r border-neutral-200 bg-neutral-50 p-4 md:flex dark:border-neutral-800 dark:bg-neutral-900/40">
+      {/* sidebar width/collapse persist per device; applied pre-paint (no flash) */}
+      <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "(function(){try{var w=parseInt(localStorage.getItem('sb.w'),10);var c=localStorage.getItem('sb.collapsed')==='1';if(!(w>=180&&w<=400))w=224;document.documentElement.style.setProperty('--sb-w',(c?0:w)+'px');if(c)document.documentElement.setAttribute('data-sb-collapsed','');}catch(e){}})()" }} />
+      <aside style={{ width: 'var(--sb-w, 224px)' }} className="app-sidebar sticky top-0 hidden h-dvh shrink-0 flex-col self-start border-r border-neutral-200 bg-neutral-50 p-4 md:flex dark:border-neutral-800 dark:bg-neutral-900/40">
         <Link href="/chat" className="mb-6 block px-2 text-lg font-semibold tracking-tight">opersona.me</Link>
         <SideNav include={['/chat']} />
         <div className="my-2 border-t border-neutral-200 dark:border-neutral-800" />
@@ -54,6 +59,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <SidebarFooter name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} />
         </div>
       </aside>
+      <SidebarResizer />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-12 items-center justify-between border-b border-neutral-200 px-4 md:hidden dark:border-neutral-800">
           <Link href="/chat" className="text-base font-semibold tracking-tight">opersona.me</Link>

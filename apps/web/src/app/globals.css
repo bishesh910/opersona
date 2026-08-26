@@ -195,3 +195,9 @@ html[data-tone="medium"].dark {
   --color-neutral-800: #303038;
   --color-neutral-700: #44444d;
 }
+
+/* ── Resizable / collapsible sidebar ─────────────────────────── */
+.app-sidebar { transition: width 0.16s ease; }
+html[data-sb-drag] .app-sidebar { transition: none; }
+html[data-sb-drag] { user-select: none; }
+html[data-sb-collapsed] .app-sidebar { border-right-width: 0; padding-left: 0; padding-right: 0; overflow: hidden; }
