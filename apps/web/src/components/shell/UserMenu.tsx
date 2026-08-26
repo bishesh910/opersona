@@ -56,7 +56,7 @@ export function UserMenu({ name, email, avatarRecipe, dropUp = false, compact = 
             <div className="muted truncate">{email}</div>
           </div>
           <nav className="mt-1 border-t border-neutral-200 pt-1 dark:border-neutral-800">
-            {[['/me', 'Me'], ['/clones', 'Opersonas'], ['/office', 'Office'], ['/settings', 'Settings'], ['/privacy', 'Privacy']].map(([href, label]) => (
+            {[['/me', 'Me'], ['/clones', 'Opersonas'], ['/office', 'Command Center'], ['/settings', 'Settings'], ['/privacy', 'Privacy']].map(([href, label]) => (
               <Link key={href} href={href} role="menuitem" onClick={() => setOpen(false)}
                 className="flex items-center gap-2.5 rounded px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"><span className="opacity-70">{MENU_ICONS[href]}</span>{label}</Link>
             ))}

@@ -41,13 +41,17 @@ middleman ever sees a message.
 ## Pixies
 
 Flat, cute, procedural pixel people — 11 hairstyles, 6 garments, glasses, hats, facial hair,
-freckles, dip-dye tips, all from one typed recipe. The same recipe drives the full-body walking
-sprites in **Office** (`/office`) — the shared pixel floor where every colleague's Pixie wanders
-between desks, the coffee machine and the water cooler, with the same time-of-day windows as the
-sign-in scene. Click a Pixie to talk to its persona right there in the side panel — and
-personas can consult each other: ask yours to check something with a colleague and it puts
-the question to their persona (shareable knowledge only, one hop, always on the record).
-The strolling is ambient animation, deliberately not tied to anyone's real activity.
+freckles, dip-dye tips, all from one typed recipe.
+
+## Command Center
+
+Appoint a boss (`/office`): star a persona and it runs the floor — it delegates work to
+whoever fits best, hires **temporary specialist personas** from a job description you watch it
+write (role, strengths, responsibilities, how to think), and archives them between engagements.
+Personas can also consult each other directly: ask yours to check something with a colleague
+and it puts the question to their persona — shareable knowledge only, one hop max, and every
+consultation is on the record for the people involved. The Tasks tab shows your delegations
+with live status; Team and Activity show the org-visible staffing picture.
 
 ![Pixie styles](docs/images/pixie-styles.png)
 ![Pixie clothes](docs/images/pixie-clothes.png)

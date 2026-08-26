@@ -29,9 +29,6 @@ with an open front:
 
 ![Clothes](images/pixie-clothes.png)
 
-Office (`/office`) renders **full-body walking sprites** in the same flat v2 style
-(`v2body.ts`): the walker's head is the real v2 portrait pasted verbatim (omitDome), on a chibi
-body with a three-phase step cycle, front and back views, and per-style back-of-head silhouettes.
 The previous outlined engine also remains available,
 pinned by a bounded-diff regression contract: the HD render must equal the 2× upscale of stored
 snapshots except in an explicit allowlist of refinement regions. Deterministic per recipe — no

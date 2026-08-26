@@ -15,7 +15,7 @@ const ITEMS = [
   { href: '/chat', label: 'New chat', shortLabel: 'New', icon: I.plus },
   { href: '/me', label: 'Me', icon: I.persona },
   { href: '/clones', label: 'Opersonas', icon: I.users },
-  { href: '/office', label: 'Office', icon: I.office },
+  { href: '/office', label: 'Command Center', shortLabel: 'Center', icon: I.office },
   { href: '/approvals', label: 'Approvals', icon: I.check },
   { href: '/settings', label: 'Settings', icon: I.gear },
 ];

@@ -6,8 +6,6 @@ import { toPNG } from './png.js';
 export { PORTRAIT_W, PORTRAIT_H, SCENE_W, SCENE_H, effectiveGlassesStyle, glassesCoverEyes, shades, upscale2x } from './engine.js';
 export { toPNG } from './png.js';
 export { paintToCanvas } from './canvas.js';
-export { WALKER_W, WALKER_H, renderWalkerV2, walkerFramesV2, walkerTalkFramesV2 } from './v2body.js';
-export type { WalkerFrames } from './v2body.js';
 export type { AvatarRecipe, RGB } from '@opersona/shared';
 
 export interface SceneFrames { front: Uint8ClampedArray[]; back: Uint8ClampedArray[]; }

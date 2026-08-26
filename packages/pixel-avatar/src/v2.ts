@@ -27,10 +27,7 @@ const mix = (a: RGB, b: RGB, t: number): RGB => [clamp(a[0] + (b[0] - a[0]) * t)
 const lighten = (c: RGB, f: number): RGB => [clamp(c[0] * f + 18), clamp(c[1] * f + 18), clamp(c[2] * f + 18)];
 const darken = (c: RGB, f: number): RGB => [clamp(c[0] * f), clamp(c[1] * f), clamp(c[2] * f)];
 
-/** opts.omitDome: skip the shoulder dome + garment details (head/hair/neck only)
- *  — used by the walker renderer, which draws its own body. Default output is
- *  byte-identical to before (regression contract). */
-export function renderPortraitV2(r: AvatarRecipe, opts?: { omitDome?: boolean }): Uint8ClampedArray {
+export function renderPortraitV2(r: AvatarRecipe): Uint8ClampedArray {
   const buf = new Uint8ClampedArray(V2_W * V2_H * 4);
   const s = SKIN[r.skin];
   const hairMask = new Uint8Array(V2_W * V2_H);
@@ -251,7 +248,7 @@ export function renderPortraitV2(r: AvatarRecipe, opts?: { omitDome?: boolean })
   // ── shoulder dome (gradient) ───────────────────────────────────────────────
   const g0: RGB = r.c1;
   const g1: RGB = r.c2 ?? lighten(r.c1, 1.18);
-  if (!opts?.omitDome) for (let x = 2; x <= 33; x++) {
+  for (let x = 2; x <= 33; x++) {
     const top = domeTopAt(x);
     for (let y = top; y < V2_H; y++) {
       const t = ((x - 2) / 31 + (V2_H - 1 - y) / (V2_H - 36)) / 2; // diagonal gradient
@@ -260,7 +257,6 @@ export function renderPortraitV2(r: AvatarRecipe, opts?: { omitDome?: boolean })
   }
   // per-cloth details — same flat style, but each garment reads differently
   const dk = darken(g0, 0.7);
-  if (!opts?.omitDome) {
   const shirtWhite: RGB = [240, 238, 232];
   if (r.cloth === 'sweater') {
     // ribbed collar: one darker row along the neckline
@@ -294,7 +290,7 @@ export function renderPortraitV2(r: AvatarRecipe, opts?: { omitDome?: boolean })
   }
   if (r.clothAccent) { for (let x = 2; x <= 33; x++) { const top = domeTopAt(x); if (top < V2_H) { put(x, top, r.clothAccent); put(x, top + 1, r.clothAccent); } } }
   if (r.tie) { for (let y = 35; y <= 40; y++) hrow(17, 18, y, r.tie); put(16, 35, r.tie); put(19, 35, r.tie); }
-  }
+
 
   // ── long hair drapes over the shoulders (styleFrame / styleLong) ───────────
   if (r.hair === 'styleFrame' || r.hair === 'styleLong') {
