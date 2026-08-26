@@ -8,7 +8,6 @@ export type ClaudeCodeSessionRow = {
   status: 'queued' | 'done' | 'skipped' | 'failed'; note: string | null; createdAt: string;
 };
 type UploadResult = { name: string; status: 'done' | 'skipped' | 'failed'; observations?: number; note?: string };
-type ScanStats = { scanned: number; learned: number; skipped: number; failed: number; dir: string };
 
 const BATCH = 10;
 const MAX_FILES = 50;
@@ -45,10 +44,9 @@ function shortProject(p: string | null): string {
   return parts.length > 3 ? '…' + parts.slice(-3).join('-') : p;
 }
 
-export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readOnly, showLocalScan = false }: {
+export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readOnly }: {
   cloneId: string; initialTokens: IngestTokenRow[]; initialSessions: ClaudeCodeSessionRow[]; readOnly: boolean;
   /** Pilot-only: the host machine's own Claude Code folder — shown ONLY to the persona pinned as this server's local clone. */
-  showLocalScan?: boolean;
 }) {
   const router = useRouter();
   const base = `/api/engine/clones/${cloneId}/claude-code`;
@@ -59,8 +57,6 @@ export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readO
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
   const [results, setResults] = useState<UploadResult[]>([]);
-  const [scanning, setScanning] = useState(false);
-  const [scan, setScan] = useState<ScanStats | null>(null);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => { setTokens(initialTokens); }, [initialTokens]);
@@ -113,17 +109,6 @@ export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readO
       setMsg({ kind: 'ok', text: `Learned from ${learned} of ${out.length} session${out.length === 1 ? '' : 's'}.` });
       router.refresh();
     } finally { setUploading(null); }
-  }
-
-  async function scanNow() {
-    setScanning(true); setMsg(null);
-    try {
-      const res = await fetch(`${base}/scan?all=1`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      const j = (await res.json().catch(() => ({}))) as Partial<ScanStats> & { error?: string };
-      if (!res.ok) { setMsg({ kind: 'err', text: j.error ?? `Scan failed (${res.status})` }); return; }
-      setScan({ scanned: j.scanned ?? 0, learned: j.learned ?? 0, skipped: j.skipped ?? 0, failed: j.failed ?? 0, dir: j.dir ?? '' });
-      router.refresh();
-    } finally { setScanning(false); }
   }
 
   const recent = sessions.slice(0, 20);
@@ -211,24 +196,6 @@ export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readO
                 </span>
               ))}
             </div>
-          )}
-        </div>
-      )}
-
-      {!readOnly && showLocalScan && (
-        <div className="space-y-2 border-t border-neutral-200 pt-3 dark:border-neutral-800">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="max-w-2xl space-y-1">
-              <h3 className="text-sm font-medium">This server</h3>
-              <p className="muted text-sm">If you run Claude Code on the machine that hosts opersona, its sessions can be learned from directly. The server also scans automatically every 5 minutes for sessions that have gone quiet.</p>
-            </div>
-            <button type="button" className="btn-secondary" onClick={scanNow} disabled={scanning}>{scanning ? 'Scanning…' : 'Scan this machine now'}</button>
-          </div>
-          {scan && (
-            <p className="text-sm" data-scan>
-              Scanned {scan.scanned} · learned {scan.learned} · skipped {scan.skipped} · failed {scan.failed}
-              {scan.dir && <span className="muted"> · <code>{scan.dir}</code></span>}
-            </p>
           )}
         </div>
       )}

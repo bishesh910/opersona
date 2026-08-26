@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export function ApiKeyForm({ hasKey, readOnly }: { hasKey: boolean; readOnly: boolean }) {
+export function ApiKeyForm({ hasKey, readOnly, onSaved }: { hasKey: boolean; readOnly: boolean; onSaved?: () => void }) {
   const router = useRouter();
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
@@ -15,11 +15,11 @@ export function ApiKeyForm({ hasKey, readOnly }: { hasKey: boolean; readOnly: bo
     const j = (await res.json().catch(() => ({}))) as { error?: string };
     setBusy(false);
     if (!res.ok) { setMsg({ ok: false, text: j.error ?? 'Failed' }); return; }
-    setKey(''); setMsg({ ok: true, text: 'Key saved.' }); router.refresh();
+    setKey(''); setMsg({ ok: true, text: 'Key saved.' }); router.refresh(); onSaved?.();
   }
 
   async function remove() {
-    if (!confirm('Remove the org key? Clones will fall back to the platform key (if configured).')) return;
+    if (!confirm('Remove your key? Chats and learning pause until you add one again.')) return;
     setBusy(true); setMsg(null);
     const res = await fetch('/api/settings/key', { method: 'DELETE' });
     setBusy(false);
@@ -31,7 +31,7 @@ export function ApiKeyForm({ hasKey, readOnly }: { hasKey: boolean; readOnly: bo
     <form onSubmit={save} className="space-y-2">
       <div className="flex items-center gap-2 text-sm">
         <span className={'inline-block h-2 w-2 rounded-full ' + (hasKey ? 'bg-green-500' : 'bg-neutral-400')} />
-        {hasKey ? 'A key is configured' : 'No org key — platform key will be used if set'}
+        {hasKey ? 'A key is configured' : 'No key yet — chatting needs one'}
       </div>
       {!readOnly && (
         <div className="flex gap-2">

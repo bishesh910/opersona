@@ -81,7 +81,7 @@ export function TwoFactorCard({ enabled, redirectTo, email }: { enabled: boolean
 
   return (
     <section className="card space-y-3">
-      <h2 className="font-medium">Two-factor authentication</h2>
+      <h2 className="font-medium">Two-factor authentication{!(enabled || stage.step === 'done-enabled') && <span className="chip ml-2 border-amber-400 text-amber-700 dark:border-amber-600 dark:text-amber-400">recommended</span>}</h2>
       {enabled || stage.step === 'done-enabled' ? (
         <>
           <p className="text-sm"><span className="chip">Two-factor is on ✓</span> Signing in requires a code from your authenticator app.</p>

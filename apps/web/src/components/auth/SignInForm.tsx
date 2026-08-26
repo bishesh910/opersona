@@ -9,7 +9,7 @@ import { SocialButtons } from './SocialButtons';
 import { NIGHT, ErrorNote } from './auth-styles';
 import { usePixieMood } from './AuthPixie';
 
-export function SignInForm({ social = { google: false, apple: false }, next }: { social?: { google: boolean; apple: boolean }; next?: string }) {
+export function SignInForm({ social = { google: false, apple: false }, next, canReset = false }: { social?: { google: boolean; apple: boolean }; next?: string; canReset?: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -103,6 +103,7 @@ export function SignInForm({ social = { google: false, apple: false }, next }: {
       <div>
         <label className={NIGHT.LABEL} htmlFor="password">Password</label>
         <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="current-password" inputClassName={NIGHT.FIELD + ' pr-11'} buttonClassName={NIGHT.EYE} />
+        {canReset && <p className="mt-1.5 text-right text-xs"><Link className={NIGHT.QUIET_BTN} href="/forgot-password">Forgot password?</Link></p>}
       </div>
       {error && <ErrorNote>{error}</ErrorNote>}
       <button className={NIGHT.BTN} disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>

@@ -1,15 +1,37 @@
 import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { organization, twoFactor } from 'better-auth/plugins';
+import { captcha, organization, twoFactor } from 'better-auth/plugins';
 import { nextCookies } from 'better-auth/next-js';
 import { and, eq, gt } from 'drizzle-orm';
 import { db, authSchema } from '@opersona/db';
 import { accountLocked } from './auth-abuse';
+import { MAILER_ON, sendEmail } from './email';
 
-/** ALLOW_SIGNUP=true opens sign-up to anyone (dev only). Default: INVITE-ONLY —
- *  an account can be created solely for an email holding a pending invitation. */
+/** ALLOW_SIGNUP=true opens sign-up to anyone (how opersona.me runs). Default:
+ *  INVITE-ONLY — an account can be created solely for an email holding a pending
+ *  invitation (the safe default for fresh self-hosts). */
 export const SIGNUP_OPEN = process.env.ALLOW_SIGNUP === 'true';
+
+/** REQUIRE_2FA=true makes two-factor mandatory (pre-pivot behaviour, for locked-down
+ *  self-hosts). Default: optional + nudged from Settings. */
+export const REQUIRE_2FA = process.env.REQUIRE_2FA === 'true';
+
+/** Throwaway-email domains rejected at open signup — a speed bump, not a wall. */
+const DISPOSABLE_DOMAINS = new Set([
+  'mailinator.com', 'guerrillamail.com', 'guerrillamail.net', 'sharklasers.com', 'grr.la',
+  '10minutemail.com', '10minutemail.net', 'temp-mail.org', 'temp-mail.io', 'tempmail.com',
+  'tempmail.dev', 'tempmailo.com', 'throwawaymail.com', 'trashmail.com', 'trashmail.de',
+  'yopmail.com', 'yopmail.fr', 'yopmail.net', 'getnada.com', 'nada.email',
+  'dispostable.com', 'maildrop.cc', 'mailnesia.com', 'mintemail.com', 'mohmal.com',
+  'spamgourmet.com', 'mytemp.email', 'burnermail.io', 'mail-temp.com', 'moakt.com',
+  'tmpmail.org', 'tmpmail.net', 'tmails.net', 'fakermail.com', 'inboxkitten.com',
+  'mail7.io', 'emailondeck.com', 'mailsac.com', 'mailcatch.com', 'spambog.com',
+  'mailexpire.com', 'incognitomail.org', 'anonbox.net', 'crazymailing.com',
+  'tempinbox.com', 'fakeinbox.com', 'onetimemail.org', 'discard.email', 'discardmail.com',
+  'spam4.me', 'tempr.email', 'luxusmail.org', 'cock.li', 'har-vard.edu',
+]);
+export const isDisposableEmail = (email: string): boolean => DISPOSABLE_DOMAINS.has(email.split('@')[1]?.toLowerCase() ?? '');
 
 /** Platform admins: the only accounts allowed to create organizations. */
 export const PLATFORM_ADMINS = (process.env.PLATFORM_ADMIN_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -36,7 +58,24 @@ export const auth = betterAuth({
   trustedOrigins: trusted,
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, { provider: 'pg', schema: authSchema }),
-  emailAndPassword: { enabled: true, minPasswordLength: 10, maxPasswordLength: 128 },
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: 10,
+    maxPasswordLength: 128,
+    // Verification/reset light up only when a mailer is configured; without one the
+    // app stays fully usable (no dead ends on self-hosts).
+    requireEmailVerification: MAILER_ON && SIGNUP_OPEN,
+    sendResetPassword: async ({ user, url }) => {
+      await sendEmail({ to: user.email, subject: 'Reset your opersona password', text: `Someone (hopefully you) asked to reset the password for ${user.email}.\n\nReset it here: ${url}\n\nIf this wasn't you, ignore this email — nothing changes.` });
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: MAILER_ON,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendEmail({ to: user.email, subject: 'Verify your opersona email', text: `Welcome to opersona!\n\nConfirm this address to activate your account: ${url}` });
+    },
+  },
   // Backstop for EVERY account-creation path (email, social, future providers): when
   // sign-ups are closed, an account may only be created for an email that holds a live
   // pending invitation. The route hook above additionally requires possession of the
@@ -46,13 +85,28 @@ export const auth = betterAuth({
     user: {
       create: {
         before: async (user) => {
-          if (SIGNUP_OPEN) return;
+          if (SIGNUP_OPEN) {
+            const email = String(user.email ?? '').trim().toLowerCase();
+            if (isDisposableEmail(email)) throw new APIError('BAD_REQUEST', { message: 'Disposable email addresses cannot be used — sign up with a real inbox.' });
+            return;
+          }
           const email = String(user.email ?? '').trim().toLowerCase();
           const rows = email
             ? await db.select({ id: authSchema.invitation.id }).from(authSchema.invitation)
                 .where(and(eq(authSchema.invitation.email, email), eq(authSchema.invitation.status, 'pending'), gt(authSchema.invitation.expiresAt, new Date()))).limit(1)
             : [];
           if (!rows.length) throw new APIError('FORBIDDEN', { message: 'Sign-ups are invite-only. Ask your organization for an invitation.' });
+        },
+        // Every account gets a personal workspace (org-of-one) the moment it exists —
+        // covers email signup AND social providers. Never fails the signup: getOrgCtx()
+        // self-heals any account this hook missed.
+        after: async (user) => {
+          try {
+            const { ensurePersonalWorkspace } = await import('./workspace');
+            await ensurePersonalWorkspace(user);
+          } catch (e) {
+            console.error('[auth] personal workspace creation failed (self-heals on first request)', e);
+          }
         },
       },
     },
@@ -93,6 +147,10 @@ export const auth = betterAuth({
   plugins: [
     organization({ allowUserToCreateOrganization: (user) => isPlatformAdmin(user.email) }),
     twoFactor({ issuer: 'opersona' }),
+    // Bot wall, dark until the env is set (flip = add the two Turnstile envs + restart).
+    ...(process.env.TURNSTILE_SECRET_KEY
+      ? [captcha({ provider: 'cloudflare-turnstile', secretKey: process.env.TURNSTILE_SECRET_KEY, endpoints: ['/sign-up/email', '/forget-password'] })]
+      : []),
     nextCookies(),
   ],
 });

@@ -2,7 +2,8 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { eq, asc } from 'drizzle-orm';
 import { db, authSchema } from '@opersona/db';
-import { auth } from './auth';
+import { auth, REQUIRE_2FA } from './auth';
+import { ensurePersonalWorkspace } from './workspace';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
 
@@ -34,10 +35,10 @@ export async function getSessionCtx(): Promise<SessionCtx | null> {
   };
 }
 
-/** Two-factor is MANDATORY: any signed-in user without it is sent to set it up.
- *  Call at the top of the (app) layout; the /setup-2fa page is exempt. */
+/** Two-factor is optional by default (nudged in Settings); REQUIRE_2FA=true restores
+ *  the mandatory redirect for locked-down self-hosts. The /setup-2fa page is exempt. */
 export async function require2FA(s: SessionCtx): Promise<void> {
-  if (!s.twoFactorEnabled) redirect('/setup-2fa');
+  if (REQUIRE_2FA && !s.twoFactorEnabled) redirect('/setup-2fa');
 }
 
 /** Redirects to /sign-in when unauthenticated. */
@@ -52,7 +53,7 @@ export async function requireSession(): Promise<SessionCtx> {
  * else the first membership. Returns null when the user has no org at all.
  */
 export async function getOrgCtx(s: SessionCtx): Promise<OrgCtx | null> {
-  const memberships = await db
+  const query = () => db
     .select({
       orgId: authSchema.member.organizationId,
       role: authSchema.member.role,
@@ -62,7 +63,13 @@ export async function getOrgCtx(s: SessionCtx): Promise<OrgCtx | null> {
     .innerJoin(authSchema.organization, eq(authSchema.organization.id, authSchema.member.organizationId))
     .where(eq(authSchema.member.userId, s.userId))
     .orderBy(asc(authSchema.member.createdAt));
-  if (memberships.length === 0) return null;
+  let memberships = await query();
+  if (memberships.length === 0) {
+    // Self-heal: every account owns a personal workspace. Covers accounts whose
+    // signup hook failed and pre-pivot stragglers — one call, then re-read.
+    try { await ensurePersonalWorkspace(s.user); memberships = await query(); } catch (e) { console.error('[session] workspace self-heal failed', e); }
+    if (memberships.length === 0) return null;
+  }
   const m = memberships.find((x) => x.orgId === s.activeOrganizationId) ?? memberships[0]!;
   return { ...s, orgId: m.orgId, orgName: m.orgName, role: (m.role as OrgRole) ?? 'member' };
 }

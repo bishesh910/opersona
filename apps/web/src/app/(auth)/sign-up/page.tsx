@@ -4,6 +4,7 @@ import { and, eq, gt } from 'drizzle-orm';
 import { db, authSchema } from '@opersona/db';
 import { getSessionCtx } from '@/lib/session';
 import { SIGNUP_OPEN, SOCIAL } from '@/lib/auth';
+import { MAILER_ON } from '@/lib/email';
 import { SignUpForm } from '@/components/auth/SignUpForm';
 
 export default async function SignUpPage({ searchParams }: { searchParams: Promise<{ next?: string; email?: string }> }) {
@@ -29,7 +30,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
   }
   return (
     <>
-      <SignUpForm social={SOCIAL} next={next} prefillEmail={inv?.email} lockEmail={invited} />
+      <SignUpForm social={SOCIAL} next={next} prefillEmail={inv?.email} lockEmail={invited} verifyEmail={MAILER_ON && SIGNUP_OPEN && !invited} />
       <p className="mt-4 text-center text-xs text-neutral-500">Sign up and build your persona — face, story, mind.</p>
     </>
   );

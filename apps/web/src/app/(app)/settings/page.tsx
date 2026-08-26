@@ -24,8 +24,6 @@ export default async function SettingsPage() {
   const [row] = await db.select().from(schema.orgSettings).where(eq(schema.orgSettings.orgId, ctx.orgId)).limit(1);
   const [userRow] = await db.select({ twoFactorEnabled: authSchema.user.twoFactorEnabled }).from(authSchema.user).where(eq(authSchema.user.id, ctx.userId)).limit(1);
   const admin = isOrgAdmin(ctx);
-  const mode = await engineFetch<{ mode: string }>('/auth/mode').then((j) => j.mode).catch(() => 'api-key');
-  const hostLogin = mode === 'host-login';
   const pendingInvites = admin
     ? await db.select({ id: authSchema.invitation.id, email: authSchema.invitation.email, expiresAt: authSchema.invitation.expiresAt })
         .from(authSchema.invitation)
@@ -119,26 +117,11 @@ export default async function SettingsPage() {
             </section>
             <section className="card space-y-2">
               <h2 className="font-medium">Claude access</h2>
-              {hostLogin ? (
-                <>
-                  <p className="text-sm">
-                    <span className="chip">pilot mode</span> Using the <strong>Claude login on this machine</strong> (your claude.ai subscription) — no API key needed.
-                  </p>
-                  <p className="muted text-xs">
-                    Chats and selfie processing run through Claude Code under that login. For a multi-user deployment
-                    switch the engine to <code>ENGINE_AUTH_MODE=api-key</code> and give each org its own API key below{row?.anthropicKeyEnc ? ' (one is already stored and takes precedence)' : ''}.
-                  </p>
-                  <details className="text-xs"><summary className="cursor-pointer muted">Optional: use an API key instead</summary><div className="pt-2"><ApiKeyForm hasKey={!!row?.anthropicKeyEnc} readOnly={!admin} /></div></details>
-                </>
-              ) : (
-                <>
-                  <p className="muted text-xs">
-                    Bring your own key: usage is billed to your Anthropic account. Stored encrypted (AES-256-GCM) and never shown again.
-                    Anthropic&apos;s API data-retention policy applies to everything your personas send.
-                  </p>
-                  <ApiKeyForm hasKey={!!row?.anthropicKeyEnc} readOnly={!admin} />
-                </>
-              )}
+              <p className="muted text-xs">
+                Bring your own key: usage is billed to your Anthropic account. Stored encrypted (AES-256-GCM) and never shown again.
+                Anthropic&apos;s API data-retention policy applies to everything your personas send.
+              </p>
+              <ApiKeyForm hasKey={!!row?.anthropicKeyEnc} readOnly={!admin} />
             </section>
           </>
         }

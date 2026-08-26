@@ -17,7 +17,7 @@ import { db, clones, conversations, turns, sessionCosts } from '@opersona/db';
 import { redactSecrets, type EngineEvent } from '@opersona/shared';
 import { maybeTitleConversation } from '../learning/title.js';
 import { config } from '../config.js';
-import { orgModelConfig, authMode } from '../keys.js';
+import { orgModelConfig } from '../keys.js';
 import { ensureWorkspace, conversationWorkdir } from '../isolation/workspace.js';
 import { activePrompt, PLAIN_CLAUDE_PROMPT } from '../persona/assemble.js';
 import { createPersonaServer, PERSONA_SERVER, PERSONA_TOOLS } from '../persona/mcp.js';
@@ -76,16 +76,9 @@ export function cleanEnv(extra: Record<string, string>): Record<string, string> 
   return { ...env, ...extra };
 }
 
-/** Subprocess env for a clone. api-key: isolated HOME/CLAUDE_CONFIG_DIR + org key.
- *  host-login (pilot): keep the host HOME/CLAUDE_CONFIG_DIR so the machine's Claude
- *  Code login is used; the per-clone cwd still isolates the workspace. */
-export function sessionEnv(ws: { home: string; configDir: string }, apiKey: string | null): Record<string, string> {
-  if (authMode === 'host-login' && !apiKey) {
-    const e = cleanEnv({});
-    if (process.env.CLAUDE_CONFIG_DIR) e.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR;
-    return e;
-  }
-  return cleanEnv({ HOME: ws.home, CLAUDE_CONFIG_DIR: ws.configDir, ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}) });
+/** Subprocess env for a clone: isolated HOME/CLAUDE_CONFIG_DIR + the workspace's own key. */
+export function sessionEnv(ws: { home: string; configDir: string }, apiKey: string): Record<string, string> {
+  return cleanEnv({ HOME: ws.home, CLAUDE_CONFIG_DIR: ws.configDir, ANTHROPIC_API_KEY: apiKey });
 }
 
 export interface Attachment { name: string; mime: string; dataBase64: string }

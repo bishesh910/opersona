@@ -5,6 +5,8 @@ export const config = {
   internalToken: process.env.ENGINE_INTERNAL_TOKEN ?? '',
   dataDir: resolve(process.env.ENGINE_DATA_DIR ?? '../../data'),
   platformApiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  /** Monthly USD cap applied to workspaces running on the platform key (self-host fallback). BYO-key workspaces set their own budget in Settings. */
+  defaultMonthlyBudgetUsd: Number(process.env.ENGINE_DEFAULT_MONTHLY_BUDGET_USD ?? 20),
   /** Close an idle live session after this long. */
   idleMs: Number(process.env.ENGINE_IDLE_MS ?? 10 * 60_000),
   /** HITL approval wait before auto-deny. */

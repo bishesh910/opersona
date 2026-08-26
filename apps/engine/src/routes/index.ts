@@ -13,7 +13,7 @@ import { resolveApproval } from '../sessions/approvals.js';
 import { publishSnapshot, activePrompt } from '../persona/assemble.js';
 import { recipeFromSelfie } from '../avatar/fromSelfie.js';
 import { ingestDocument } from '../documents/ingest.js';
-import { orgModelConfig, authMode } from '../keys.js';
+import { orgModelConfig } from '../keys.js';
 import { enqueue, queueSize } from '../learning/queue.js';
 import { recomputeFingerprint, setPatternVerdict } from '../learning/fingerprint.js';
 import { recordFeedback } from '../learning/feedback.js';
@@ -23,7 +23,7 @@ import { backfillEpisodes } from '../learning/episodes.js';
 import { importJobs, ingestTokens, claudeCodeSessions } from '@opersona/db';
 import { createHash, randomBytes } from 'node:crypto';
 import { desc } from 'drizzle-orm';
-import { ingestClaudeCodeSession, scanLocalSessions, localProjectsDir } from '../learning/claudeCode.js';
+import { ingestClaudeCodeSession } from '../learning/claudeCode.js';
 import { tidyPatterns } from '../learning/merge.js';
 import { createSelfTestBatch, regenerateSelfTests, rateSelfTest, accuracy } from '../learning/selfTest.js';
 import Anthropic from '@anthropic-ai/sdk';
@@ -33,8 +33,7 @@ registerDownloads(routes);
 
 const parse = async <T extends z.ZodTypeAny>(c: { req: { json: () => Promise<unknown> } }, schema: T): Promise<z.infer<T>> => schema.parse(await c.req.json().catch(() => ({})));
 
-routes.get('/health', (c) => c.json({ ok: true, version: config.version, authMode, learningQueue: queueSize() }));
-routes.get('/auth/mode', (c) => c.json({ mode: authMode }));
+routes.get('/health', (c) => c.json({ ok: true, version: config.version, learningQueue: queueSize() }));
 
 // ─── chat ───────────────────────────────────────────────────────────────────
 routes.post('/conversations/:id/messages', async (c) => {
@@ -240,14 +239,6 @@ routes.post('/clones/:id/claude-code/upload', async (c) => {
   const results = [];
   for (const f of body.files) results.push({ name: f.name, ...(await ingestClaudeCodeSession({ orgId: body.orgId, cloneId: c.req.param('id'), jsonl: f.text, source: 'upload', sessionIdHint: f.name.replace(/\.jsonl$/, '') })) });
   return c.json({ results });
-});
-
-/** Pilot: scan this machine's ~/.claude/projects for the local persona. */
-routes.post('/clones/:id/claude-code/scan', async (c) => {
-  await parse(c, z.object({ orgId: z.string() }));
-  const all = c.req.query('all') === '1';
-  const stats = await scanLocalSessions({ all });
-  return c.json({ ...stats, dir: localProjectsDir() });
 });
 
 routes.get('/clones/:id/claude-code/sessions', async (c) => {

@@ -70,7 +70,6 @@ export default async function SourcesPage() {
             <div className="mt-4">
               <ClaudeCodePanel
                 cloneId={id}
-                showLocalScan={id === process.env.CLAUDE_CODE_LOCAL_CLONE}
                 readOnly={false}
                 initialTokens={ccTokens.map((t) => ({ id: t.id, name: t.name, createdAt: t.createdAt.toISOString(), lastUsedAt: t.lastUsedAt?.toISOString() ?? null }))}
                 initialSessions={ccSessions.map((x) => ({

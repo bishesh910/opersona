@@ -6,6 +6,7 @@ import { requireOrg } from '@/lib/session';
 import { getCloneAccess } from '@/lib/clones';
 import { DEFAULT_TITLE_RE } from '@/lib/chat';
 import { ChatView, type FeedbackVerdict, type HistoryTurn } from '@/components/chat/ChatView';
+import { orgHasChatKey } from '@/lib/keys';
 import { engineFetch } from '@/lib/engine';
 
 export default async function ConversationPage({ params }: { params: Promise<{ id: string; conversationId: string }> }) {
@@ -32,6 +33,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     <div className="flex h-[calc(100vh-14rem)] min-h-[28rem] flex-col gap-2">
       <Link href={access.isOwner ? '/me/chat' : `/clones/${id}/chat`} className="muted text-xs hover:underline">← all conversations</Link>
       <ChatView
+        keyMissing={(await orgHasChatKey(ctx.orgId)) ? null : 'mine'}
         key={conv.id}
         mode={conv.mode}
         cloneId={access.clone.id}

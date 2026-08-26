@@ -6,6 +6,7 @@ import { requireOrg } from '@/lib/session';
 import { getCloneAccess } from '@/lib/clones';
 import { engineFetch } from '@/lib/engine';
 import { DEFAULT_TITLE_RE } from '@/lib/chat';
+import { orgHasChatKey } from '@/lib/keys';
 import { ChatView, type FeedbackVerdict, type HistoryTurn } from '@/components/chat/ChatView';
 
 /** Full-height conversation view (own persona): slim bar on top, the rest is chat. */
@@ -24,7 +25,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
     .from(schema.reasoningFeedback).where(eq(schema.reasoningFeedback.conversationId, conv.id));
   const feedback: Record<string, FeedbackVerdict> = {};
   for (const f of fb) feedback[f.turnId] = f.verdict;
-  const authMode = await engineFetch<{ mode: string }>('/auth/mode').then((j) => j.mode).catch(() => 'api-key');
+  const hasKey = await orgHasChatKey(ctx.orgId);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -47,7 +48,8 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
           canResolveApprovals={access.isOwner || ctx.role === 'owner'}
           feedback={feedback}
           userFirstName={(ctx.user.name?.trim().split(/\s+/)[0]) || ''}
-          showCost={authMode !== 'host-login'}
+          showCost
+          keyMissing={hasKey ? null : 'mine'}
           initialLive={conv.status === 'live'}
         />
       </div>

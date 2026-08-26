@@ -193,10 +193,17 @@ function Title({ conversationId, title, canEdit, editing, setEditing, onRenamed 
   );
 }
 
+/** Engine errors worth translating for humans (stable prefixes from the engine). */
+function friendlyErr(m: string): string {
+  if (m.startsWith('no_api_key:')) return 'No API key connected — add yours in Settings → Claude access to start chatting.';
+  if (m.startsWith('budget_exceeded:')) return m.replace('budget_exceeded:', 'Monthly budget reached —') + '. Raise or clear it in Settings → Models.';
+  return m;
+}
+
 export function ChatView({
   cloneId, cloneName, avatar, conversationId, history, readOnly, canResolveApprovals, feedback: initialFeedback = {}, mode = 'claude',
   title: initialTitle = '', model: initialModel = null, effort: initialEffort = null, userFirstName = '', showCost = true,
-  visitorView = false, newHref, embedded = false, initialLive = false,
+  visitorView = false, newHref, embedded = false, initialLive = false, keyMissing = null,
 }: {
   mode?: 'claude' | 'clone'; cloneId: string; cloneName: string; avatar: AvatarRecipe | null; conversationId: string; history: HistoryTurn[]; readOnly: boolean; canResolveApprovals: boolean;
   /**
@@ -213,6 +220,10 @@ export function ChatView({
   initialLive?: boolean;
   /** Where "+ New" points (default: /chat?new=1). */
   newHref?: string;
+  /** The workspace paying for this conversation has no Anthropic key: 'mine' = the
+   *  viewer's own workspace (show the add-key CTA), 'theirs' = someone else's
+   *  (persona owner hasn't connected Claude). Composer is replaced by a gate card. */
+  keyMissing?: 'mine' | 'theirs' | null;
   /** Existing "that's me / not me" verdicts by turn id (so they survive a reload). */
   feedback?: Record<string, FeedbackVerdict>;
   title?: string;
@@ -314,7 +325,7 @@ export function ChatView({
             if (o.settled) return next;
             next[owner] = { ...o, settled: true } as Item;
           }
-          next.push({ kind: 'result', key: k(), ok: ev.ok, cost: ev.cost_usd, input: ev.input_tokens, output: ev.output_tokens, cacheRead: ev.cache_read_input_tokens, error: ev.error });
+          next.push({ kind: 'result', key: k(), ok: ev.ok, cost: ev.cost_usd, input: ev.input_tokens, output: ev.output_tokens, cacheRead: ev.cache_read_input_tokens, error: ev.error ? friendlyErr(ev.error) : ev.error });
           return next;
         }
         case 'status': {
@@ -325,7 +336,7 @@ export function ChatView({
           return next;
         }
         case 'error':
-          next.push({ kind: 'error', key: k(), message: ev.message });
+          next.push({ kind: 'error', key: k(), message: friendlyErr(ev.message) });
           return next;
         default:
           return prev;
@@ -371,7 +382,7 @@ export function ChatView({
     setBusy(false);
     if (!res.ok) {
       const j = (await res.json().catch(() => ({}))) as { error?: string };
-      setError(j.error ?? `Send failed (${res.status})`);
+      setError(friendlyErr(j.error ?? `Send failed (${res.status})`));
       setItems((prev) => prev.filter((i) => i.key !== key));
       return false;
     }
@@ -653,6 +664,23 @@ export function ChatView({
             <p className="muted mx-auto w-fit rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2 text-center text-xs dark:border-neutral-800 dark:bg-neutral-900">
               {visitorView ? 'Read-only: this is a colleague’s conversation with your persona — only they can write here.' : 'Read-only: only the persona owner can chat.'}
             </p>
+          </div>
+        ) : keyMissing ? (
+          <div className="safe-b mx-auto w-full max-w-3xl px-4 pb-4">
+            <div className="mx-auto w-full max-w-md rounded-2xl border border-amber-300/70 bg-amber-50 px-5 py-4 text-center text-sm dark:border-amber-800/60 dark:bg-amber-950/30" data-key-gate>
+              {keyMissing === 'mine' ? (
+                <>
+                  <p className="font-medium">Connect your Claude to start chatting</p>
+                  <p className="muted mt-1 text-xs">Chats run on your own Anthropic API key, so your persona thinks on your account. Add it once — everything else (building, editing, sharing) already works without it.</p>
+                  <Link href="/settings#models" className="btn-primary mt-3 inline-block">Add your API key</Link>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">This persona can&apos;t chat yet</p>
+                  <p className="muted mt-1 text-xs">Its owner hasn&apos;t connected an Anthropic API key.</p>
+                </>
+              )}
+            </div>
           </div>
         ) : (
           <div className="safe-b mx-auto w-full max-w-3xl px-4 pb-3 sm:px-6">{composer}</div>

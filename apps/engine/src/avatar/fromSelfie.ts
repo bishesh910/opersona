@@ -9,9 +9,7 @@ import sharp from 'sharp';
 import { z } from 'zod';
 import { AvatarRecipe, SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, EARRINGS, HEADWEAR, GLASSES_STYLES, RGB } from '@opersona/shared';
 import { db, sessionCosts } from '@opersona/db';
-import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
-import { ensureWorkspace } from '../isolation/workspace.js';
-import { sessionEnv } from '../sessions/manager.js';
+import { costOf } from '../pricing.js';
 
 /** Plain 3-element array instead of a tuple: tuples serialise to draft-specific
  *  keywords (`items: [...]` vs `prefixItems`) and the CLI validator and the API
@@ -54,37 +52,7 @@ const SYSTEM = `You convert one selfie into parameters for a tiny 36x56-pixel ca
 
 type Extracted = z.infer<typeof Extraction>;
 
-/** The API requires draft 2020-12 keywords, while Claude Code's own validator rejects
- *  the `$schema` URI tag zod adds. Keep 2020-12, strip the tag, no tuples (see RGB3). */
-function extractionJsonSchema(): Record<string, unknown> {
-  const { $schema: _drop, ...schema } = z.toJSONSchema(Extraction) as Record<string, unknown>;
-  return schema;
-}
-
-/** Pilot path (no API key): run the same vision prompt through the Agent SDK, which
- *  uses this machine's Claude Code login, with JSON-schema structured output. */
-async function extractViaAgentSdk(orgId: string, model: string, jpegB64: string): Promise<Extracted> {
-  const ws = ensureWorkspace(orgId, 'avatar');
-  const msg: SDKUserMessage = { type: 'user', parent_tool_use_id: null, message: { role: 'user', content: [
-    { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: jpegB64 } },
-    { type: 'text', text: 'Produce the portrait parameters for this person.' },
-  ] } };
-  async function* once() { yield msg; }
-  let out: unknown;
-  for await (const m of query({ prompt: once(), options: {
-    model, systemPrompt: SYSTEM, cwd: ws.cwd, env: sessionEnv(ws, null), settingSources: [], tools: [], maxTurns: 2, persistSession: false,
-    outputFormat: { type: 'json_schema', schema: extractionJsonSchema() },
-  } })) {
-    if (m.type === 'result') {
-      if (m.subtype !== 'success') throw new Error(`vision call failed: ${m.subtype}`);
-      out = m.structured_output;
-      await db.insert(sessionCosts).values({ orgId, cloneId: '00000000-0000-0000-0000-000000000000', kind: 'avatar', model, inputTokens: m.usage.input_tokens, outputTokens: m.usage.output_tokens, costUsd: m.total_cost_usd }).catch(() => {});
-    }
-  }
-  return Extraction.parse(out);
-}
-
-export async function recipeFromSelfie(args: { orgId: string; apiKey: string | null; model: string; imageBase64: string; mime: string }): Promise<{ recipe: AvatarRecipe; confidence: Record<string, number> }> {
+export async function recipeFromSelfie(args: { orgId: string; apiKey: string; model: string; imageBase64: string; mime: string }): Promise<{ recipe: AvatarRecipe; confidence: Record<string, number> }> {
   // Normalise: strip EXIF, cap at 512px, re-encode as JPEG — the model never sees the original bytes.
   const input = Buffer.from(args.imageBase64, 'base64');
   let jpeg: Buffer;
@@ -93,10 +61,6 @@ export async function recipeFromSelfie(args: { orgId: string; apiKey: string | n
   } catch {
     throw new Error('Could not read this photo format. Use a JPG or PNG — screenshotting the photo and uploading the screenshot always works.');
   }
-  let x: Extracted;
-  if (!args.apiKey) {
-    x = await extractViaAgentSdk(args.orgId, args.model, jpeg.toString('base64'));
-  } else {
   const client = new Anthropic({ apiKey: args.apiKey });
   const res = await client.messages.parse({
     model: args.model,
@@ -108,10 +72,9 @@ export async function recipeFromSelfie(args: { orgId: string; apiKey: string | n
     ] }],
     output_config: { format: zodOutputFormat(Extraction) },
   });
-  await db.insert(sessionCosts).values({ orgId: args.orgId, cloneId: '00000000-0000-0000-0000-000000000000', kind: 'avatar', model: args.model, inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens }).catch(() => {});
+  await db.insert(sessionCosts).values({ orgId: args.orgId, cloneId: '00000000-0000-0000-0000-000000000000', kind: 'avatar', model: args.model, inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens, costUsd: costOf(args.model, res.usage) }).catch(() => {});
   if (!res.parsed_output) throw new Error('vision model returned no structured output');
-  x = res.parsed_output;
-  }
+  const x: Extracted = res.parsed_output;
   const rgb = (a: number[]): RGB => [a[0] ?? 0, a[1] ?? 0, a[2] ?? 0];
   const recipe: AvatarRecipe = {
     skin: x.skin, hair: x.hair, hairc: rgb(x.hairc), cloth: x.cloth, c1: rgb(x.c1), brow: x.brow, mouth: x.mouth,

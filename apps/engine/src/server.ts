@@ -6,7 +6,6 @@ import { config } from './config.js';
 import { internalAuth } from './auth.js';
 import { routes } from './routes/index.js';
 import { ingest } from './routes/ingest.js';
-import { startLocalScan } from './learning/claudeCode.js';
 import { shutdown, liveCount } from './sessions/manager.js';
 import { resumePending } from './learning/queue.js';
 
@@ -21,7 +20,6 @@ app.onError((err, c) => {
 });
 
 void resumePending().catch((e) => console.error('[learning] resume failed', e));
-startLocalScan();
 import('./learning/merge.js').then((m) => m.startNightlyTidy());
 
 const server = serve({ fetch: app.fetch, port: config.port, hostname: process.env.ENGINE_HOST ?? '127.0.0.1' }, (info) => {

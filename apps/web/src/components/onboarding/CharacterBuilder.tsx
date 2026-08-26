@@ -3,20 +3,21 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useActionState } from 'react';
 import { DEFAULT_RECIPE, type AvatarRecipe, type MbtiResult } from '@opersona/shared';
-import { createOrganizationAction, finishOnboardingAction } from '@/actions/onboarding';
+import { finishOnboardingAction } from '@/actions/onboarding';
 import { saveAvatarAction } from '@/actions/avatar';
 import { saveBriefAction, type ActionResult } from '@/actions/brief';
 import { AvatarCanvas } from '@/components/avatar/AvatarCanvas';
 import { RecipeEditor } from '@/components/avatar/RecipeEditor';
 import { SelfieUpload } from '@/components/avatar/SelfieUpload';
 import { MbtiTest } from '@/components/brief/MbtiTest';
+import { ApiKeyForm } from '@/components/settings/ApiKeyForm';
 import { randomRecipe } from './random-recipe';
 
 const STEPS = [
-  { n: 1, label: 'Team' },
-  { n: 2, label: 'Pixie' },
-  { n: 3, label: 'Story' },
-  { n: 4, label: 'Mind' },
+  { n: 1, label: 'Pixie' },
+  { n: 2, label: 'Story' },
+  { n: 3, label: 'Mind' },
+  { n: 4, label: 'Connect' },
   { n: 5, label: 'Ready' },
 ] as const;
 
@@ -25,12 +26,11 @@ export interface BuilderBrief { displayName: string; roleTitle: string; team: st
 export interface CharacterBuilderProps {
   initialStep: number;
   userName: string;
-  orgName: string | null;
   error: string | null;
-  /** null until an organization exists (step 1). */
-  clone: { id: string; recipe: AvatarRecipe | null } | null;
+  clone: { id: string; recipe: AvatarRecipe | null };
   brief: BuilderBrief | null;
   personalityType: string | null;
+  hasApiKey: boolean;
 }
 
 function StepDots({ current }: { current: number }) {
@@ -61,7 +61,8 @@ function StepDots({ current }: { current: number }) {
   );
 }
 
-/** First-run character builder: Team → Face → Story → Mind → Ready, avatar front and center. */
+/** First-run character builder: Pixie → Story → Mind → Connect → Ready, avatar front and center.
+ *  The personal workspace already exists (auto-created at signup) — no team step. */
 export function CharacterBuilder(props: CharacterBuilderProps) {
   const [step, setStepState] = useState(props.initialStep);
   const [recipe, setRecipe] = useState<AvatarRecipe>(props.clone?.recipe ?? DEFAULT_RECIPE);
@@ -88,10 +89,10 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
   }
 
   const heading =
-    step === 1 ? 'Pick your team' :
-    step === 2 ? 'Build your Pixie' :
-    step === 3 ? 'Your story' :
-    step === 4 ? 'Your mind' :
+    step === 1 ? 'Build your Pixie' :
+    step === 2 ? 'Your story' :
+    step === 3 ? 'Your mind' :
+    step === 4 ? 'Connect your Claude' :
     'Your persona is ready';
 
   return (
@@ -104,64 +105,71 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
         <StepDots current={step} />
         <h2 className="text-lg font-medium">{heading}</h2>
 
-        {step === 1 ? (
-          <TeamStep userName={props.userName} error={props.error} />
-        ) : (
-          <div className="flex w-full flex-col items-center gap-6 md:flex-row md:items-start md:justify-center">
-            <aside className="shrink-0 space-y-2 text-center">
-              <div className="card inline-block">
-                <AvatarCanvas recipe={recipe} scale={8} title="your persona" talking={talking} />
-              </div>
-              <div className="text-sm font-medium">{displayName}</div>
-              <div className="flex flex-wrap items-center justify-center gap-1.5">
-                {roleTitle && <span className="chip">{roleTitle}</span>}
-                {mbtiType && <span className="chip font-mono">{mbtiType}</span>}
-              </div>
-            </aside>
-            <section className="w-full min-w-0 md:max-w-xl">
-              {step === 2 && props.clone && (
-                <FaceStep cloneId={props.clone.id} recipe={recipe} onRecipe={setRecipe} onNext={() => go(3)} />
-              )}
-              {step === 3 && props.clone && (
-                <StoryStep
-                  cloneId={props.clone.id}
-                  initial={props.brief ?? { displayName: props.userName, roleTitle: '', team: props.orgName ?? '', briefMd: '', operatingRules: '' }}
-                  onName={setDisplayName}
-                  onRole={setRoleTitle}
-                  onNext={() => go(4)}
-                />
-              )}
-              {step === 4 && props.clone && (
-                <MindStep cloneId={props.clone.id} existingType={mbtiType} onType={setMbtiType} onNext={() => go(5)} />
-              )}
-              {step === 5 && (
-                <ReadyStep displayName={displayName} roleTitle={roleTitle} mbtiType={mbtiType} orgName={props.orgName} />
-              )}
-            </section>
-          </div>
+        <div className="flex w-full flex-col items-center gap-6 md:flex-row md:items-start md:justify-center">
+          <aside className="shrink-0 space-y-2 text-center">
+            <div className="card inline-block">
+              <AvatarCanvas recipe={recipe} scale={8} title="your persona" talking={talking} />
+            </div>
+            <div className="text-sm font-medium">{displayName}</div>
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
+              {roleTitle && <span className="chip">{roleTitle}</span>}
+              {mbtiType && <span className="chip font-mono">{mbtiType}</span>}
+            </div>
+          </aside>
+          <section className="w-full min-w-0 md:max-w-xl">
+            {step === 1 && (
+              <FaceStep cloneId={props.clone.id} recipe={recipe} onRecipe={setRecipe} onNext={() => go(2)} />
+            )}
+            {step === 2 && (
+              <StoryStep
+                cloneId={props.clone.id}
+                initial={props.brief ?? { displayName: props.userName, roleTitle: '', team: '', briefMd: '', operatingRules: '' }}
+                onName={setDisplayName}
+                onRole={setRoleTitle}
+                onNext={() => go(3)}
+              />
+            )}
+            {step === 3 && (
+              <MindStep cloneId={props.clone.id} existingType={mbtiType} onType={setMbtiType} onNext={() => go(4)} />
+            )}
+            {step === 4 && (
+              <ConnectStep hasApiKey={props.hasApiKey} onNext={() => go(5)} />
+            )}
+            {step === 5 && (
+              <ReadyStep displayName={displayName} roleTitle={roleTitle} mbtiType={mbtiType} />
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Step 4: Connect ──────────────────────────────────────────────────────── */
+
+function ConnectStep({ hasApiKey, onNext }: { hasApiKey: boolean; onNext: () => void }) {
+  const [saved, setSaved] = useState(hasApiKey);
+  return (
+    <div className="card space-y-4">
+      <p className="muted text-sm">
+        Chatting runs on <span className="font-medium text-neutral-700 dark:text-neutral-300">your own Anthropic API key</span> — your persona thinks on your account, never anyone else&apos;s.
+        Create one at <a className="underline underline-offset-2" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>, paste it here, done.
+      </p>
+      <ApiKeyForm hasKey={saved} readOnly={false} onSaved={() => setSaved(true)} />
+      <p className="muted text-xs">Stored encrypted (AES-256-GCM), never shown again, removable any time in Settings. Everything else — building, editing, sharing your persona — works without one.</p>
+      <div className="flex items-center gap-4">
+        <button type="button" className="btn-primary" onClick={onNext} disabled={!saved}>Continue</button>
+        {!saved && (
+          <button type="button" className="muted text-sm underline underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200" onClick={onNext}>
+            Skip for now
+          </button>
         )}
       </div>
     </div>
   );
 }
 
-/* ── Step 1: Team ─────────────────────────────────────────────────────────── */
-
-function TeamStep({ userName, error }: { userName: string; error: string | null }) {
-  return (
-    <form action={createOrganizationAction} className="card w-full max-w-sm space-y-3">
-      <p className="muted text-sm">Hi {userName}. Every persona belongs to a team — name yours to begin.</p>
-      <div>
-        <label className="label" htmlFor="name">Team / organization name</label>
-        <input id="name" name="name" className="input" required minLength={2} maxLength={80} placeholder="Acme Security" autoFocus />
-      </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <button className="btn-primary w-full">Create team</button>
-    </form>
-  );
-}
-
-/* ── Step 2: Face ─────────────────────────────────────────────────────────── */
+/* ── Step 1: Face ─────────────────────────────────────────────────────────── */
 
 function FaceStep({ cloneId, recipe, onRecipe, onNext }: {
   cloneId: string;
@@ -226,7 +234,7 @@ function FaceStep({ cloneId, recipe, onRecipe, onNext }: {
   );
 }
 
-/* ── Step 3: Story ────────────────────────────────────────────────────────── */
+/* ── Step 2: Story ────────────────────────────────────────────────────────── */
 
 function StoryStep({ cloneId, initial, onName, onRole, onNext }: {
   cloneId: string;
@@ -281,7 +289,7 @@ function StoryStep({ cloneId, initial, onName, onRole, onNext }: {
   );
 }
 
-/* ── Step 4: Mind ─────────────────────────────────────────────────────────── */
+/* ── Step 3: Mind ─────────────────────────────────────────────────────────── */
 
 function MindStep({ cloneId, existingType, onType, onNext }: {
   cloneId: string;
@@ -333,11 +341,10 @@ function MindStep({ cloneId, existingType, onType, onNext }: {
 
 /* ── Step 5: Ready ────────────────────────────────────────────────────────── */
 
-function ReadyStep({ displayName, roleTitle, mbtiType, orgName }: {
+function ReadyStep({ displayName, roleTitle, mbtiType }: {
   displayName: string;
   roleTitle: string;
   mbtiType: string | null;
-  orgName: string | null;
 }) {
   const snapped = useRef(false);
   useEffect(() => {
@@ -349,14 +356,13 @@ function ReadyStep({ displayName, roleTitle, mbtiType, orgName }: {
   return (
     <div className="card space-y-4">
       <p className="text-sm">
-        <span className="font-medium">{displayName}</span> has joined {orgName ?? 'your team'}.
+        <span className="font-medium">{displayName}</span> is ready.
         It will learn how you think from every conversation — the more you use it, the more it sounds like you.
       </p>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
         <dt className="muted">Name</dt><dd>{displayName}</dd>
         {roleTitle && <><dt className="muted">Role</dt><dd>{roleTitle}</dd></>}
         {mbtiType && <><dt className="muted">Mind</dt><dd className="font-mono">{mbtiType}</dd></>}
-        {orgName && <><dt className="muted">Team</dt><dd>{orgName}</dd></>}
       </dl>
       <div className="flex flex-wrap gap-2">
         <Link href="/chat" className="btn-primary">Start chatting</Link>

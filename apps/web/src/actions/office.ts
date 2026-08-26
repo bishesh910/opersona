@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
 import { getAskAccess } from '@/lib/clones';
+import { orgHasChatKey } from '@/lib/keys';
 import { engineFetch } from '@/lib/engine';
 import { DEFAULT_TITLE_RE } from '@/lib/chat';
 import type { FeedbackVerdict, HistoryTurn } from '@/components/chat/ChatView';
@@ -20,6 +21,7 @@ export interface OfficeChatPayload {
   model: string | null;
   effort: string | null;
   showCost: boolean;
+  keyMissing: boolean;
   userFirstName: string;
   live: boolean;
 }
@@ -58,7 +60,6 @@ export async function openOfficeChat(cloneId: string): Promise<OfficeChatPayload
       .from(schema.reasoningFeedback).where(eq(schema.reasoningFeedback.conversationId, conv!.id));
     for (const f of fb) feedback[f.turnId] = f.verdict;
   }
-  const authMode = await engineFetch<{ mode: string }>('/auth/mode').then((j) => j.mode).catch(() => 'api-key');
   return {
     conversationId: conv!.id,
     slug: conv!.slug,
@@ -70,7 +71,8 @@ export async function openOfficeChat(cloneId: string): Promise<OfficeChatPayload
     cloneName: ask.clone.name,
     model: conv!.model ?? null,
     effort: conv!.effort ?? null,
-    showCost: authMode !== 'host-login',
+    showCost: true,
+    keyMissing: !(await orgHasChatKey(ctx.orgId)),
     userFirstName: (ctx.user.name?.trim().split(/\s+/)[0]) || '',
     live: conv!.status === 'live',
   };

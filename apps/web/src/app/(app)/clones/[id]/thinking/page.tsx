@@ -169,7 +169,6 @@ export default async function ThinkingPage({ params }: { params: Promise<{ id: s
         <div className="mt-6 space-y-8">
           <ClaudeCodePanel
             cloneId={id}
-            showLocalScan={id === process.env.CLAUDE_CODE_LOCAL_CLONE}
             readOnly={ro}
             initialTokens={ccTokens.map((t) => ({ id: t.id, name: t.name, createdAt: t.createdAt.toISOString(), lastUsedAt: t.lastUsedAt?.toISOString() ?? null }))}
             initialSessions={ccSessions.map((s) => ({
