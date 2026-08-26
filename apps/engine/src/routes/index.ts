@@ -8,7 +8,7 @@ import { AvatarRecipe } from '@opersona/shared';
 import { config } from '../config.js';
 import { sendMessage, endSession } from '../sessions/manager.js';
 import { registerDownloads } from './downloads.js';
-import { subscribe } from '../sessions/events.js';
+import { subscribe, turnStartId } from '../sessions/events.js';
 import { resolveApproval } from '../sessions/approvals.js';
 import { publishSnapshot, activePrompt } from '../persona/assemble.js';
 import { recipeFromSelfie } from '../avatar/fromSelfie.js';
@@ -55,7 +55,13 @@ routes.get('/conversations/:id/events', async (c) => {
   const orgId = c.req.query('orgId') ?? '';
   const [conv] = await db.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.id, id), eq(conversations.orgId, orgId))).limit(1);
   if (!conv) return c.json({ error: 'conversation not found' }, 404);
-  const after = Number(c.req.header('last-event-id') ?? 0) || 0;
+  // Reconnects resume via the Last-Event-ID header; fresh mounts may ask for
+  // ?after=turn (replay only the in-flight turn) or a numeric cursor.
+  const header = c.req.header('last-event-id');
+  const afterQ = c.req.query('after');
+  const after = header ? (Number(header) || 0)
+    : afterQ === 'turn' ? turnStartId(id)
+    : Number(afterQ ?? 0) || 0;
   return streamSSE(c, async (stream) => {
     let alive = true;
     const unsub = subscribe(id, (s) => { if (alive) void stream.writeSSE({ id: String(s.id), data: JSON.stringify(s.ev) }); }, after);

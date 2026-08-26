@@ -12,6 +12,7 @@ import Link from 'next/link';
 import type { AvatarRecipe } from '@opersona/shared';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
 import { OfficeChat } from './OfficeChat';
+import { TeamTab, TasksTab } from './CommandCenter';
 
 export interface PanelMember {
   id: string | null;          // cloneId (null → no persona yet)
@@ -35,7 +36,7 @@ const DIM_LABEL: Record<string, string> = {
 };
 
 export function PersonaPanel({ member, total, onClose }: { member: PanelMember | null; total: number; onClose: () => void }) {
-  const [tab, setTab] = useState<'chat' | 'about'>('chat');
+  const [tab, setTab] = useState<'chat' | 'team' | 'tasks' | 'about'>('chat');
   if (!member) {
     return (
       <section className="card flex h-full flex-col items-center justify-center gap-2 text-center">
@@ -58,6 +59,7 @@ export function PersonaPanel({ member, total, onClose }: { member: PanelMember |
       <div className="flex items-start gap-3 px-3 pb-2.5 pt-3">
         <AvatarThumb recipe={member.recipe} name={member.name} scale={2} />
         <div className="min-w-0 flex-1">
+          {member.boss && <p className="font-mono text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-500">Command Center</p>}
           <div className="flex items-center gap-1.5">
             <h2 className="truncate text-sm font-semibold">{member.name}</h2>
             {member.boss && <span className="chip shrink-0">★ boss</span>}
@@ -65,7 +67,7 @@ export function PersonaPanel({ member, total, onClose }: { member: PanelMember |
             {member.mine && <span className="chip shrink-0">you</span>}
           </div>
           <p className="muted truncate text-xs">
-            {[member.role, member.team].filter(Boolean).join(' · ') || (member.id ? (member.owner !== member.name ? member.owner : 'persona') : 'no persona yet')}
+            {member.boss ? `${member.name.split(' ')[0]} runs the floor` : [member.role, member.team].filter(Boolean).join(' · ') || (member.id ? (member.owner !== member.name ? member.owner : 'persona') : 'no persona yet')}
           </p>
         </div>
         {member.id && <Link href={`/clones/${member.id}`} className="muted mt-0.5 shrink-0 text-[11px] hover:underline">full persona →</Link>}
@@ -75,7 +77,7 @@ export function PersonaPanel({ member, total, onClose }: { member: PanelMember |
       {member.id ? (
         <>
           <div role="tablist" aria-label="Persona panel" className="flex gap-1 border-b border-neutral-100 px-3 dark:border-neutral-800">
-            {(['chat', 'about'] as const).map((t) => (
+            {(member.boss ? (['chat', 'team', 'tasks', 'about'] as const) : (['chat', 'about'] as const)).map((t) => (
               <button
                 key={t}
                 role="tab"
@@ -86,12 +88,16 @@ export function PersonaPanel({ member, total, onClose }: { member: PanelMember |
                     ? 'border-amber-500 text-neutral-900 dark:text-neutral-100'
                     : 'border-transparent text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300')}
               >
-                {t === 'chat' ? (member.mine ? 'Test chat' : 'Chat') : 'About'}
+                {t === 'chat' ? (member.boss ? 'Dispatch' : member.mine ? 'Test chat' : 'Chat') : t === 'team' ? 'Team' : t === 'tasks' ? 'Tasks' : 'About'}
               </button>
             ))}
           </div>
           {tab === 'chat' ? (
             <OfficeChat cloneId={member.id} avatar={member.recipe} />
+          ) : tab === 'team' ? (
+            <TeamTab />
+          ) : tab === 'tasks' ? (
+            <TasksTab />
           ) : (
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
               {member.accuracyPct !== null && (

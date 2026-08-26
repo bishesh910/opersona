@@ -29,3 +29,21 @@ export function subscribe(conversationId: string, fn: (s: Stored) => void, after
   b.subs.add(fn);
   return () => { b.subs.delete(fn); };
 }
+
+/** Replay cursor for "just the in-flight turn": everything after the last
+ *  result/error boundary. If nothing is in flight (the ring ends on a result),
+ *  the boundary result itself is replayed so a late-joining client can clear
+ *  its "still replying" state. */
+export function turnStartId(conversationId: string): number {
+  const b = buses.get(conversationId);
+  if (!b || b.ring.length === 0) return 0;
+  let lastResult = -1;
+  for (let i = b.ring.length - 1; i >= 0; i--) {
+    const t = b.ring[i]!.ev.type;
+    if (t === 'result' || t === 'error') { lastResult = i; break; }
+  }
+  if (lastResult === -1) return 0;
+  const boundary = b.ring[lastResult]!;
+  const tailIsResult = lastResult === b.ring.length - 1;
+  return tailIsResult ? boundary.id - 1 : boundary.id;
+}

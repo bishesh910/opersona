@@ -48,6 +48,7 @@ export default async function AskConversationPage({ params }: { params: Promise<
           canResolveApprovals={false}
           userFirstName={(ctx.user.name?.trim().split(/\s+/)[0]) || ''}
           showCost={authMode !== 'host-login'}
+          initialLive={conv.status === 'live'}
         />
       </div>
     </div>

@@ -1,5 +1,5 @@
 'use server';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, like } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
@@ -21,6 +21,7 @@ export interface OfficeChatPayload {
   effort: string | null;
   showCost: boolean;
   userFirstName: string;
+  live: boolean;
 }
 
 /**
@@ -71,6 +72,7 @@ export async function openOfficeChat(cloneId: string): Promise<OfficeChatPayload
     effort: conv!.effort ?? null,
     showCost: authMode !== 'host-login',
     userFirstName: (ctx.user.name?.trim().split(/\s+/)[0]) || '',
+    live: conv!.status === 'live',
   };
 }
 
@@ -86,5 +88,55 @@ export async function setBossAction(cloneId: string | null): Promise<void> {
   }
   await db.insert(schema.orgSettings).values({ orgId: ctx.orgId, bossCloneId: cloneId })
     .onConflictDoUpdate({ target: schema.orgSettings.orgId, set: { bossCloneId: cloneId } });
+  revalidatePath('/office');
+}
+
+export interface CommandCenterData {
+  team: { cloneId: string; name: string; role: string; kind: 'member' | 'hired'; archived: boolean; boss: boolean }[];
+  tasks: { slug: string; cloneId: string; assignee: string; title: string; status: string; hasResult: boolean; at: string }[];
+  canManage: boolean;
+}
+
+/** The boss panel's floor data: the whole team (hired + archived included) and
+ *  YOUR delegated tasks with live status. Team identity is org-visible; tasks
+ *  are only ever the caller's own conversations. */
+export async function openCommandCenter(): Promise<CommandCenterData> {
+  const ctx = await requireOrg();
+  const [settings] = await db.select({ bossCloneId: schema.orgSettings.bossCloneId }).from(schema.orgSettings).where(eq(schema.orgSettings.orgId, ctx.orgId)).limit(1);
+  const rows = await db
+    .select({ id: schema.clones.id, name: schema.clones.name, kind: schema.clones.kind, archivedAt: schema.clones.archivedAt })
+    .from(schema.clones).where(eq(schema.clones.orgId, ctx.orgId)).orderBy(desc(schema.clones.createdAt));
+  const briefs = rows.length
+    ? await db.select({ cloneId: schema.personaBriefs.cloneId, roleTitle: schema.personaBriefs.roleTitle })
+        .from(schema.personaBriefs)
+    : [];
+  const roleOf = new Map(briefs.map((b) => [b.cloneId, b.roleTitle]));
+  const convs = await db
+    .select({ slug: schema.conversations.slug, cloneId: schema.conversations.cloneId, title: schema.conversations.title, status: schema.conversations.status, createdAt: schema.conversations.createdAt, id: schema.conversations.id })
+    .from(schema.conversations)
+    .where(and(eq(schema.conversations.orgId, ctx.orgId), eq(schema.conversations.userId, ctx.userId), like(schema.conversations.title, 'Task from %')))
+    .orderBy(desc(schema.conversations.createdAt)).limit(12);
+  const nameOf = new Map(rows.map((r) => [r.id, r.name]));
+  const withResult = new Set<string>();
+  for (const cv of convs) {
+    const [t] = await db.select({ id: schema.turns.id }).from(schema.turns)
+      .where(and(eq(schema.turns.conversationId, cv.id), eq(schema.turns.role, 'assistant'))).limit(1);
+    if (t) withResult.add(cv.id);
+  }
+  return {
+    team: rows.map((r) => ({ cloneId: r.id, name: r.name, role: roleOf.get(r.id) ?? '', kind: r.kind, archived: !!r.archivedAt, boss: r.id === settings?.bossCloneId })),
+    tasks: convs.map((cv) => ({ slug: cv.slug, cloneId: cv.cloneId, assignee: nameOf.get(cv.cloneId) ?? 'persona', title: cv.title, status: cv.status, hasResult: withResult.has(cv.id), at: cv.createdAt.toISOString() })),
+    canManage: ctx.role === 'owner' || ctx.role === 'admin',
+  };
+}
+
+/** Admin lever mirroring the boss's archive/rehire tools (hired personas only). */
+export async function setHiredArchivedAction(cloneId: string, archived: boolean): Promise<void> {
+  const ctx = await requireOrg();
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') throw new Error('Only org admins');
+  const [row] = await db.select({ kind: schema.clones.kind }).from(schema.clones)
+    .where(and(eq(schema.clones.id, cloneId), eq(schema.clones.orgId, ctx.orgId))).limit(1);
+  if (!row || row.kind !== 'hired') throw new Error('Only hired personas can be archived');
+  await db.update(schema.clones).set({ archivedAt: archived ? new Date() : null }).where(eq(schema.clones.id, cloneId));
   revalidatePath('/office');
 }

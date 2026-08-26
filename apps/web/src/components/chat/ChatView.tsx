@@ -196,7 +196,7 @@ function Title({ conversationId, title, canEdit, editing, setEditing, onRenamed 
 export function ChatView({
   cloneId, cloneName, avatar, conversationId, history, readOnly, canResolveApprovals, feedback: initialFeedback = {}, mode = 'claude',
   title: initialTitle = '', model: initialModel = null, effort: initialEffort = null, userFirstName = '', showCost = true,
-  visitorView = false, newHref, embedded = false,
+  visitorView = false, newHref, embedded = false, initialLive = false,
 }: {
   mode?: 'claude' | 'clone'; cloneId: string; cloneName: string; avatar: AvatarRecipe | null; conversationId: string; history: HistoryTurn[]; readOnly: boolean; canResolveApprovals: boolean;
   /**
@@ -207,6 +207,10 @@ export function ChatView({
   visitorView?: boolean;
   /** Inside the office side panel: skip the header bar (the panel provides identity + actions). */
   embedded?: boolean;
+  /** The engine is still generating for this conversation: show the thinking state
+   *  immediately and replay the in-flight turn's events (nothing gets lost when you
+   *  click away mid-reply and come back). */
+  initialLive?: boolean;
   /** Where "+ New" points (default: /chat?new=1). */
   newHref?: string;
   /** Existing "that's me / not me" verdicts by turn id (so they survive a reload). */
@@ -228,7 +232,7 @@ export function ChatView({
   const [effort, setEffort] = useState<EffortValue | null>(initialEffort);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [replying, setReplying] = useState(false);
+  const [replying, setReplying] = useState(initialLive);
   const [connected, setConnected] = useState<'connecting' | 'open' | 'closed'>('connecting');
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -331,9 +335,12 @@ export function ChatView({
 
   useEffect(() => {
     // Resume after the last event this tab saw so a reload does not replay the whole ring buffer over the history.
+    // While the engine is mid-reply, replay the whole in-flight TURN instead — the
+    // stored cursor would skip the partial text streamed before we unmounted.
     const storeKey = `chat.ev.${conversationId}`;
     let after = '';
-    try { after = sessionStorage.getItem(storeKey) ?? ''; } catch { /* no storage */ }
+    if (initialLive) after = 'turn';
+    else try { after = sessionStorage.getItem(storeKey) ?? ''; } catch { /* no storage */ }
     const es = new EventSource(`/api/engine/conversations/${conversationId}/events${after ? `?after=${encodeURIComponent(after)}` : ''}`);
     es.onopen = () => setConnected('open');
     es.onerror = () => setConnected(es.readyState === EventSource.CLOSED ? 'closed' : 'connecting');
@@ -342,7 +349,7 @@ export function ChatView({
       try { apply(JSON.parse(m.data) as EngineEvent); } catch { /* ignore malformed */ }
     };
     return () => es.close();
-  }, [conversationId, apply]);
+  }, [conversationId, apply, initialLive]);
 
   // Follow the stream only while the reader is already near the bottom.
   useEffect(() => { if (stickToBottom.current) bottomRef.current?.scrollIntoView({ block: 'end' }); }, [items]);
