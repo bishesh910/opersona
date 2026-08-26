@@ -26,7 +26,7 @@ export default async function AskConversationPage({ params }: { params: Promise<
   const authMode = await engineFetch<{ mode: string }>('/auth/mode').then((j) => j.mode).catch(() => 'api-key');
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col md:h-[calc(100vh-3.25rem)]">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 px-1 pb-2">
         <Link href={`/ask/${ask.clone.id}`} className="muted text-xs hover:underline">← my questions to {ask.clone.name}</Link>
       </div>

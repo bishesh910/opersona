@@ -41,7 +41,7 @@ export default async function CommandCenterPage() {
   }));
 
   return (
-    <div className="flex h-[calc(100dvh-180px)] min-h-[440px] flex-col md:h-[calc(100dvh-90px)]">
+    <div className="flex h-full min-h-[440px] flex-col">
       <CommandCenterView members={members} bossCloneId={bossCloneId} canStar={ctx.role === 'owner' || ctx.role === 'admin'} />
     </div>
   );
