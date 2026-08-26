@@ -26,6 +26,10 @@ export class Character {
   onArrive: (() => void) | null = null;
   glyph: Glyph = 'none';
   glyphT = 0;
+  /** meeting/cafe chatter: alternate the talk frames while seated facing front */
+  talking = false;
+  talkFrames: HTMLCanvasElement[] | null = null; // [closed, open]
+  faceFlip = false; // mirrored front pose (turn toward a partner)
   private animT = 0;
   private animI = 0;
   private pauseT = 0;
@@ -146,8 +150,11 @@ export class Character {
   /** Draw at the feet anchor with sit nudge + crop. ctx is in world space. */
   draw(ctx: CanvasRenderingContext2D, t: number, selected: boolean): void {
     const backSprite = this.dir === 'up';
-    const flip = this.dir === 'left';
-    const frame = this.frames[(backSprite ? 3 : 0) + (this.path.length ? WALK_SEQ[this.animI]! : 0)]!;
+    const flip = this.dir === 'left' || (this.dir === 'down' && this.faceFlip);
+    let frame = this.frames[(backSprite ? 3 : 0) + (this.path.length ? WALK_SEQ[this.animI]! : 0)]!;
+    if (this.talking && this.talkFrames && !this.path.length && this.dir !== 'up') {
+      frame = this.talkFrames[Math.floor(t / 0.16) % 2]!; // mouth open/closed
+    }
     const r = this.hitRect();
     const { ox, oy } = r;
     const drawH = r.h;

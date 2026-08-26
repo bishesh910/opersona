@@ -21,7 +21,7 @@ const mix = (a: RGB, b: RGB, t: number): RGB => [clamp(a[0] + (b[0] - a[0]) * t)
 const lighten = (c: RGB, f: number): RGB => [clamp(c[0] * f + 18), clamp(c[1] * f + 18), clamp(c[2] * f + 18)];
 const darken = (c: RGB, f: number): RGB => [clamp(c[0] * f), clamp(c[1] * f), clamp(c[2] * f)];
 
-export function renderWalkerV2(r: AvatarRecipe, phase: Phase, back: boolean): Buf {
+export function renderWalkerV2(r: AvatarRecipe, phase: Phase, back: boolean, opts?: { mouthOpen?: boolean }): Buf {
   const buf = new Uint8ClampedArray(WALKER_W * WALKER_H * 4);
   const s = SKIN[r.skin];
   const put = (x: number, y: number, c: RGB): void => {
@@ -112,6 +112,12 @@ export function renderWalkerV2(r: AvatarRecipe, phase: Phase, back: boolean): Bu
         if (head[i + 3]! > 0 && y + bob >= 0) put(x, y + bob, [head[i]!, head[i + 1]!, head[i + 2]!]);
       }
     }
+    if (opts?.mouthOpen) { // talking frame: open the mouth
+      hrow(15, 20, 21 + bob, s.base); hrow(15, 20, 23 + bob, s.base); // clear smile corners
+      hrow(16, 19, 21 + bob, [96, 46, 48]);
+      hrow(16, 19, 22 + bob, [58, 30, 34]);
+      hrow(17, 18, 23 + bob, [96, 46, 48]);
+    }
   } else {
     drawHeadBack(r, put, hrow, bob);
   }
@@ -177,4 +183,9 @@ export function walkerFramesV2(r: AvatarRecipe): WalkerFrames {
     front: [renderWalkerV2(r, 0, false), renderWalkerV2(r, 1, false), renderWalkerV2(r, 2, false)],
     back: [renderWalkerV2(r, 0, true), renderWalkerV2(r, 1, true), renderWalkerV2(r, 2, true)],
   };
+}
+
+/** Talking pair for the front stand pose: [mouth closed, mouth open]. */
+export function walkerTalkFramesV2(r: AvatarRecipe): [Buf, Buf] {
+  return [renderWalkerV2(r, 0, false), renderWalkerV2(r, 0, false, { mouthOpen: true })];
 }

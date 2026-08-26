@@ -1,0 +1,193 @@
+{
+ "primarySeatNames": [
+  "desk-ceo",
+  "pc-1",
+  "pc-2",
+  "pc-3",
+  "pc-4",
+  "pc-5",
+  "pc-6",
+  "pc-7",
+  "pc-8"
+ ],
+ "cafeSeatNames": [
+  "cafe-seat-1",
+  "cafe-seat-2",
+  "cafe-seat-3",
+  "cafe-seat-4"
+ ],
+ "cafeStands": [
+  [
+   "cafe-stand-coffee",
+   "coffee"
+  ],
+  [
+   "cafe-stand-vending",
+   "vending"
+  ]
+ ],
+ "meetSeats": [
+  {
+   "name": "meet-1",
+   "facing": "down"
+  },
+  {
+   "name": "meet-2",
+   "facing": "down"
+  }
+ ],
+ "coffee": {
+  "trayTile": {
+   "x": 26,
+   "y": 2
+  },
+  "trayStand": {
+   "x": 26,
+   "y": 3
+  },
+  "machineStand": {
+   "x": 25,
+   "y": 3
+  },
+  "sinkTile": {
+   "x": 28,
+   "y": 2
+  },
+  "sinkStand": {
+   "x": 28,
+   "y": 3
+  }
+ },
+ "errandSpots": [
+  {
+   "kind": "water",
+   "stand": {
+    "x": 1,
+    "y": 5
+   },
+   "facing": "up",
+   "fx": {
+    "x": 1,
+    "y": 4
+   },
+   "duration": 4.5,
+   "bossOnly": true
+  },
+  {
+   "kind": "water",
+   "stand": {
+    "x": 7,
+    "y": 13
+   },
+   "facing": "up",
+   "fx": {
+    "x": 7,
+    "y": 12
+   },
+   "duration": 4.5
+  },
+  {
+   "kind": "water",
+   "stand": {
+    "x": 17,
+    "y": 13
+   },
+   "facing": "up",
+   "fx": {
+    "x": 17,
+    "y": 12
+   },
+   "duration": 4.5
+  },
+  {
+   "kind": "water",
+   "stand": {
+    "x": 24,
+    "y": 14
+   },
+   "facing": "up",
+   "fx": {
+    "x": 24,
+    "y": 13
+   },
+   "duration": 4.5
+  },
+  {
+   "kind": "window",
+   "stand": {
+    "x": 13,
+    "y": 3
+   },
+   "facing": "up",
+   "fx": {
+    "x": 13,
+    "y": 1
+   },
+   "duration": 5
+  },
+  {
+   "kind": "dispenser",
+   "stand": {
+    "x": 36,
+    "y": 3
+   },
+   "facing": "up",
+   "fx": {
+    "x": 36,
+    "y": 2
+   },
+   "duration": 3.5
+  },
+  {
+   "kind": "fridge",
+   "stand": {
+    "x": 30,
+    "y": 3
+   },
+   "facing": "up",
+   "fx": {
+    "x": 30,
+    "y": 2
+   },
+   "duration": 3.2
+  },
+  {
+   "kind": "bin",
+   "stand": {
+    "x": 37,
+    "y": 4
+   },
+   "facing": "right",
+   "fx": {
+    "x": 38,
+    "y": 4
+   },
+   "duration": 2.6
+  }
+ ],
+ "monitor": {
+  "offTopLeftGid": 365,
+  "onGids": [
+   [
+    367,
+    0,
+    0
+   ],
+   [
+    368,
+    1,
+    0
+   ],
+   [
+    383,
+    0,
+    1
+   ],
+   [
+    384,
+    1,
+    1
+   ]
+  ]
+ }
+}

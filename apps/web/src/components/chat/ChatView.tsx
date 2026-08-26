@@ -275,6 +275,10 @@ export function ChatView({
           return next;
         }
         case 'tool_result': {
+          try {
+            const tu = next.find((i) => i.kind === 'tool' && i.tool.id === ev.id) as Extract<Item, { kind: 'tool' }> | undefined;
+            if (tu) window.dispatchEvent(new CustomEvent('opersona:tool-result', { detail: { conversationId, name: tu.tool.name, input: tu.tool.input, ok: ev.ok } }));
+          } catch { /* ok */ }
           const idx = next.findIndex((i) => i.kind === 'tool' && i.tool.id === ev.id);
           if (idx >= 0) { const it = next[idx] as Extract<Item, { kind: 'tool' }>; next[idx] = { ...it, tool: { ...it.tool, ok: ev.ok, preview: ev.preview } }; }
           return next;

@@ -255,34 +255,15 @@ export class Camera {
   }
 }
 
-/* ── theme (OFFICE_THEME, ported values) ─────────────────────────────────── */
-export const THEME = {
-  primarySeatNames: [
-    'desk-ceo',
-    'pc-1', 'pc-2', 'pc-3', 'pc-4', 'pc-5', 'pc-6',
-    'desk-chief-architect', 'desk-product-manager', 'desk-team-lead',
-    'desk-backend-engineer', 'desk-ui-ux-expert', 'desk-data-engineer',
-    'desk-project-manager', 'desk-market-researcher', 'desk-agent-organizer',
-  ],
-  cafeSeatNames: ['cafe-seat-1', 'cafe-seat-2', 'cafe-seat-3', 'cafe-seat-4'],
-  cafeStands: [['cafe-stand-coffee', 'coffee'], ['cafe-stand-vending', 'vending']] as [string, string][],
-  coffee: {
-    trayTile: { x: 29, y: 15 }, trayStand: { x: 29, y: 16 },
-    machineStand: { x: 26, y: 20 }, sinkTile: { x: 28, y: 18 }, sinkStand: { x: 28, y: 20 },
-    maxCups: 4,
-  },
-  errandSpots: [
-    { kind: 'water', stand: { x: 2, y: 20 }, facing: 'left', fx: { x: 1, y: 20 }, duration: 4.5 },
-    { kind: 'water', stand: { x: 22, y: 20 }, facing: 'right', fx: { x: 23, y: 20 }, duration: 4.5 },
-    { kind: 'water', stand: { x: 30, y: 20 }, facing: 'right', fx: { x: 31, y: 20 }, duration: 4.5 },
-    { kind: 'water', stand: { x: 6, y: 4 }, facing: 'up', fx: { x: 6, y: 3 }, duration: 4.5, bossOnly: true },
-    { kind: 'water', stand: { x: 17, y: 4 }, facing: 'up', fx: { x: 17, y: 3 }, duration: 4.5 },
-    { kind: 'window', stand: { x: 10, y: 3 }, facing: 'up', fx: { x: 10, y: 1 }, duration: 5 },
-    { kind: 'window', stand: { x: 15, y: 3 }, facing: 'up', fx: { x: 14, y: 1 }, duration: 5 },
-    { kind: 'dispenser', stand: { x: 16, y: 3 }, facing: 'down', fx: { x: 16, y: 4 }, duration: 3.5 },
-    { kind: 'dispenser', stand: { x: 32, y: 4 }, facing: 'up', fx: { x: 32, y: 3 }, duration: 3.5 },
-    { kind: 'fridge', stand: { x: 29, y: 20 }, facing: 'up', fx: { x: 29, y: 19 }, duration: 3.2 },
-    { kind: 'bin', stand: { x: 18, y: 20 }, facing: 'left', fx: { x: 17, y: 20 }, duration: 2.6 },
-  ] as { kind: string; stand: Pt; facing: 'up' | 'down' | 'left' | 'right'; fx: Pt; duration: number; bossOnly?: boolean }[],
-  monitor: { offTopLeftGid: 365, onGids: [[367, 0, 0], [368, 1, 0], [383, 0, 1], [384, 1, 1]] as [number, number, number][] },
-} as const;
+/* ── theme: generated alongside the map by tools/office-map/build.py ──────── */
+import themeJson from './office-theme.json';
+
+export interface ThemeCfg {
+  primarySeatNames: string[];
+  cafeSeatNames: string[];
+  cafeStands: [string, string][];
+  meetSeats: { name: string; facing: 'up' | 'down' | 'left' | 'right' }[];
+  errandSpots: { kind: string; stand: Pt; facing: 'up' | 'down' | 'left' | 'right'; fx: Pt; duration: number; bossOnly?: boolean }[];
+  monitor: { offTopLeftGid: number; onGids: [number, number, number][] };
+}
+export const THEME = themeJson as unknown as ThemeCfg;

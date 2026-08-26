@@ -9,7 +9,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { AvatarRecipe } from '@opersona/shared';
-import { walkerFramesV2, WALKER_W, WALKER_H } from '@/lib/pixel-avatar';
+import { walkerFramesV2, walkerTalkFramesV2, WALKER_W, WALKER_H } from '@/lib/pixel-avatar';
 import { buildWorld, Camera, THEME, TILE, type Pt, type World, type TiledMap } from './engine';
 import { Character, type Dir } from './character';
 import { SOLO_LINES, PAIR_EXCHANGES, pick } from './lines';
@@ -148,10 +148,12 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
       };
       const runtimes: Runtime[] = ordered.map((m) => {
         const f = m.recipe ? walkerFramesV2(m.recipe) : (() => { const n = walkerFramesV2(NEUTRAL); return { front: n.front.map(grey), back: n.back.map(grey) }; })();
+        const tf = m.recipe ? walkerTalkFramesV2(m.recipe) : (walkerTalkFramesV2(NEUTRAL).map(grey) as [Uint8ClampedArray, Uint8ClampedArray]);
         const seatIdx = m.boss ? 0 : nextSeat++;
         const seat = seatTiles[seatIdx] ?? overflowSpot();
         takenTiles.add(`${seat.x},${seat.y}`);
         const ch = new Character(m.id, [...f.front, ...f.back].map(toCanvas), seat);
+        ch.talkFrames = [toCanvas(tf[0]), toCanvas(tf[1])];
         ch.seatTile = seat;
         ch.seatFacing = facingFor(seat);
         ch.sitAt(seat, ch.seatFacing, true);
@@ -172,7 +174,10 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
       let nextEnvelopeAt = 12 + Math.random() * 14;
       let clock = 0;
       const envelopes: Envelope[] = [];
-      const say = (rt: Runtime, text: string, dur = 3): void => { rt.bubble = { text, t: 0, dur, lift: 0 }; };
+      const say = (rt: Runtime, text: string, dur = 3): void => {
+        rt.bubble = { text, t: 0, dur, lift: 0 };
+        if (rt.ch.dir !== 'up') rt.ch.talking = true;
+      };
 
       const cafeTaken = new Set<Pt>();
       const sendOnBreak = (rt: Runtime): void => {
@@ -209,6 +214,42 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
           rt.busy = 'none';
         })) return;
         rt.busy = 'none';
+      };
+      /* ── consult meetings: the two personas actually meet in the boardroom ── */
+      const meetSeats = THEME.meetSeats
+        .map((ms) => ({ tile: world.spawns.get(ms.name), facing: ms.facing }))
+        .filter((ms) => ms.tile) as { tile: Pt; facing: 'up' | 'down' | 'left' | 'right' }[];
+      interface Meeting { a: Runtime; b: Runtime; phase: 'walk' | 'talk'; endAt: number; talkT: number; speaker: 0 | 1; ok?: boolean }
+      let meeting: Meeting | null = null;
+      const meetingHas = (rt: Runtime): boolean => !!meeting && (meeting.a === rt || meeting.b === rt);
+      const CONSULT_LINES: [string, string][] = [
+        ['got a sec? quick question', 'sure — go ahead'],
+        ['here’s the gist…', 'hmm, let me think'],
+        ['so what would you do?', 'ok, here’s my take'],
+        ['that helps — thanks!', 'anytime'],
+      ];
+      const interrupt = (rt: Runtime): void => {
+        rt.ch.stopIdleLoop(); rt.ch.standUp();
+        if (rt.cafeSeat) { cafeTaken.delete(rt.cafeSeat); rt.cafeSeat = null; }
+        rt.bubble = null; rt.ch.talking = false;
+        rt.busy = 'none';
+      };
+      const startMeeting = (a2: Runtime, b2: Runtime): void => {
+        if (meeting || meetSeats.length < 2) return;
+        interrupt(a2); interrupt(b2);
+        a2.busy = 'errand'; b2.busy = 'errand'; // excluded from breaks while meeting
+        meeting = { a: a2, b: b2, phase: 'walk', endAt: clock + 150, talkT: 2.2, speaker: 0 };
+        const s0 = meetSeats[0]!, s1 = meetSeats[1]!;
+        a2.ch.walkTo(world, s0.tile, () => { a2.ch.sitAt(s0.tile, s0.facing, false); a2.ch.faceFlip = false; });
+        b2.ch.walkTo(world, s1.tile, () => { b2.ch.sitAt(s1.tile, s1.facing, false); b2.ch.faceFlip = true; });
+      };
+      const endMeeting = (ok: boolean): void => {
+        if (!meeting) return;
+        const { a: a2, b: b2 } = meeting;
+        meeting = null;
+        for (const rt of [a2, b2]) { rt.ch.talking = false; rt.ch.faceFlip = false; rt.bubble = null; }
+        if (ok) a2.ch.setGlyph('success');
+        endBreak(a2); endBreak(b2);
       };
       const sendOnErrand = (rt: Runtime): void => {
         const spots = THEME.errandSpots.filter((s) => (!s.bossOnly || rt.m.boss));
@@ -383,11 +424,20 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
           const tw = Math.min(150, ctx.measureText(b.text).width + 14);
           placed.push({ x: sx - tw / 2, y: sy - 24, w: tw, h: 22, rt });
         }
-        // overlap resolver: sort by bottom edge, push upward
+        // overlap resolver: sort by bottom edge, push upward (iterate to a fixed point
+        // so simultaneous bubbles never overlap-erase each other), then clamp on-screen
         placed.sort((a, b) => a.y + a.h - (b.y + b.h) || a.x - b.x);
-        for (let i = 0; i < placed.length; i++) for (let j = 0; j < i; j++) {
-          const a = placed[i]!, b = placed[j]!;
-          if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) a.y = b.y - a.h - 2;
+        for (let pass = 0; pass < 4; pass++) {
+          let moved = false;
+          for (let i = 0; i < placed.length; i++) for (let j = 0; j < i; j++) {
+            const a = placed[i]!, b = placed[j]!;
+            if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) { a.y = b.y - a.h - 2; moved = true; }
+          }
+          if (!moved) break;
+        }
+        for (const p2 of placed) {
+          p2.x = Math.max(4, Math.min(cam.viewW - p2.w - 4, p2.x));
+          p2.y = Math.max(4, p2.y);
         }
         for (const p of placed) {
           const b = p.rt.bubble!;
@@ -436,7 +486,7 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
         for (const rt of runtimes) {
           rt.ch.update(dt, world);
           rt.termPhase += dt * 3;
-          if (rt.bubble) { rt.bubble.t += dt; if (rt.bubble.t > rt.bubble.dur) rt.bubble = null; }
+          if (rt.bubble) { rt.bubble.t += dt; if (rt.bubble.t > rt.bubble.dur) { rt.bubble = null; if (!meetingHas(rt)) rt.ch.talking = false; } }
         }
         // cafeteria director: every 6–12s maybe send someone on a break (max 4 out)
         if (clock > nextBreakAt) {
@@ -449,8 +499,26 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
         }
         if (clock > nextErrandAt) {
           nextErrandAt = clock + 16 + Math.random() * 14;
-          const cand = runtimes.filter((r) => r.busy === 'none');
+          const cand = runtimes.filter((r) => r.busy === 'none' && !meetingHas(r));
           if (cand.length && Math.random() < 0.6) sendOnErrand(pick(cand));
+        }
+        // the boardroom conversation: alternate speakers, mouths moving
+        if (meeting) {
+          const m2 = meeting;
+          if (m2.phase === 'walk' && m2.a.ch.sitting && m2.b.ch.sitting && !m2.a.ch.path.length && !m2.b.ch.path.length) m2.phase = 'talk';
+          if (m2.phase === 'talk') {
+            m2.talkT += dt;
+            if (m2.talkT > 2.2) {
+              m2.talkT = 0;
+              const beat = CONSULT_LINES[Math.floor(Math.random() * CONSULT_LINES.length)]!;
+              const speakerRt = m2.speaker === 0 ? m2.a : m2.b;
+              const otherRt = m2.speaker === 0 ? m2.b : m2.a;
+              say(speakerRt, beat[m2.speaker]!, 2);
+              otherRt.ch.talking = false;
+              m2.speaker = m2.speaker === 0 ? 1 : 0;
+            }
+          }
+          if (clock > m2.endAt) endMeeting(m2.ok ?? false);
         }
         // ambient mail between two desks
         if (clock > nextEnvelopeAt) {
@@ -487,10 +555,19 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
         const to = q2 ? runtimes.find((r) => r.m.name.toLowerCase().includes(q2) || q2.includes(r.m.name.toLowerCase())) : undefined;
         if (!from || !to || from === to) return;
         envelopes.push({ from: { x: from.ch.x, y: from.ch.y - WALKER_H / 2 }, to: { x: to.ch.x, y: to.ch.y - WALKER_H / 2 }, t: 0, dur: 1.6, color: '#9ecbf0', burst: 0 });
-        to.bubble = { text: '…', t: 0, dur: 3.2, lift: 0 };
+        startMeeting(from, to);
+      };
+      const onToolResult = (e: Event): void => {
+        const d = (e as CustomEvent<{ name?: string; ok?: boolean }>).detail;
+        if (!d?.name?.endsWith('ask_colleague') || !meeting) return;
+        // the relay can resolve faster than the walk — let the meetup play out:
+        // give them time to arrive and trade a couple of beats before wrapping
+        meeting.endAt = Math.min(meeting.endAt, clock + (meeting.phase === 'talk' ? 3 : 11));
+        meeting.ok = d.ok !== false;
       };
       window.addEventListener('opersona:tool', onTool);
-      cleanup.push(() => window.removeEventListener('opersona:tool', onTool));
+      window.addEventListener('opersona:tool-result', onToolResult);
+      cleanup.push(() => { window.removeEventListener('opersona:tool', onTool); window.removeEventListener('opersona:tool-result', onToolResult); });
     })();
 
     return () => { dead = true; cleanup.forEach((fn) => fn()); };
