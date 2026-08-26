@@ -146,8 +146,8 @@ export interface Pt { x: number; y: number }
 export function findPath(walk: boolean[][], start: Pt, goal: Pt): Pt[] | null {
   const rows = walk.length, cols = walk[0]?.length ?? 0;
   const ok = (p: Pt): boolean => p.x >= 0 && p.y >= 0 && p.x < cols && p.y < rows && walk[p.y]![p.x]!;
-  if (!ok(goal)) return null;
   if (start.x === goal.x && start.y === goal.y) return [];
+  if (!ok(goal)) return null;
   const key = (p: Pt): string => `${p.x},${p.y}`;
   const seen = new Set<string>([key(start)]);
   const prev = new Map<string, Pt>();
@@ -198,9 +198,10 @@ export class Camera {
     this.tx = x; this.ty = y;
     if (zoom !== undefined) this.tzoom = Math.max(this.minZoom, Math.min(this.maxZoom, zoom));
   }
-  /** Gentle pan 40% of the way toward a point over 1.2s (original nudgeToward). */
-  nudgeToward(x: number, y: number): void {
-    if (this.manual) return;
+  /** Gentle pan toward a point over 1.2s (original nudgeToward). `force` is for
+   *  explicit selections, which should pan even after the user grabbed the camera. */
+  nudgeToward(x: number, y: number, force = false): void {
+    if (this.manual && !force) return;
     this.nudge = { dx: (x - this.x) * 0.4, dy: (y - this.y) * 0.4, t: 0, dur: 1.2 };
   }
   /** NEW: wheel zoom about a screen point. */
@@ -225,10 +226,12 @@ export class Camera {
   }
   private clamp(): void {
     const halfW = this.viewW / 2 / this.zoom, halfH = this.viewH / 2 / this.zoom;
-    if (this.worldW * this.zoom <= this.viewW) this.x = this.tx = this.worldW / 2;
-    else this.x = this.tx = Math.max(halfW, Math.min(this.worldW - halfW, this.x));
-    if (this.worldH * this.zoom <= this.viewH) this.y = this.ty = this.worldH / 2;
-    else this.y = this.ty = Math.max(halfH, Math.min(this.worldH - halfH, this.y));
+    const cx = (v: number) => this.worldW * this.zoom <= this.viewW ? this.worldW / 2 : Math.max(halfW, Math.min(this.worldW - halfW, v));
+    const cy = (v: number) => this.worldH * this.zoom <= this.viewH ? this.worldH / 2 : Math.max(halfH, Math.min(this.worldH - halfH, v));
+    // clamp position and TARGET independently — assigning tx from x would zero the
+    // lerp delta every frame and kill smooth pans (the original clamps render only)
+    this.x = cx(this.x); this.tx = cx(this.tx);
+    this.y = cy(this.y); this.ty = cy(this.ty);
   }
   update(dt: number): void {
     this.zoom += (this.tzoom - this.zoom) * LERP;

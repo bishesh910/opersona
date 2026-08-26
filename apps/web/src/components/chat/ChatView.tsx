@@ -266,6 +266,8 @@ export function ChatView({
         }
         case 'tool_use': {
           if (next.some((i) => i.kind === 'tool' && i.tool.id === ev.id)) return prev; // replay
+          // Broadcast for ambient listeners (the office animates a mail envelope on consults).
+          try { window.dispatchEvent(new CustomEvent('opersona:tool', { detail: { conversationId, name: ev.name, input: ev.input } })); } catch { /* ok */ }
           // Close any open streaming bubble so the chip appears in order.
           const idx = next.findLastIndex((i) => i.kind === 'assistant' && i.streaming);
           if (idx >= 0) next[idx] = { ...(next[idx] as Extract<Item, { kind: 'assistant' }>), streaming: false };

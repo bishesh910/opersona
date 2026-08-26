@@ -42,11 +42,13 @@ export default async function OfficePage() {
   }
   const ownerOf = new Map(memberRows.map((o) => [o.uid, o.name]));
   const accs = await Promise.all(clones.map((c) =>
-    engineFetch<{ pct: number | null }>(`/clones/${c.id}/accuracy`, { query: { orgId: ctx.orgId } })
-      .then((a) => a.pct).catch(() => null)));
+    Promise.race([
+      engineFetch<{ pct: number | null }>(`/clones/${c.id}/accuracy`, { query: { orgId: ctx.orgId } }).then((a) => a.pct),
+      new Promise<null>((res) => setTimeout(() => res(null), 2500)), // engine slow → render without the stat
+    ]).catch(() => null)));
   const briefOf = new Map(briefs.map((b) => [b.cloneId, b]));
   const builders = new Set(clones.map((c) => c.ownerUserId));
-  const bossUid = memberRows.find((r) => r.role === 'owner')?.uid ?? memberRows[0]?.uid;
+  const bossUid = memberRows.find((r) => r.role === 'owner')?.uid ?? memberRows.find((r) => r.role === 'admin')?.uid; // nobody gets a fake 'owner' badge
 
   const members: PanelMember[] = [
     ...clones.map((c, i) => ({

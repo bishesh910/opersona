@@ -22,6 +22,19 @@ abuse technically impossible, not by anyone reading anyone's messages.
   separately as inactive — mostly orphaned rows from re-signing in, since a fresh
   sign-in replaces the browser cookie — with a one-click purge. Changing your password also revokes other sessions.
 
+## Persona-to-persona consultations
+
+A persona can consult a colleague's persona (`ask_colleague`) when its human asks it to
+check something with someone. The rules that make this safe:
+
+- The consulted persona answers with its **visitor prompt** — only what its owner marked
+  shareable — exactly as if the asking human had asked it directly.
+- Every consultation is persisted as a **real conversation attributed to the human** who
+  triggered it ("Asked by X (via Y's persona)"), so the consulted persona's owner sees it
+  like any visitor conversation. Nothing happens between personas that isn't on the record.
+- **One hop max**: a relayed consultation cannot itself consult anyone (no ping-pong), has
+  no shell and no ask_human, and times out on its own.
+
 ## Boundary between browser, web, and engine
 
 The engine is never exposed to browsers. Every request passes through the web app's proxy,

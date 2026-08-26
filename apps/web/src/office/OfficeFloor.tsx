@@ -52,6 +52,7 @@ interface Runtime {
   monitor: { top: Pt } | null;   // lit-screen anchor (2 tiles above the seat)
   bubble: Bubble | null;
   busy: 'none' | 'break' | 'errand';
+  cafeSeat: Pt | null;           // claimed cafe chair (released on endBreak)
   termPhase: number;             // fake-terminal scroll phase
 }
 
@@ -91,7 +92,9 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
     (async () => {
       const world = await buildWorld(mapJson as unknown as TiledMap);
       if (dead) return;
-      setAssetsMissing(!(await fetch('/office-assets/office-tileset.png', { method: 'HEAD' }).then((r) => r.ok).catch(() => false)));
+      const assetsOk = await fetch('/office-assets/office-tileset.png', { method: 'HEAD' }).then((r) => r.ok).catch(() => false);
+      if (dead) return;
+      setAssetsMissing(!assetsOk);
 
       const cam = new Camera(world.W, world.H);
       camRef.current = cam;
@@ -132,10 +135,22 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
       const entrance = world.spawns.get('entrance') ?? { x: 17, y: 20 };
       const ordered = [...stable].sort((a, b) => Number(b.boss) - Number(a.boss));
       let nextSeat = 1;
+      const takenTiles = new Set<string>();
+      /** overflow beyond the seat list fans out over distinct walkable tiles near the entrance */
+      const overflowSpot = (): Pt => {
+        for (let r = 0; r < 10; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+          const t = { x: entrance.x + dx, y: entrance.y + dy };
+          if (t.x < 0 || t.y < 0 || t.x >= world.cols || t.y >= world.rows) continue;
+          if (!world.walk[t.y]![t.x] || takenTiles.has(`${t.x},${t.y}`)) continue;
+          return t;
+        }
+        return entrance;
+      };
       const runtimes: Runtime[] = ordered.map((m) => {
         const f = m.recipe ? walkerFramesV2(m.recipe) : (() => { const n = walkerFramesV2(NEUTRAL); return { front: n.front.map(grey), back: n.back.map(grey) }; })();
-        const seatIdx = m.boss ? 0 : Math.min(nextSeat++, seatTiles.length - 1);
-        const seat = seatTiles[seatIdx] ?? entrance;
+        const seatIdx = m.boss ? 0 : nextSeat++;
+        const seat = seatTiles[seatIdx] ?? overflowSpot();
+        takenTiles.add(`${seat.x},${seat.y}`);
         const ch = new Character(m.id, [...f.front, ...f.back].map(toCanvas), seat);
         ch.seatTile = seat;
         ch.seatFacing = facingFor(seat);
@@ -144,7 +159,7 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
         const top = { x: seat.x, y: seat.y - 2 };
         const hasMon = world.gidAt('furniture-above', top.x, top.y) === THEME.monitor.offTopLeftGid
           || world.gidAt('furniture-below', top.x, top.y) === THEME.monitor.offTopLeftGid;
-        return { m, ch, seatIdx, monitor: hasMon ? { top } : null, bubble: null, busy: 'none' as const, termPhase: Math.random() * 10 };
+        return { m, ch, seatIdx, monitor: hasMon ? { top } : null, bubble: null, busy: 'none' as const, cafeSeat: null, termPhase: Math.random() * 10 };
       });
       rtRef.current = runtimes;
       setReady(true);
@@ -159,10 +174,15 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
       const envelopes: Envelope[] = [];
       const say = (rt: Runtime, text: string, dur = 3): void => { rt.bubble = { text, t: 0, dur, lift: 0 }; };
 
+      const cafeTaken = new Set<Pt>();
       const sendOnBreak = (rt: Runtime): void => {
+        if (cafeSeats.length === 0 && cafeStands.length === 0) return;
         rt.busy = 'break';
-        const toSeat = cafeSeats.length && Math.random() < 0.6;
-        const spot = toSeat ? pick(cafeSeats) : (cafeStands.length ? pick(cafeStands).t : pick(cafeSeats));
+        const freeSeats = cafeSeats.filter((c) => !cafeTaken.has(c));
+        const toSeat = freeSeats.length > 0 && Math.random() < 0.6;
+        const spot = toSeat ? pick(freeSeats) : (cafeStands.length ? pick(cafeStands).t : pick(freeSeats.length ? freeSeats : cafeSeats));
+        if (toSeat) cafeTaken.add(spot);
+        rt.cafeSeat = toSeat ? spot : null;
         const kind = toSeat ? 'table' : (cafeStands.find((s) => s.t === spot)?.kind ?? 'coffee');
         rt.ch.stopIdleLoop();
         if (!rt.ch.walkTo(world, spot, () => {
@@ -181,6 +201,9 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
       };
       const endBreak = (rt: Runtime): void => {
         rt.ch.standUp();
+        if (rt.cafeSeat) { cafeTaken.delete(rt.cafeSeat); rt.cafeSeat = null; }
+        // a quarter of returns take the scenic route: the original 30s-roam/30s-rest loop
+        if (Math.random() < 0.25) { rt.busy = 'none'; rt.ch.startIdleLoop(); return; }
         if (rt.ch.seatTile && rt.ch.walkTo(world, rt.ch.seatTile, () => {
           rt.ch.sitAt(rt.ch.seatTile!, rt.ch.seatFacing, true);
           rt.busy = 'none';
@@ -205,9 +228,12 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
       let drag: { x: number; y: number; moved: boolean } | null = null;
       const touches = new Map<number, { x: number; y: number }>();
       let pinchDist = 0;
+      let wasPinch = false;
+      let lastTap = { t: 0, x: 0, y: 0 };
       const onDown = (e: PointerEvent): void => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        if (touches.size === 2) { const [a2, b2] = [...touches.values()]; pinchDist = Math.hypot(a2!.x - b2!.x, a2!.y - b2!.y); drag = null; }
+        if (touches.size === 2) { const [a2, b2] = [...touches.values()]; pinchDist = Math.hypot(a2!.x - b2!.x, a2!.y - b2!.y); drag = null; wasPinch = true; }
         else drag = { x: e.clientX, y: e.clientY, moved: false };
         canvas.setPointerCapture(e.pointerId);
       };
@@ -239,15 +265,34 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
       };
       const onUp = (e: PointerEvent): void => {
         touches.delete(e.pointerId);
+        if (touches.size === 1) { // pinch → single finger: keep panning, never treat as tap
+          const rest = [...touches.values()][0]!;
+          drag = { x: rest.x, y: rest.y, moved: true };
+          pinchDist = 0;
+          return;
+        }
         if (touches.size > 0) { drag = null; pinchDist = 0; return; }
+        const endedPinch = wasPinch; wasPinch = false; pinchDist = 0;
         const wasDrag = drag?.moved;
         drag = null;
-        if (wasDrag) return;
+        if (wasDrag || endedPinch) return; // gestures are not taps
+        // double-tap to fit (touch counterpart of double-click)
+        const now = performance.now();
+        if (e.pointerType !== 'mouse' && now - lastTap.t < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 28) {
+          lastTap = { t: 0, x: 0, y: 0 };
+          cam.fit();
+          return;
+        }
+        lastTap = { t: now, x: e.clientX, y: e.clientY };
         const r = canvas.getBoundingClientRect();
         const w = cam.toWorld(e.clientX - r.left, e.clientY - r.top);
         const hit = hitTest(w);
-        if (hit) { onSelect(hit.m.id); cam.nudgeToward(hit.ch.x, hit.ch.y); }
+        if (hit) { onSelect(hit.m.id); cam.nudgeToward(hit.ch.x, hit.ch.y, true); }
         else onSelect(null);
+      };
+      const onCancel = (e: PointerEvent): void => {
+        touches.delete(e.pointerId);
+        drag = null; pinchDist = 0; wasPinch = false;
       };
       const onWheel = (e: WheelEvent): void => {
         e.preventDefault();
@@ -258,9 +303,9 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
       const hitTest = (w: Pt): Runtime | null => {
         let best: Runtime | null = null;
         for (const rt of runtimes) {
-          const c = rt.ch;
-          if (w.x >= c.x - WALKER_W / 2 && w.x <= c.x + WALKER_W / 2 && w.y >= c.y - WALKER_H && w.y <= c.y) {
-            if (!best || c.y > best.ch.y) best = rt;
+          const r = rt.ch.hitRect(); // same rect the sprite is drawn with (sit nudge + crop)
+          if (w.x >= r.x && w.x <= r.x + r.w && w.y >= r.y && w.y <= r.y + r.h) {
+            if (!best || rt.ch.y > best.ch.y) best = rt;
           }
         }
         return best;
@@ -268,12 +313,16 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
       canvas.addEventListener('pointerdown', onDown);
       canvas.addEventListener('pointermove', onMove);
       canvas.addEventListener('pointerup', onUp);
+      canvas.addEventListener('pointercancel', onCancel);
+      canvas.addEventListener('lostpointercapture', onCancel);
       canvas.addEventListener('wheel', onWheel, { passive: false });
       canvas.addEventListener('dblclick', onDbl);
       cleanup.push(() => {
         canvas.removeEventListener('pointerdown', onDown);
         canvas.removeEventListener('pointermove', onMove);
         canvas.removeEventListener('pointerup', onUp);
+        canvas.removeEventListener('pointercancel', onCancel);
+        canvas.removeEventListener('lostpointercapture', onCancel);
         canvas.removeEventListener('wheel', onWheel);
         canvas.removeEventListener('dblclick', onDbl);
       });
@@ -296,11 +345,10 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
           const { top } = rt.monitor;
           for (const [gid, dx, dy] of THEME.monitor.onGids) world.drawGid(ctx, gid, top.x + dx, top.y + dy);
           const sx = top.x * TILE + 6, sy = top.y * TILE + 10; // SCREEN {3,5,25,12} ×2
-          rt.termPhase += 0.05;
           ctx.fillStyle = 'rgba(180,205,235,0.85)';
           for (let li = 0; li < 2; li++) {
-            const ly = sy + ((rt.termPhase * 6.4 + li * 12) % 22);
-            ctx.fillRect(sx + 2, sy + 22 - ly + 2, 12 + ((li * 7 + Math.floor(rt.termPhase)) % 16), 2);
+            const m2 = (rt.termPhase * 6.4 + li * 12) % 22;
+            ctx.fillRect(sx + 2, sy + 22 - m2, 12 + ((li * 7 + Math.floor(rt.termPhase)) % 16), 2);
           }
           if (Math.floor(t / 0.53) % 2 === 0) ctx.fillRect(sx + 2, sy + 18, 4, 4);
         }
@@ -362,14 +410,32 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
         }
       };
 
-      if (reduced) { cam.update(0.016); draw(0); return; }
+      if (reduced) {
+        // Reduced motion suppresses AMBIENT animation, not rendering: characters
+        // stay seated, but the camera still works and every change repaints.
+        let last2 = performance.now(); let pose = { x: -1, y: -1, z: -1 };
+        const still = (now: number): void => {
+          if (dead) return;
+          const dt2 = Math.min(0.05, (now - last2) / 1000); last2 = now;
+          cam.update(dt2);
+          if (Math.abs(cam.x - pose.x) > 0.05 || Math.abs(cam.y - pose.y) > 0.05 || Math.abs(cam.zoom - pose.z) > 0.0005) {
+            pose = { x: cam.x, y: cam.y, z: cam.zoom };
+            draw(now / 1000);
+          }
+          raf = requestAnimationFrame(still);
+        };
+        raf = requestAnimationFrame(still);
+        return;
+      }
 
       let last = performance.now();
       const tick = (now: number): void => {
+        if (dead) return;
         const dt = Math.min(0.05, (now - last) / 1000); last = now;
         clock += dt;
         for (const rt of runtimes) {
           rt.ch.update(dt, world);
+          rt.termPhase += dt * 3;
           if (rt.bubble) { rt.bubble.t += dt; if (rt.bubble.t > rt.bubble.dur) rt.bubble = null; }
         }
         // cafeteria director: every 6–12s maybe send someone on a break (max 4 out)
@@ -410,6 +476,21 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
+
+      // A real consult in the side chat sends REAL mail: envelope from the selected
+      // persona's desk to the consulted colleague's desk (viewer-local, their own action).
+      const onTool = (e: Event): void => {
+        const d = (e as CustomEvent<{ name?: string; input?: { colleague?: string } }>).detail;
+        if (!d?.name?.endsWith('ask_colleague')) return;
+        const from = runtimes.find((r) => r.m.id === selRef.current) ?? runtimes[0];
+        const q2 = (d.input?.colleague ?? '').toLowerCase().trim();
+        const to = q2 ? runtimes.find((r) => r.m.name.toLowerCase().includes(q2) || q2.includes(r.m.name.toLowerCase())) : undefined;
+        if (!from || !to || from === to) return;
+        envelopes.push({ from: { x: from.ch.x, y: from.ch.y - WALKER_H / 2 }, to: { x: to.ch.x, y: to.ch.y - WALKER_H / 2 }, t: 0, dur: 1.6, color: '#9ecbf0', burst: 0 });
+        to.bubble = { text: '…', t: 0, dur: 3.2, lift: 0 };
+      };
+      window.addEventListener('opersona:tool', onTool);
+      cleanup.push(() => window.removeEventListener('opersona:tool', onTool));
     })();
 
     return () => { dead = true; cleanup.forEach((fn) => fn()); };
@@ -431,8 +512,11 @@ export function OfficeFloor({ members, selectedId, onSelect }: {
           tileset art not deployed — flat-color stand-in (see docs/self-hosting.md)
         </div>
       )}
-      <div className="pointer-events-none absolute right-2 top-2 rounded-md bg-neutral-900/70 px-2 py-1 font-mono text-[10px] text-neutral-400">
+      <div className="pointer-events-none absolute right-2 top-2 hidden rounded-md bg-neutral-900/70 px-2 py-1 font-mono text-[10px] text-neutral-400 [@media(pointer:fine)]:block">
         drag to pan · scroll to zoom · double-click to fit
+      </div>
+      <div className="pointer-events-none absolute right-2 top-2 rounded-md bg-neutral-900/70 px-2 py-1 font-mono text-[10px] text-neutral-400 [@media(pointer:fine)]:hidden">
+        drag to pan · pinch to zoom · double-tap to fit
       </div>
     </div>
   );

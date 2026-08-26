@@ -5,15 +5,15 @@
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { and, eq, sql } from 'drizzle-orm';
-import { db, playbooks, corrections, learningEvents } from '@opersona/db';
+import { db, clones, playbooks, corrections, learningEvents } from '@opersona/db';
 import { recallMemory, searchDocuments, type Layer } from './retrieval.js';
 import { requestApproval } from '../sessions/approvals.js';
 
 export const PERSONA_SERVER = 'persona';
-export const PERSONA_TOOLS = ['recall_memory', 'get_playbook', 'propose_playbook', 'record_lesson', 'search_documents', 'ask_human'] as const;
+export const PERSONA_TOOLS = ['recall_memory', 'get_playbook', 'propose_playbook', 'record_lesson', 'search_documents', 'ask_human', 'ask_colleague'] as const;
 export const personaToolNames = () => PERSONA_TOOLS.map((t) => `mcp__${PERSONA_SERVER}__${t}`);
 
-export interface ToolContext { orgId: string; cloneId: string; conversationId: string; userId: string; visitor?: boolean }
+export interface ToolContext { orgId: string; cloneId: string; conversationId: string; userId: string; visitor?: boolean; relay?: boolean }
 
 const text = (s: string) => ({ content: [{ type: 'text' as const, text: s }] });
 
@@ -108,5 +108,28 @@ export function createPersonaServer(ctx: ToolContext) {
     },
   );
 
-  return createSdkMcpServer({ name: PERSONA_SERVER, version: '0.0.1', tools: [recall, getPlaybook, propose, lesson, docs, ask] });
+  const colleague = tool(
+    'ask_colleague',
+    "Put a question to a colleague's persona (their AI stand-in) and return its reply. Use when the human asks you to check with someone, get a review, or a second opinion. The persona answers from what that colleague chose to share — it is not the live human, and the consultation is visible to them. One question per call; include all needed context/code inline.",
+    { colleague: z.string().describe("the colleague's name as it appears in the org"), question: z.string().describe('one self-contained question with any needed context or code inline') },
+    async (a) => {
+      if (ctx.relay) return { ...text('Not available here: this is itself a relayed consultation (one hop max). Suggest they ask directly.'), isError: true };
+      const rows = await db.select({ id: clones.id, name: clones.name }).from(clones).where(eq(clones.orgId, ctx.orgId));
+      const others = rows.filter((r) => r.id !== ctx.cloneId);
+      const norm = (v: string) => v.toLowerCase().trim();
+      const q2 = norm(a.colleague);
+      const target = others.find((r) => norm(r.name) === q2)
+        ?? others.find((r) => norm(r.name).split(/\s+/).includes(q2) || norm(r.name).includes(q2) || q2.includes(norm(r.name)));
+      if (!target) return { ...text(`No persona here matches \u201c${a.colleague}\u201d. Colleagues with personas: ${others.map((o) => o.name).join(', ') || '(none yet)'}.`), isError: true };
+      const { askColleagueOnce } = await import('../sessions/relay.js');
+      try {
+        const answer = await askColleagueOnce({ orgId: ctx.orgId, fromCloneId: ctx.cloneId, fromUserId: ctx.userId, targetCloneId: target.id, question: a.question });
+        return text(`${target.name}'s persona replied:\n\n${answer}\n\n[That came from their persona, not ${target.name} live; the consultation is visible to them.]`);
+      } catch (e) {
+        return { ...text(e instanceof Error ? e.message : String(e)), isError: true };
+      }
+    },
+  );
+
+  return createSdkMcpServer({ name: PERSONA_SERVER, version: '0.0.1', tools: [recall, getPlaybook, propose, lesson, docs, ask, colleague] });
 }

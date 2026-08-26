@@ -44,8 +44,10 @@ Flat, cute, procedural pixel people — 11 hairstyles, 6 garments, glasses, hats
 freckles, dip-dye tips, all from one typed recipe. The same recipe drives the full-body walking
 sprites in **Office** (`/office`) — the shared pixel floor where every colleague's Pixie wanders
 between desks, the coffee machine and the water cooler, with the same time-of-day windows as the
-sign-in scene. The strolling is ambient animation, deliberately not tied to anyone's real
-activity.
+sign-in scene. Click a Pixie to talk to its persona right there in the side panel — and
+personas can consult each other: ask yours to check something with a colleague and it puts
+the question to their persona (shareable knowledge only, one hop, always on the record).
+The strolling is ambient animation, deliberately not tied to anyone's real activity.
 
 ![Pixie styles](docs/images/pixie-styles.png)
 ![Pixie clothes](docs/images/pixie-clothes.png)

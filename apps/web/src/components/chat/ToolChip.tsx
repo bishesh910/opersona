@@ -10,6 +10,7 @@ function label(name: string, running: boolean): string {
     mcp__persona__search_documents: ['searching documents…', 'searched documents'],
     mcp__persona__get_playbook: ['opening playbook…', 'opened playbook'],
     mcp__persona__ask_human: ['asking you…', 'asked you'],
+    mcp__persona__ask_colleague: ['asking a colleague’s persona…', 'asked a colleague’s persona'],
     WebSearch: ['searching the web…', 'searched the web'],
     Read: ['reading…', 'read a file'],
     Glob: ['looking around…', 'looked around'],

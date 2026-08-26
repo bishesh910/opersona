@@ -50,6 +50,12 @@ export class Character {
     const p = findPath(world.walk, this.tile(), goal);
     if (p === null) return false;
     this.standUp();
+    if (p.length === 0) { // already on the tile — fire the arrival now (original walkToAndThen)
+      this.path = [];
+      this.onArrive = null;
+      onArrive?.();
+      return true;
+    }
     this.path = p;
     this.onArrive = onArrive ?? null;
     return true;
@@ -120,9 +126,21 @@ export class Character {
         }
       }
     } else if (this.idleMode === 'resting' && this.idleT > 30) {
-      this.standUp();
-      this.idleMode = 'linger'; this.idleT = 0;
+      // rest over — back to work at the desk (the loop hands control back)
+      this.idleMode = 'none';
+      this.working = true;
     }
+  }
+
+  /** The rect actually drawn (sit nudge + crop applied) — draw and hit-testing share it. */
+  hitRect(): { x: number; y: number; w: number; h: number; ox: number; oy: number; crop: number } {
+    let ox = 0, oy = 0, crop = 0;
+    if (this.sitting) {
+      if (this.dir === 'down') { oy = SIT_DOWN; crop = CROP_DOWN; }
+      else if (this.dir === 'up') { oy = SIT_UP; crop = CROP_OTHER; }
+      else { ox = this.dir === 'left' ? -SIT_SIDE_X : SIT_SIDE_X; oy = SIT_SIDE_Y; crop = CROP_OTHER; }
+    }
+    return { x: Math.round(this.x - WALKER_W / 2 + ox), y: Math.round(this.y - WALKER_H + oy), w: WALKER_W, h: WALKER_H - crop, ox, oy, crop };
   }
 
   /** Draw at the feet anchor with sit nudge + crop. ctx is in world space. */
@@ -130,15 +148,11 @@ export class Character {
     const backSprite = this.dir === 'up';
     const flip = this.dir === 'left';
     const frame = this.frames[(backSprite ? 3 : 0) + (this.path.length ? WALK_SEQ[this.animI]! : 0)]!;
-    let ox = 0, oy = 0, crop = 0;
-    if (this.sitting) {
-      if (this.dir === 'down') { oy = SIT_DOWN; crop = CROP_DOWN; }
-      else if (this.dir === 'up') { oy = SIT_UP; crop = CROP_OTHER; }
-      else { ox = this.dir === 'left' ? -SIT_SIDE_X : SIT_SIDE_X; oy = SIT_SIDE_Y; crop = CROP_OTHER; }
-    }
-    const drawH = WALKER_H - crop;
-    const px = Math.round(this.x - WALKER_W / 2 + ox);
-    const py = Math.round(this.y - WALKER_H + oy);
+    const r = this.hitRect();
+    const { ox, oy } = r;
+    const drawH = r.h;
+    const px = r.x;
+    const py = r.y;
     if (this.working) { // pulsing work glow under the feet
       ctx.save();
       ctx.globalAlpha = 0.16 + 0.08 * Math.sin(t * 3);

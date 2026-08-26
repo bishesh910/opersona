@@ -15,7 +15,15 @@ const MIN_W = 300, MAX_W = 560, DEF_W = 380;
 export function OfficeShell({ members }: { members: PanelMember[] }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [panelW, setPanelW] = useState(DEF_W);
-  const dragRef = useRef<{ x: number; w: number } | null>(null);
+  const dragRef = useRef<{ x: number; w: number; cur: number } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Escape deselects (closes panel/sheet)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setSelected(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     try { const n = parseInt(localStorage.getItem('office.panelW') ?? '', 10); if (n >= MIN_W && n <= MAX_W) setPanelW(n); } catch { /* ok */ }
@@ -39,32 +47,35 @@ export function OfficeShell({ members }: { members: PanelMember[] }) {
           onPointerDown={(e) => {
             e.preventDefault();
             (e.target as HTMLElement).setPointerCapture(e.pointerId);
-            dragRef.current = { x: e.clientX, w: panelW };
+            dragRef.current = { x: e.clientX, w: panelW, cur: panelW };
           }}
           onPointerMove={(e) => {
             const d = dragRef.current;
             if (!d) return;
-            const w = Math.max(MIN_W, Math.min(MAX_W, d.w - (e.clientX - d.x)));
-            setPanelW(w);
+            // width via style during the drag — one React commit on release, no canvas churn
+            d.cur = Math.max(MIN_W, Math.min(MAX_W, d.w - (e.clientX - d.x)));
+            if (panelRef.current) panelRef.current.style.width = `${d.cur}px`;
           }}
           onPointerUp={() => {
-            if (dragRef.current) try { localStorage.setItem('office.panelW', String(panelW)); } catch { /* ok */ }
+            const d = dragRef.current;
             dragRef.current = null;
+            if (!d) return;
+            setPanelW(d.cur);
+            try { localStorage.setItem('office.panelW', String(d.cur)); } catch { /* ok */ }
           }}
           onDoubleClick={() => setPanelW(DEF_W)}
         />
-        <div className="hidden shrink-0 md:block" style={{ width: panelW }}>
+        <div ref={panelRef} className="hidden shrink-0 md:block" style={{ width: panelW }}>
           <PersonaPanel key={sel?.key ?? "none"} member={sel} total={members.length} onClose={() => setSelected(null)} />
         </div>
       </div>
       {/* roster strip */}
-      <div className="flex shrink-0 gap-2 overflow-x-auto pb-1" role="listbox" aria-label="Colleagues">
+      <div className="flex shrink-0 gap-2 overflow-x-auto pb-1" aria-label="Colleagues">
         {members.map((m) => (
           <button
             key={m.key}
             type="button"
-            role="option"
-            aria-selected={m.key === selected}
+            aria-pressed={m.key === selected}
             onClick={() => setSelected(m.key === selected ? null : m.key)}
             className={'flex shrink-0 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors '
               + (m.key === selected
@@ -81,9 +92,12 @@ export function OfficeShell({ members }: { members: PanelMember[] }) {
       </div>
       {/* phone: slide-up sheet */}
       {sel && (
-        <div className="fixed inset-x-0 bottom-0 z-30 h-[78dvh] rounded-t-2xl border-t border-neutral-200 bg-white p-1 shadow-2xl md:hidden dark:border-neutral-700 dark:bg-neutral-900">
-          <PersonaPanel key={sel.key} member={sel} total={members.length} onClose={() => setSelected(null)} />
-        </div>
+        <>
+          <button type="button" aria-label="Close panel" className="fixed inset-0 z-20 bg-black/25 md:hidden" onClick={() => setSelected(null)} />
+          <div role="dialog" aria-modal="true" aria-label={`${sel.name} persona`} className="fixed inset-x-0 bottom-0 z-30 h-[78dvh] rounded-t-2xl border-t border-neutral-200 bg-white p-1 shadow-2xl md:hidden dark:border-neutral-700 dark:bg-neutral-900">
+            <PersonaPanel key={sel.key} member={sel} total={members.length} onClose={() => setSelected(null)} />
+          </div>
+        </>
       )}
     </div>
   );
