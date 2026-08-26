@@ -42,7 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .map((c) => ({ cloneId: c.cloneId, name: c.name, recipe: c.recipe, mine: !!own && c.cloneId === own.id }))
     .sort((a, b) => Number(b.mine) - Number(a.mine) || a.name.localeCompare(b.name));
   return (
-    <div className="flex h-dvh overflow-hidden overscroll-none">
+    <div data-app-shell className="flex h-dvh overflow-hidden overscroll-none">
       {/* sidebar width/collapse persist per device; applied pre-paint (no flash) */}
       <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "(function(){try{var w=parseInt(localStorage.getItem('sb.w'),10);var c=localStorage.getItem('sb.collapsed')==='1';if(!(w>=180&&w<=400))w=224;document.documentElement.style.setProperty('--sb-w',(c?0:w)+'px');if(c)document.documentElement.setAttribute('data-sb-collapsed','');}catch(e){}})()" }} />
       <aside style={{ width: 'var(--sb-w, 224px)' }} className="app-sidebar relative hidden h-full shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 p-4 md:flex dark:border-neutral-800 dark:bg-neutral-900/40">

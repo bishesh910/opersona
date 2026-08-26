@@ -249,3 +249,18 @@ html:not([data-sb-collapsed]) .sb-when-collapsed { display: none; }
   .pixel-cursor { animation: none; opacity: 1; }
   .hello-rise, .hello-rise-2, .hello-rise-3, .pixie-float { animation: none; }
 }
+
+/* App shell pages: kill the document-level rubber band (iOS pull-to-refresh
+   dragging the whole app down and revealing a void above the header). The app
+   scrolls in its own containers; the root scroller has no job here. Scoped via
+   :has so the auth pages keep normal document behaviour. */
+html:has([data-app-shell]) {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior-y: none;
+}
+html:has([data-app-shell]) body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior-y: none;
+}
