@@ -177,3 +177,21 @@ html[data-daypart="day"] .auth-bg { background-image: url('/auth-bg-day.png'); }
   html[data-daypart="morning"] .auth-bg { background-image: url('/auth-bg-morning-mobile.png'); }
   html[data-daypart="day"] .auth-bg { background-image: url('/auth-bg-day-mobile.png'); }
 }
+
+/* ── Tone slider: the two in-between themes ──────────────────────
+   Tailwind v4 resolves colour utilities to CSS variables, so re-mapping the
+   neutral scale here retunes every surface at once — no component changes.
+   "Soft" dims the light theme's paper; "Dim" lifts the dark theme's charcoal. */
+html[data-tone="medium"]:not(.dark) {
+  --color-white: #f1eee7;
+  --color-neutral-50: #e9e6df;
+  --color-neutral-100: #dfdcd4;
+  --color-neutral-200: #d1cec6;
+  --color-neutral-300: #b8b5ad;
+}
+html[data-tone="medium"].dark {
+  --color-neutral-950: #1a1a21;
+  --color-neutral-900: #24242b;
+  --color-neutral-800: #303038;
+  --color-neutral-700: #44444d;
+}

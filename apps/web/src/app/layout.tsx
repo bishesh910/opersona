@@ -12,9 +12,13 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get('x-nonce') ?? undefined;
-  const theme = (await cookies()).get('theme')?.value; // 'dark' | 'light' | undefined (= follow system)
+  // 'light' | 'mediumlight' | 'dark' | 'mediumdark' | undefined (= follow system).
+  // The mediums re-map the neutral palette via html[data-tone="medium"] (globals.css).
+  const theme = (await cookies()).get('theme')?.value;
+  const isDark = theme === 'dark' || theme === 'mediumdark';
+  const medium = theme === 'mediumlight' || theme === 'mediumdark';
   return (
-    <html lang="en" className={theme === 'dark' ? 'dark' : undefined} suppressHydrationWarning>
+    <html lang="en" className={isDark ? 'dark' : undefined} data-tone={medium ? 'medium' : undefined} suppressHydrationWarning>
       <body className="min-h-full bg-white font-sans text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
         {/* Only when no explicit choice: follow the system, live. Explicit themes are server-stamped above. */}
         {!theme && (
