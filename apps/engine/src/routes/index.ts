@@ -11,6 +11,7 @@ import { registerDownloads } from './downloads.js';
 import { subscribe, turnStartId } from '../sessions/events.js';
 import { resolveApproval } from '../sessions/approvals.js';
 import { publishSnapshot, activePrompt } from '../persona/assemble.js';
+import { recallMemory } from '../persona/retrieval.js';
 import { recipeFromSelfie } from '../avatar/fromSelfie.js';
 import { ingestDocument } from '../documents/ingest.js';
 import { orgModelConfig } from '../keys.js';
@@ -130,6 +131,15 @@ routes.get('/clones/:id/prompt', async (c) => {
   const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, orgId))).limit(1);
   if (!clone) return c.json({ error: 'clone not found' }, 404);
   return c.json(await activePrompt(orgId, clone.id));
+});
+
+/** Owner-grade memory recall for the claude.ai MCP connector (server-to-server only). */
+routes.post('/clones/:id/recall', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string(), query: z.string().min(1).max(500), k: z.number().int().min(1).max(20).optional() }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const hits = await recallMemory(clone.id, body.query, undefined, body.k ?? 8, false);
+  return c.json({ hits });
 });
 
 // ─── learning: fingerprint, feedback, import ────────────────────────────────

@@ -11,6 +11,7 @@ import { RecipeEditor } from '@/components/avatar/RecipeEditor';
 import { SelfieUpload } from '@/components/avatar/SelfieUpload';
 import { MbtiTest } from '@/components/brief/MbtiTest';
 import { ApiKeyForm } from '@/components/settings/ApiKeyForm';
+import { ConnectorCard } from '@/components/settings/ConnectorCard';
 import { randomRecipe } from './random-recipe';
 
 const STEPS = [
@@ -149,21 +150,33 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
 
 function ConnectStep({ hasApiKey, onNext }: { hasApiKey: boolean; onNext: () => void }) {
   const [saved, setSaved] = useState(hasApiKey);
+  const [showKey, setShowKey] = useState(hasApiKey);
   return (
-    <div className="card space-y-4">
-      <p className="muted text-sm">
-        Chatting runs on <span className="font-medium text-neutral-700 dark:text-neutral-300">your own Anthropic API key</span> — your persona thinks on your account, never anyone else&apos;s.
-        Create one at <a className="underline underline-offset-2" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>, paste it here, done.
-      </p>
-      <ApiKeyForm hasKey={saved} readOnly={false} onSaved={() => setSaved(true)} />
-      <p className="muted text-xs">Stored encrypted (AES-256-GCM), never shown again, removable any time in Settings. Everything else — building, editing, sharing your persona — works without one.</p>
-      <div className="flex items-center gap-4">
-        <button type="button" className="btn-primary" onClick={onNext} disabled={!saved}>Continue</button>
-        {!saved && (
-          <button type="button" className="muted text-sm underline underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200" onClick={onNext}>
-            Skip for now
-          </button>
+    <div className="space-y-4">
+      <div className="card space-y-3">
+        <p className="text-sm">
+          <span className="font-medium">Use your persona inside claude.ai — free.</span>{' '}
+          <span className="muted">Add opersona as a connector and your everyday Claude can load your persona, search its memory and keep teaching it, all on the Claude plan you already have.</span>
+        </p>
+        <ConnectorCard compact />
+      </div>
+      <div className="card space-y-3">
+        <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setShowKey((v) => !v)}>
+          <span className="text-sm font-medium">Chat here on opersona.me <span className="chip ml-1.5">API key</span></span>
+          <span className="muted text-xs">{showKey ? 'hide' : 'show'}</span>
+        </button>
+        {showKey && (
+          <>
+            <p className="muted text-sm">
+              Chatting on this site runs on your own Anthropic API key (billed to your Anthropic account, stored encrypted).
+              Create one at <a className="underline underline-offset-2" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>.
+            </p>
+            <ApiKeyForm hasKey={saved} readOnly={false} onSaved={() => setSaved(true)} />
+          </>
         )}
+      </div>
+      <div className="flex items-center gap-4">
+        <button type="button" className="btn-primary" onClick={onNext}>Continue</button>
       </div>
     </div>
   );

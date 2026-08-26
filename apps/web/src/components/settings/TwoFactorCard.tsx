@@ -34,6 +34,7 @@ export function TwoFactorCard({ enabled, redirectTo, email }: { enabled: boolean
     const res = await authClient.twoFactor.enable({ password: pw });
     setBusy(false);
     if (res.error) { setError(res.error.message ?? 'Could not start two-factor setup'); return false; }
+    if (!('totpURI' in res.data)) { setError('Unexpected enrollment method — try again'); return false; } // 1.7: enable() may return an OTP-method variant
     const totpURI = res.data.totpURI;
     const qrDataUrl = await QRCode.toDataURL(totpURI, { margin: 1, width: 192 });
     setPassword('');

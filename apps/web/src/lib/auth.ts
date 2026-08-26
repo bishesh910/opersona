@@ -1,7 +1,8 @@
 import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { captcha, organization, twoFactor } from 'better-auth/plugins';
+import { captcha, jwt, organization, twoFactor } from 'better-auth/plugins';
+import { mcp } from '@better-auth/mcp';
 import { nextCookies } from 'better-auth/next-js';
 import { and, eq, gt } from 'drizzle-orm';
 import { db, authSchema } from '@opersona/db';
@@ -147,6 +148,19 @@ export const auth = betterAuth({
   plugins: [
     organization({ allowUserToCreateOrganization: (user) => isPlatformAdmin(user.email) }),
     twoFactor({ issuer: 'opersona' }),
+    // ── claude.ai connector: opersona as an OAuth 2.1 authorization server ──
+    // jwt() supplies /jwks + token signing; mcp() is the oauth-provider tuned for
+    // MCP (RFC 9728 protected-resource metadata, resource-bound tokens, DCR so
+    // claude.ai can self-register). Tools live in /mcp (route handler).
+    jwt(),
+    mcp({
+      loginPage: '/sign-in',
+      consentPage: '/oauth/consent',
+      resource: `${process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'}/mcp`,
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      clientRegistrationRequirePKCE: true,
+    }),
     // Bot wall, dark until the env is set (flip = add the two Turnstile envs + restart).
     ...(process.env.TURNSTILE_SECRET_KEY
       ? [captcha({ provider: 'cloudflare-turnstile', secretKey: process.env.TURNSTILE_SECRET_KEY, endpoints: ['/sign-up/email', '/forget-password'] })]
