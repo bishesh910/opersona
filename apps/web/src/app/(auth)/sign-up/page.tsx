@@ -31,7 +31,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <SignUpForm social={SOCIAL} next={next} prefillEmail={inv?.email} lockEmail={invited} verifyEmail={MAILER_ON && SIGNUP_OPEN && !invited} />
-      <p className="mt-4 text-center text-xs text-neutral-500">Sign up and build your persona — face, story, mind.</p>
+      <p className="mt-4 text-center text-xs text-neutral-500">Sign up and build your persona — face, story, mind. <Link href="/privacy" className="underline underline-offset-2 hover:text-neutral-300">Privacy, honestly</Link></p>
     </>
   );
 }
