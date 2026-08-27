@@ -38,14 +38,14 @@ export interface CharacterBuilderProps {
   hasRail: boolean;
 }
 
-function StepDots({ current }: { current: number }) {
+function StepDots({ current, onGo }: { current: number; onGo: (n: number) => void }) {
   return (
     <ol className="flex flex-wrap items-center justify-center gap-x-1 gap-y-2">
       {STEPS.map((s, i) => {
         const state = s.n < current ? 'done' : s.n === current ? 'current' : 'todo';
-        return (
-          <li key={s.n} className="flex items-center gap-1">
-            {i > 0 && <span aria-hidden className="mx-1 h-px w-5 bg-neutral-300 dark:bg-neutral-700 sm:w-8" />}
+        const clickable = s.n < current; // walking back is always allowed
+        const dot = (
+          <>
             <span
               className={
                 'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ' +
@@ -59,6 +59,18 @@ function StepDots({ current }: { current: number }) {
               {state === 'done' ? '✓' : s.n}
             </span>
             <span className={'text-xs ' + (state === 'current' ? 'font-semibold' : 'muted')}>{s.label}</span>
+          </>
+        );
+        return (
+          <li key={s.n} className="flex items-center gap-1">
+            {i > 0 && <span aria-hidden className="mx-1 h-px w-5 bg-neutral-300 dark:bg-neutral-700 sm:w-8" />}
+            {clickable ? (
+              <button type="button" className="flex items-center gap-1 rounded transition-opacity hover:opacity-70" onClick={() => onGo(s.n)} title={`Back to ${s.label}`}>
+                {dot}
+              </button>
+            ) : (
+              <span className="flex items-center gap-1">{dot}</span>
+            )}
           </li>
         );
       })}
@@ -79,6 +91,18 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
   const [mbtiType, setMbtiType] = useState<string | null>(props.personalityType);
   const [talking, setTalking] = useState(false);
   const router = useRouter();
+  // The server's hasRail is a snapshot from page load; pairing happens mid-flow,
+  // so watch the bridge live until a rail appears (then stop polling).
+  const [railLive, setRailLive] = useState(false);
+  useEffect(() => {
+    if (props.hasRail || railLive) return;
+    let stop = false;
+    const poll = () => { void import('@/actions/bridge').then(({ bridgeState }) => bridgeState()).then((st) => { if (!stop && st.connected) setRailLive(true); }).catch(() => {}); };
+    poll();
+    const t = setInterval(poll, 8000);
+    return () => { stop = true; clearInterval(t); };
+  }, [props.hasRail, railLive]);
+  const hasRail = props.hasRail || railLive;
 
   // A little hello on the final step.
   useEffect(() => {
@@ -109,7 +133,7 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
           <p className="muted text-xs uppercase tracking-widest">opersona.me</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Build your persona</h1>
         </div>
-        <StepDots current={step} />
+        <StepDots current={step} onGo={go} />
         <h2 className="text-lg font-medium">{heading}</h2>
 
         <div className="flex w-full flex-col items-center gap-6 md:flex-row md:items-start md:justify-center">
@@ -125,10 +149,10 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
           </aside>
           <section className="w-full min-w-0 md:max-w-xl">
             {step === 1 && (
-              <ConnectStep hasApiKey={props.hasApiKey} hasRail={props.hasRail} onNext={() => { go(2); router.refresh(); }} />
+              <ConnectStep hasApiKey={props.hasApiKey} hasRail={hasRail} onNext={() => { go(2); router.refresh(); }} />
             )}
             {step === 2 && (
-              <FaceStep cloneId={props.clone.id} recipe={recipe} onRecipe={setRecipe} onNext={() => go(3)} hasRail={props.hasRail} />
+              <FaceStep cloneId={props.clone.id} recipe={recipe} onRecipe={setRecipe} onNext={() => go(3)} hasRail={hasRail} />
             )}
             {step === 3 && (
               <StoryStep
@@ -222,7 +246,7 @@ function FaceStep({ cloneId, recipe, onRecipe, onNext, hasRail }: {
   onNext: () => void;
   hasRail: boolean;
 }) {
-  const selfieGate = hasRail ? undefined : 'Selfie → Pixie uses Claude vision, which connects in step 4 — Randomise or build by hand for now; you can redo it from a selfie any time after.';
+  const selfieGate = hasRail ? undefined : 'Selfie → Pixie needs your Claude connected (step 1 — the pairing takes a minute) — or Randomise / build by hand now and redo it from a selfie later.';
   const [mode, setMode] = useState<'choose' | 'edit'>('choose');
   const [confidence, setConfidence] = useState<Record<string, number> | null>(null);
   const [error, setError] = useState<string | null>(null);
