@@ -36,7 +36,7 @@ export function BridgeCard() {
           Chat on your own subscription <span className="chip ml-2 border-green-400 text-green-700 dark:border-green-700 dark:text-green-400">no API key</span>
         </h2>
         <p className="muted mt-1 text-sm">
-          Run the <span className="font-medium text-neutral-700 dark:text-neutral-300">opersona bridge</span> on any machine where Claude Code is signed in.
+          Put the <span className="font-medium text-neutral-700 dark:text-neutral-300">opersona bridge</span> on any machine where Claude Code is signed in — a tiny menu-bar app on Mac, one command anywhere else.
           Your chats here then <em>think</em> on that machine, on the Claude plan you already pay for. Your Anthropic login never leaves it,
           and the web can never run code there — anything beyond reading its own scratch folder asks you first.
         </p>
@@ -48,16 +48,27 @@ export function BridgeCard() {
       </div>
 
       {fresh && (
-        <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950/40">
+        <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950/40">
           <p className="font-medium">Your bridge token — shown once. Copy it now.</p>
           <div className="flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-xs dark:bg-neutral-900" data-bridge-token>{fresh}</code>
             <CopyButton text={fresh} />
           </div>
-          <p className="muted text-xs">On any machine with Node 20+ and Claude Code signed in:</p>
-          <div className="flex items-center gap-2">
-            <pre className="min-w-0 flex-1 overflow-x-auto rounded bg-white p-2 font-mono text-[11px] leading-snug dark:bg-neutral-900">{cmd}</pre>
-            <CopyButton text={cmd} />
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium">Mac <span className="chip ml-1">easiest</span></p>
+            <a href="/download/opersona.dmg" className="btn-primary inline-block" data-dmg-download>⬇ Download opersona for Mac</a>
+            <ol className="muted list-inside list-decimal space-y-0.5 text-xs">
+              <li>Open the .dmg, drag <span className="font-medium">opersona</span> to Applications</li>
+              <li>First launch: <span className="font-medium">right-click → Open</span> (unsigned build)</li>
+              <li>Paste the token into the pairing window — a pixie appears in your menu bar, done</li>
+            </ol>
+          </div>
+          <div className="space-y-1.5 border-t border-amber-200 pt-2 dark:border-amber-900">
+            <p className="muted text-xs">Any other machine with Node 20+ (terminal):</p>
+            <div className="flex items-center gap-2">
+              <pre className="min-w-0 flex-1 overflow-x-auto rounded bg-white p-2 font-mono text-[11px] leading-snug dark:bg-neutral-900">{cmd}</pre>
+              <CopyButton text={cmd} />
+            </div>
           </div>
         </div>
       )}
