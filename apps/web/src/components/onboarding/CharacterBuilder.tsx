@@ -107,6 +107,16 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
   // The AI story draft lives up here: step components unmount on navigation,
   // and a generated story must never evaporate (it is also persisted server-side).
   const [storyDraft, setStoryDraft] = useState<BuilderBrief | null>(null);
+  // The Pixie auto-saves on every user change (debounced): going back, refreshing,
+  // or bailing mid-flow must never lose work. The mount-time random stranger is
+  // NOT saved — only recipes the user actually touched.
+  const [recipeDirty, setRecipeDirty] = useState(false);
+  const touchRecipe = (r: AvatarRecipe) => { setRecipe(r); setRecipeDirty(true); };
+  useEffect(() => {
+    if (!recipeDirty) return;
+    const t = setTimeout(() => { void saveAvatarAction(props.clone.id, recipe).catch(() => {}); }, 800);
+    return () => clearTimeout(t);
+  }, [recipe, recipeDirty, props.clone.id]);
 
   // A little hello on the final step.
   useEffect(() => {
@@ -156,7 +166,7 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
               <ConnectStep hasApiKey={props.hasApiKey} hasRail={hasRail} onNext={() => { go(2); router.refresh(); }} />
             )}
             {step === 2 && (
-              <FaceStep cloneId={props.clone.id} recipe={recipe} onRecipe={setRecipe} onNext={() => go(3)} hasRail={hasRail} />
+              <FaceStep cloneId={props.clone.id} recipe={recipe} onRecipe={touchRecipe} onNext={() => go(3)} hasRail={hasRail} started={recipeDirty || !!props.clone.recipe} />
             )}
             {step === 3 && (
               <StoryStep
@@ -245,15 +255,16 @@ function ConnectStep({ hasApiKey, hasRail, onNext }: { hasApiKey: boolean; hasRa
 
 /* ── Step 1: Face ─────────────────────────────────────────────────────────── */
 
-function FaceStep({ cloneId, recipe, onRecipe, onNext, hasRail }: {
+function FaceStep({ cloneId, recipe, onRecipe, onNext, hasRail, started }: {
   cloneId: string;
   recipe: AvatarRecipe;
   onRecipe: (r: AvatarRecipe) => void;
   onNext: () => void;
   hasRail: boolean;
+  started: boolean;
 }) {
   const selfieGate = hasRail ? undefined : 'Selfie → Pixie needs your Claude connected (step 1 — the pairing takes a minute) — or Randomise / build by hand now and redo it from a selfie later.';
-  const [mode, setMode] = useState<'choose' | 'edit'>('choose');
+  const [mode, setMode] = useState<'choose' | 'edit'>(started ? 'edit' : 'choose'); // returning to the step reopens your work, not the intro
   const [confidence, setConfidence] = useState<Record<string, number> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
