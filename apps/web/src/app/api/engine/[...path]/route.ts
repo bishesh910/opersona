@@ -51,6 +51,7 @@ const deny = (status: number, error: string): Deny => ({ status, error });
 async function authorize(ctx: OrgCtx, method: string, path: string[]): Promise<Allow | Deny> {
   const [root, id, leaf] = path;
   if (root === 'health' && method === 'GET' && path.length === 1) return { ok: true };
+  if (root === 'bridge' && id === 'status' && method === 'GET' && path.length === 2) return { ok: true };
 
   if (root === 'avatar' && method === 'POST' && (id === 'from-selfie' || id === 'render') && path.length === 2) return { ok: true };
 

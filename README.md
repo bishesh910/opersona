@@ -87,7 +87,9 @@ Key design choices, documented in [`docs/`](docs/):
 ## Running it
 
 opersona is **self-hosted by design** — you bring a machine, and every workspace brings
-its own Anthropic API key (there is no shared platform account). The short version:
+its own Claude: either the **opersona bridge** (a tiny daemon on your computer that runs
+chats on the Claude subscription you already have) or an Anthropic API key. There is no
+shared platform account. The short version:
 
 ```bash
 # Node 22, pnpm 9, Postgres 16 required; bubblewrap for chat code execution

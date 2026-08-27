@@ -196,6 +196,7 @@ function Title({ conversationId, title, canEdit, editing, setEditing, onRenamed 
 /** Engine errors worth translating for humans (stable prefixes from the engine). */
 function friendlyErr(m: string): string {
   if (m.startsWith('no_api_key:')) return 'No API key connected — add yours in Settings → Claude access to start chatting.';
+  if (m.startsWith('bridge_offline:')) return 'Your bridge is paired but not running — start opersona-bridge on your machine (or add an API key in Settings).';
   if (m.startsWith('budget_exceeded:')) return m.replace('budget_exceeded:', 'Monthly budget reached —') + '. Raise or clear it in Settings → Models.';
   return m;
 }
@@ -671,8 +672,8 @@ export function ChatView({
               {keyMissing === 'mine' ? (
                 <>
                   <p className="font-medium">Connect your Claude to start chatting</p>
-                  <p className="muted mt-1 text-xs">Chats run on your own Anthropic API key, so your persona thinks on your account. Add it once — everything else (building, editing, sharing) already works without it.</p>
-                  <Link href="/settings#models" className="btn-primary mt-3 inline-block">Add your API key</Link>
+                  <p className="muted mt-1 text-xs">Two ways: run the <span className="font-medium">opersona bridge</span> on your machine and chats think on the Claude subscription you already have — or add an Anthropic API key. Everything else (building, editing, sharing) already works without either.</p>
+                  <Link href="/settings#models" className="btn-primary mt-3 inline-block">Connect in Settings</Link>
                 </>
               ) : (
                 <>

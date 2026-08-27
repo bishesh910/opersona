@@ -17,7 +17,9 @@ import { db, clones, conversations, turns, sessionCosts } from '@opersona/db';
 import { redactSecrets, type EngineEvent } from '@opersona/shared';
 import { maybeTitleConversation } from '../learning/title.js';
 import { config } from '../config.js';
-import { orgModelConfig } from '../keys.js';
+import { orgModelConfig, orgSettingsOnly } from '../keys.js';
+import { bridgeFor, openBridgeSession } from '../bridge/hub.js';
+import { buildPersonaTools } from '../persona/mcp.js';
 import { ensureWorkspace, conversationWorkdir } from '../isolation/workspace.js';
 import { activePrompt, PLAIN_CLAUDE_PROMPT } from '../persona/assemble.js';
 import { createPersonaServer, PERSONA_SERVER, PERSONA_TOOLS } from '../persona/mcp.js';
@@ -45,7 +47,11 @@ export class InputQueue implements AsyncIterable<SDKUserMessage> {
 
 interface Live {
   conversationId: string; orgId: string; cloneId: string; userId: string;
-  input: InputQueue; q: Query; abort: AbortController; idle?: NodeJS.Timeout;
+  input: { push(m: SDKUserMessage): void; close(): void };
+  stream: AsyncIterable<SDKMessage>;
+  interrupt: () => void;
+  viaBridge: boolean;
+  abort: AbortController; idle?: NodeJS.Timeout;
   sdkSessionId?: string; promptHash: string; model: string; textBuf: string; toolUses: { id: string; name: string; input: unknown; ok?: boolean; preview?: string }[];
   workdir: string; filesBefore: Map<string, FileStat>;
   done: Promise<void>;
@@ -134,7 +140,7 @@ export async function sendMessage(args: { conversationId: string; orgId: string;
   // Save attachments as real files in the workdir BEFORE snapshotting, so sandboxed code
   // can process them and they are not counted as this turn's generated outputs.
   let saved: string[] = [];
-  if (args.attachments?.length) {
+  if (args.attachments?.length && !s.viaBridge) {
     saved = saveAttachmentsToWorkdir(s.workdir, args.attachments.map((a) => ({ name: a.name, buf: Buffer.from(a.dataBase64, 'base64') })));
   }
   s.filesBefore = scanDir(s.workdir);
@@ -156,6 +162,7 @@ export async function endSession(conversationId: string): Promise<void> {
   if (!s) return;
   s.input.close();
   s.abort.abort();
+  s.interrupt();
   live.delete(conversationId);
   await db.update(conversations).set({ status: 'idle', lastActivityAt: new Date() }).where(eq(conversations.id, conversationId)).catch(() => {});
   // Learn from the conversation now that it is over (idempotent; extracted_at gate).
@@ -174,13 +181,25 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
   const [conv] = await db.select().from(conversations).where(eq(conversations.id, args.conversationId)).limit(1);
   if (!conv) throw new Error('conversation not found');
 
-  const cfg = await orgModelConfig(args.orgId);
+  // Rail: a connected bridge (the user's own machine + subscription) wins;
+  // otherwise the workspace API key; otherwise a clear, gate-mappable error.
+  const bridge = bridgeFor(args.orgId);
+  const cfg = bridge ? null : await orgModelConfig(args.orgId).catch(async (e) => {
+    if (e instanceof Error && e.message.startsWith('no_api_key:')) {
+      const { db: db2, bridgeTokens } = await import('@opersona/db');
+      const { and: and2, eq: eq2, isNull: isNull2 } = await import('drizzle-orm');
+      const paired = await db2.select({ id: bridgeTokens.id }).from(bridgeTokens).where(and2(eq2(bridgeTokens.orgId, args.orgId), isNull2(bridgeTokens.revokedAt))).limit(1);
+      if (paired.length) throw new Error('bridge_offline: your opersona bridge is paired but not connected — start it on your machine, or add an API key');
+    }
+    throw e;
+  });
+  const settings = cfg ?? await orgSettingsOnly(args.orgId);
   const ws = ensureWorkspace(args.orgId, args.cloneId);
   const workdir = conversationWorkdir(args.orgId, args.cloneId, args.conversationId);
   if (conv.cwd !== workdir) await db.update(conversations).set({ cwd: workdir }).where(eq(conversations.id, args.conversationId));
   const cloneMode = conv.mode === 'clone';
   const visitor = conv.userId !== clone.ownerUserId; // anyone but the owner gets the shareable-only persona
-  const isBoss = cloneMode && cfg.bossCloneId === args.cloneId;
+  const isBoss = cloneMode && settings.bossCloneId === args.cloneId;
   const audience = clone.kind === 'hired' ? 'hired' as const : visitor ? 'visitor' as const : 'owner' as const;
   let { prompt, promptHash } = cloneMode ? await activePrompt(args.orgId, args.cloneId, audience) : { prompt: PLAIN_CLAUDE_PROMPT, promptHash: 'plain' };
   if (isBoss) { prompt += BOSS_ADDENDUM; promptHash += '.boss'; }
@@ -221,12 +240,36 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
     return {};
   };
 
+  const model = conv.model ?? settings.chatModel;
+  const effort = (conv.effort ?? settings.chatEffort) as Options['effort'];
+
+  if (bridge) {
+    // The session runs on the user's machine under their own Claude Code login.
+    // Persona tools + approvals RPC back here; built-ins are the read-only set.
+    const toolNames = cloneMode ? buildPersonaTools(ctx).map((t) => t.name) : ['search_documents'];
+    const b = openBridgeSession(bridge, {
+      ctx, conversationId: args.conversationId, systemPrompt: prompt,
+      model, effort: effort as string | undefined, resume: conv.sdkSessionId ?? undefined,
+      tools: toolNames, builtinTools: ['Read', 'Glob', 'Grep', 'WebSearch'], maxTurns: config.maxTurns,
+    });
+    const s: Live = {
+      conversationId: args.conversationId, orgId: args.orgId, userId: args.userId, cloneId: args.cloneId,
+      input: { push: (m) => b.push(m), close: () => { /* bridge sessions end via cancel */ } },
+      stream: b.messages, interrupt: b.interrupt, viaBridge: true, abort,
+      sdkSessionId: conv.sdkSessionId ?? undefined, promptHash: promptHash + '.bridge', model,
+      textBuf: '', toolUses: [], workdir, filesBefore: scanDir(workdir), done: Promise.resolve(),
+    };
+    s.done = consume(s);
+    live.set(args.conversationId, s);
+    return s;
+  }
+
   const options: Options = {
-    model: conv.model ?? cfg.chatModel,
-    effort: (conv.effort ?? cfg.chatEffort) as Options['effort'],
+    model,
+    effort,
     systemPrompt: prompt,
     cwd: workdir,
-    env: sessionEnv(ws, cfg.apiKey),
+    env: sessionEnv(ws, cfg!.apiKey),
     settingSources: [],
     // Both modes get the sandboxed exec toolset + WebSearch. Plain-Claude still only sees
     // search_documents from the persona server (other persona tools disallowed below).
@@ -246,7 +289,11 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
   };
 
   const q = query({ prompt: input, options });
-  const s: Live = { conversationId: args.conversationId, orgId: args.orgId, userId: args.userId, cloneId: args.cloneId, input, q, abort, sdkSessionId: conv.sdkSessionId ?? undefined, promptHash, model: conv.model ?? cfg.chatModel, textBuf: '', toolUses: [], workdir, filesBefore: scanDir(workdir), done: Promise.resolve() };
+  const s: Live = {
+    conversationId: args.conversationId, orgId: args.orgId, userId: args.userId, cloneId: args.cloneId,
+    input, stream: q as AsyncIterable<SDKMessage>, interrupt: () => abort.abort(), viaBridge: false, abort,
+    sdkSessionId: conv.sdkSessionId ?? undefined, promptHash, model, textBuf: '', toolUses: [], workdir, filesBefore: scanDir(workdir), done: Promise.resolve(),
+  };
   s.done = consume(s);
   live.set(args.conversationId, s);
   return s;
@@ -255,7 +302,7 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
 async function consume(s: Live): Promise<void> {
   const emit = (ev: EngineEvent) => publish(s.conversationId, ev);
   try {
-    for await (const m of s.q as AsyncIterable<SDKMessage>) {
+    for await (const m of s.stream) {
       switch (m.type) {
         case 'system':
           if (m.subtype === 'init') {
@@ -304,7 +351,9 @@ async function consume(s: Live): Promise<void> {
           if (files.length) emit({ type: 'files', files, turn_id: turnId });
           void maybeTitleConversation(s.orgId, s.cloneId, s.conversationId).catch((e) => console.error('[title]', e));
           const u = m.usage;
-          const cost = m.total_cost_usd ?? null;
+          // Bridge turns run on the user's subscription: keep token counts, but no USD
+          // (budget guards sum costUsd — subscription usage must never trip them).
+          const cost = s.viaBridge ? null : (m.total_cost_usd ?? null);
           await db.insert(sessionCosts).values({
             orgId: s.orgId, cloneId: s.cloneId, conversationId: s.conversationId, kind: 'chat', model: s.model, promptHash: s.promptHash,
             inputTokens: u.input_tokens ?? 0, outputTokens: u.output_tokens ?? 0,

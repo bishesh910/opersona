@@ -35,6 +35,10 @@ registerDownloads(routes);
 const parse = async <T extends z.ZodTypeAny>(c: { req: { json: () => Promise<unknown> } }, schema: T): Promise<z.infer<T>> => schema.parse(await c.req.json().catch(() => ({})));
 
 routes.get('/health', (c) => c.json({ ok: true, version: config.version, learningQueue: queueSize() }));
+routes.get('/bridge/status', async (c) => {
+  const { bridgeStatus } = await import('../bridge/hub.js');
+  return c.json(bridgeStatus(c.req.query('orgId') ?? ''));
+});
 
 // ─── chat ───────────────────────────────────────────────────────────────────
 routes.post('/conversations/:id/messages', async (c) => {

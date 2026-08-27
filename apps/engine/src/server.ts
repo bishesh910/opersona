@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
+import { WebSocketServer } from 'ws';
+import type { Server as HttpServer } from 'node:http';
+import { authBridgeToken, register } from './bridge/hub.js';
 import { ZodError } from 'zod';
 import { config } from './config.js';
 import { internalAuth } from './auth.js';
@@ -24,6 +27,18 @@ import('./learning/merge.js').then((m) => m.startNightlyTidy());
 
 const server = serve({ fetch: app.fetch, port: config.port, hostname: process.env.ENGINE_HOST ?? '127.0.0.1' }, (info) => {
   console.log(`[engine] listening on :${info.port} · data=${config.dataDir} · live sessions=${liveCount()}`);
+});
+
+// ── opersona bridge: authenticated WebSocket from user machines (Caddy proxies /bridge/ws) ──
+const wss = new WebSocketServer({ noServer: true, maxPayload: 8_000_000 });
+(server as HttpServer).on('upgrade', (req, socket, head) => {
+  const url = new URL(req.url ?? '/', 'http://engine');
+  if (url.pathname !== '/bridge/ws') { socket.destroy(); return; }
+  const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '') || url.searchParams.get('token') || '';
+  void authBridgeToken(token).then((auth) => {
+    if (!auth) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
+    wss.handleUpgrade(req, socket, head, (ws) => register(ws, auth));
+  }).catch(() => socket.destroy());
 });
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { void shutdown().finally(() => { server.close(); process.exit(0); }); });

@@ -12,7 +12,7 @@ the map.
 | Linux host | tested on Ubuntu 24.04 |
 | Node | 22.x (fnm or nvm is fine) + pnpm 9 |
 | Postgres | plain 16 — full-text search uses the built-in `tsvector`; no extensions required |
-| Claude access | each workspace stores its own Anthropic API key (Settings → Claude access); `ANTHROPIC_API_KEY` in `.env` is an optional install-wide fallback |
+| Claude access | per workspace: an **opersona bridge** on the user's machine (their Claude subscription, no key) and/or their own Anthropic API key; `ANTHROPIC_API_KEY` in `.env` is an optional install-wide fallback |
 | bubblewrap | for chat code execution (`apt install bubblewrap`) |
 | Reverse proxy | anything that can TLS + stream SSE (Caddy config is what we run) |
 

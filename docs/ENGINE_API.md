@@ -100,6 +100,10 @@ chunks, writes `document_chunks`. `{ chunks: n }`.
 ## Misc
 
 - `GET /health` → `{ ok, version, learningQueue }`.
+- `GET /bridge/status?orgId=` → `{ connected, host?, since? }` — is an opersona bridge online for this workspace.
+- `WS /bridge/ws` (public path, proxied by Caddy; `Authorization: Bearer obr_…`) — the opersona
+  bridge socket: user machines run chat sessions locally on their own Claude subscription and
+  stream SDK messages back; persona tools and approvals RPC to the engine over the same socket.
 - `POST /keys/validate` `{ apiKey }` → `{ ok, model }` or `{ ok: false, status, error }`
   (always HTTP 200). Called before storing an org key — a bad key otherwise looks like a hang
   (the SDK retries 401s ~11× with backoff; `status` SSE events surface those retries).

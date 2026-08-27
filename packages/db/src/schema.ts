@@ -518,6 +518,18 @@ export const claudeCodeSessions = pgTable('claude_code_sessions', {
   createdAt: now(),
 }, (t) => [primaryKey({ columns: [t.cloneId, t.sessionId] })]);
 
+/** opersona bridge pairing tokens (obr_… , stored as sha256). One row per paired machine. */
+export const bridgeTokens = pgTable('bridge_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull().default('my machine'),
+  tokenHash: text('token_hash').notNull().unique(),
+  createdAt: now(),
+  lastSeenAt: timestamp('last_seen_at'),
+  revokedAt: timestamp('revoked_at'),
+}, (t) => [index('bridge_tokens_org_idx').on(t.orgId)]);
+
 // ─── self-tests ("does it sound like me?") ──────────────────────────────────
 export const selfTests = pgTable('self_tests', {
   id: uuid('id').primaryKey().defaultRandom(),

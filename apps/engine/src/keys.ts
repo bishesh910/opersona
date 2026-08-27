@@ -4,6 +4,20 @@ import { decryptSecret } from '@opersona/shared';
 import { config } from './config.js';
 
 export interface OrgModelConfig { apiKey: string; chatModel: string; extractModel: string; condenseModel: string; chatEffort: string; bossCloneId: string | null }
+export interface OrgSettingsOnly { chatModel: string; extractModel: string; condenseModel: string; chatEffort: string; bossCloneId: string | null }
+
+/** Model defaults + boss star WITHOUT resolving a key — for bridge sessions,
+ *  which run on the user's own subscription (no key, no cloud budget). */
+export async function orgSettingsOnly(orgId: string): Promise<OrgSettingsOnly> {
+  const [row] = await db.select().from(orgSettings).where(eq(orgSettings.orgId, orgId)).limit(1);
+  return {
+    chatModel: row?.chatModel ?? 'claude-opus-5',
+    extractModel: row?.extractModel ?? 'claude-sonnet-5',
+    condenseModel: row?.condenseModel ?? 'claude-haiku-4-5',
+    chatEffort: row?.chatEffort ?? 'high',
+    bossCloneId: row?.bossCloneId ?? null,
+  };
+}
 
 /**
  * BYO Anthropic key per workspace — the single chokepoint every inference site
@@ -20,7 +34,7 @@ export async function orgModelConfig(orgId: string): Promise<OrgModelConfig> {
   }
   const usingPlatformKey = !apiKey && !!config.platformApiKey;
   if (usingPlatformKey) apiKey = config.platformApiKey;
-  if (!apiKey) throw new Error('no_api_key: add your Anthropic API key in Settings to start chatting');
+  if (!apiKey) throw new Error('no_api_key: connect your Claude in Settings — run the opersona bridge (your subscription) or add an API key');
 
   // Monthly spend cap: the workspace's own budget, or the platform default when
   // it is running on the operator's key (never applied to BYO keys unset).

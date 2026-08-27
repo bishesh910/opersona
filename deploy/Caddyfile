@@ -10,9 +10,15 @@ opersona.example.com {
 	request_body {
 		max_size 100MB
 	}
-	reverse_proxy 127.0.0.1:3000 {
-		# SSE must not be buffered
-		flush_interval -1
+	# opersona bridge: user machines connect outbound here (WebSocket to the engine)
+	handle /bridge/* {
+		reverse_proxy 127.0.0.1:4000
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3000 {
+			# SSE must not be buffered
+			flush_interval -1
+		}
 	}
 	log
 }
