@@ -25,6 +25,12 @@ remembers it. From then on, while this is running:
   opersona with its own token, and nothing Anthropic-related crosses the wire.
 - One outbound WebSocket; nothing listens on your machine.
 
+## Mac app
+
+There's also a menu-bar app (download it from your opersona Settings → Pair a
+machine). It's unsigned for now, so macOS calls it "damaged" — it isn't; run
+`xattr -cr /Applications/opersona.app` once and it opens normally forever.
+
 ## Requirements
 
 Node 20+, and [Claude Code](https://claude.com/claude-code) signed in (`claude` once).
