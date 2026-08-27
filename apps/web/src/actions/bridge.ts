@@ -5,7 +5,7 @@
  */
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import { db, bridgeTokens } from '@opersona/db';
+import { db, bridgeTokens, authSchema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
 import { engineFetch } from '@/lib/engine';
 
@@ -36,4 +36,17 @@ export async function revokeBridgeToken(id: string): Promise<void> {
   const ctx = await requireOrg();
   await db.update(bridgeTokens).set({ revokedAt: new Date() })
     .where(and(eq(bridgeTokens.id, id), eq(bridgeTokens.orgId, ctx.orgId), eq(bridgeTokens.userId, ctx.userId)));
+}
+
+/** claude.ai connector state: did this user complete the OAuth consent, and when
+ *  did their Claude last actually call us? */
+export async function connectorState(): Promise<{ connected: boolean; lastUsedAt: string | null }> {
+  const ctx = await requireOrg();
+  const [consent] = await db.select({ id: authSchema.oauthConsent.id }).from(authSchema.oauthConsent)
+    .where(eq(authSchema.oauthConsent.userId, ctx.userId)).limit(1);
+  if (!consent) return { connected: false, lastUsedAt: null };
+  const [tok] = await db.select({ at: authSchema.oauthAccessToken.createdAt }).from(authSchema.oauthAccessToken)
+    .where(eq(authSchema.oauthAccessToken.userId, ctx.userId))
+    .orderBy(desc(authSchema.oauthAccessToken.createdAt)).limit(1);
+  return { connected: true, lastUsedAt: tok?.at?.toISOString() ?? null };
 }
