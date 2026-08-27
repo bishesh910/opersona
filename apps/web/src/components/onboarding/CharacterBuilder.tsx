@@ -32,6 +32,8 @@ export interface CharacterBuilderProps {
   brief: BuilderBrief | null;
   personalityType: string | null;
   hasApiKey: boolean;
+  /** Some Claude rail (bridge / key) is connected — selfie extraction can run. */
+  hasRail: boolean;
 }
 
 function StepDots({ current }: { current: number }) {
@@ -119,7 +121,7 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
           </aside>
           <section className="w-full min-w-0 md:max-w-xl">
             {step === 1 && (
-              <FaceStep cloneId={props.clone.id} recipe={recipe} onRecipe={setRecipe} onNext={() => go(2)} />
+              <FaceStep cloneId={props.clone.id} recipe={recipe} onRecipe={setRecipe} onNext={() => go(2)} hasRail={props.hasRail} />
             )}
             {step === 2 && (
               <StoryStep
@@ -184,12 +186,14 @@ function ConnectStep({ hasApiKey, onNext }: { hasApiKey: boolean; onNext: () => 
 
 /* ── Step 1: Face ─────────────────────────────────────────────────────────── */
 
-function FaceStep({ cloneId, recipe, onRecipe, onNext }: {
+function FaceStep({ cloneId, recipe, onRecipe, onNext, hasRail }: {
   cloneId: string;
   recipe: AvatarRecipe;
   onRecipe: (r: AvatarRecipe) => void;
   onNext: () => void;
+  hasRail: boolean;
 }) {
+  const selfieGate = hasRail ? undefined : 'Selfie → Pixie uses Claude vision, which connects in step 4 — Randomise or build by hand for now; you can redo it from a selfie any time after.';
   const [mode, setMode] = useState<'choose' | 'edit'>('choose');
   const [confidence, setConfidence] = useState<Record<string, number> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -216,7 +220,7 @@ function FaceStep({ cloneId, recipe, onRecipe, onNext }: {
       {mode === 'choose' ? (
         <div className="card space-y-4">
           <p className="muted text-sm">Your Pixie is your persona's pixel portrait. Start from a selfie, roll the dice, or build it by hand — you can fine-tune either way.</p>
-          <SelfieUpload onRecipe={(r, c) => { onRecipe(r); setConfidence(c); setMode('edit'); }} />
+          <SelfieUpload gate={selfieGate} onRecipe={(r, c) => { onRecipe(r); setConfidence(c); setMode('edit'); }} />
           <div className="muted text-xs">or</div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn-secondary" onClick={() => { onRecipe(randomRecipe()); setMode('edit'); }}>Randomise</button>
@@ -228,7 +232,7 @@ function FaceStep({ cloneId, recipe, onRecipe, onNext }: {
           <div className="card space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn-secondary btn-sm" onClick={() => { onRecipe(randomRecipe()); setError(null); }}>Randomise</button>
-              <SelfieUpload onRecipe={(r, c) => { onRecipe(r); setConfidence(c); setError(null); }} />
+              <SelfieUpload gate={selfieGate} onRecipe={(r, c) => { onRecipe(r); setConfidence(c); setError(null); }} />
             </div>
             {lowConfidence.length > 0 && (
               <p className="text-xs text-amber-600">Low confidence on: {lowConfidence.join(', ')} — worth a second look below.</p>

@@ -19,6 +19,8 @@ export interface StructuredCallArgs<S extends z.ZodTypeAny> {
   apiKey: string; model: string;
   system: string; user: string; schema: S;
   effort?: 'low' | 'medium' | 'high';
+  /** Vision input (selfie extraction). */
+  image?: { base64: string; mime: string };
 }
 
 /** zod → JSON Schema both the API (2020-12) and the CLI validator accept: no `$schema`
@@ -58,7 +60,7 @@ export async function textCall(a: { orgId: string; cloneId: string; kind: string
 
 export async function structuredCall<S extends z.ZodTypeAny>(a: StructuredCallArgs<S>): Promise<z.infer<S>> {
   if (!a.apiKey) {
-    const r = await runBridgeJob(bridgeOrThrow(a.orgId), { kind: 'structured', model: a.model, effort: a.effort, system: a.system, user: a.user, schema: jsonSchemaOf(a.schema) });
+    const r = await runBridgeJob(bridgeOrThrow(a.orgId), { kind: 'structured', model: a.model, effort: a.effort, system: a.system, user: a.user, schema: jsonSchemaOf(a.schema), image: a.image });
     await logCost(a, r.usage, null);
     if (!r.ok) throw new Error(`structured call failed on bridge: ${r.error ?? 'no output'}`);
     return a.schema.parse(r.output);
@@ -66,7 +68,12 @@ export async function structuredCall<S extends z.ZodTypeAny>(a: StructuredCallAr
   const client = new Anthropic({ apiKey: a.apiKey });
   const res = await client.messages.parse({
     model: a.model, max_tokens: 16000, system: a.system,
-    messages: [{ role: 'user', content: a.user }],
+    messages: [{
+      role: 'user',
+      content: a.image
+        ? [{ type: 'image', source: { type: 'base64', media_type: a.image.mime as 'image/jpeg', data: a.image.base64 } }, { type: 'text', text: a.user }]
+        : a.user,
+    }],
     output_config: { format: zodOutputFormat(a.schema), ...(a.effort ? { effort: a.effort } : {}) },
   });
   await logCost(a, { input: res.usage.input_tokens, output: res.usage.output_tokens, cacheRead: res.usage.cache_read_input_tokens ?? 0 }, costOf(a.model, res.usage));

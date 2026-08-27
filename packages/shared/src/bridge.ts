@@ -43,6 +43,8 @@ export interface BridgeJob {
   user: string;
   /** JSON Schema (draft 2020-12, no $schema tag) for kind='structured'. */
   schema?: Record<string, unknown>;
+  /** Optional image for vision jobs (selfie → pixie). */
+  image?: { base64: string; mime: string };
 }
 export interface BridgeIngestResult { t: 'ingestResult'; id: string; status: string; observations?: number; note?: string }
 export type EngineToBridge = BridgeStart | BridgeUserMsg | BridgeCancel | BridgeToolResult | BridgeApprovalResult | BridgePing | BridgeJob | BridgeIngestResult;

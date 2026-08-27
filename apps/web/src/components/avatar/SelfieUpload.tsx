@@ -56,7 +56,14 @@ const BUSY_MESSAGES = [
   'Placing the final pixels…',
 ];
 
-export function SelfieUpload({ onRecipe, disabled }: { onRecipe: (r: AvatarRecipe, confidence: Record<string, number>) => void; disabled?: boolean }) {
+/** Engine errors that must never reach a human raw. */
+function friendlySelfieErr(m: string): string {
+  if (m.startsWith('no_api_key:')) return 'Reading a selfie uses Claude vision, which needs your Claude connected first — you can do that in the Connect step (or Settings) and redo your Pixie from a selfie any time.';
+  if (m.startsWith('bridge_offline:')) return 'Your bridge is paired but not running — start `npx opersona` on your machine, then try the selfie again.';
+  return m;
+}
+
+export function SelfieUpload({ onRecipe, disabled, gate }: { onRecipe: (r: AvatarRecipe, confidence: Record<string, number>) => void; disabled?: boolean; gate?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -86,12 +93,20 @@ export function SelfieUpload({ onRecipe, disabled }: { onRecipe: (r: AvatarRecip
       onRecipe(json.recipe, json.confidence ?? {});
     } catch (err) {
       const m = err instanceof Error ? err.message : String(err);
-      setError(/abort|timeout/i.test(m) ? 'Took too long — the AI reader may be busy. Try once more.' : m);
+      setError(/abort|timeout/i.test(m) ? 'Took too long — the AI reader may be busy. Try once more.' : friendlySelfieErr(m));
     } finally {
       setBusy(false);
     }
   }
 
+  if (gate) {
+    return (
+      <div className="space-y-1">
+        <button type="button" className="btn-secondary" disabled title={gate}>Upload a selfie</button>
+        <p className="muted max-w-md text-xs">{gate}</p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-2">
       {/* Most reliable pattern on iOS: the file input itself, transparent, laid OVER the

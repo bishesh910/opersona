@@ -4,6 +4,7 @@ import { db, schema } from '@opersona/db';
 import { requireSession, getOrgCtx } from '@/lib/session';
 import { getOrCreateOwnClone } from '@/lib/chat';
 import { CharacterBuilder } from '@/components/onboarding/CharacterBuilder';
+import { orgHasChatKey } from '@/lib/keys';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   ]);
 
   const hasApiKey = !!settings?.anthropicKeyEnc;
+  const hasRail = hasApiKey || await orgHasChatKey(org.orgId);
   const derived = !clone?.avatarRecipe ? 1 : !(brief?.briefMd ?? '').trim() ? 2 : !personality ? 3 : !hasApiKey ? 4 : 5;
   const requested = Number(stepParam);
   const hasStep = Number.isInteger(requested) && requested >= 1 && requested <= 5;
@@ -54,6 +56,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       }}
       personalityType={personality?.type ?? null}
       hasApiKey={hasApiKey}
+      hasRail={hasRail}
     />
   );
 }

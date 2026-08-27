@@ -206,7 +206,7 @@ export function openBridgeSession(conn: BridgeConn, params: {
 }
 
 /** Run one inference job on the user's bridge (their subscription). 10-minute ceiling. */
-export function runBridgeJob(conn: BridgeConn, job: { kind: 'structured' | 'text'; model: string; effort?: string; system: string; user: string; schema?: Record<string, unknown> }): Promise<BridgeJobResult> {
+export function runBridgeJob(conn: BridgeConn, job: { kind: 'structured' | 'text'; model: string; effort?: string; system: string; user: string; schema?: Record<string, unknown>; image?: { base64: string; mime: string } }): Promise<BridgeJobResult> {
   const id = randomUUID();
   return new Promise((resolve) => {
     const timer = setTimeout(() => { pendingJobs.delete(id); resolve({ ok: false, error: 'bridge job timed out' }); }, 10 * 60_000);

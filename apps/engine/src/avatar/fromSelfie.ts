@@ -3,13 +3,10 @@
  * held in memory only for the duration of this call and is never written to
  * disk or the database — only the resulting recipe is stored.
  */
-import Anthropic from '@anthropic-ai/sdk';
-import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { AvatarRecipe, SKIN_TONES, HAIR_STYLES, CLOTHES, BROWS, MOUTHS, FACIAL, EARRINGS, HEADWEAR, GLASSES_STYLES, RGB } from '@opersona/shared';
-import { db, sessionCosts } from '@opersona/db';
-import { costOf } from '../pricing.js';
+import { structuredCall } from '../llm.js';
 
 /** Plain 3-element array instead of a tuple: tuples serialise to draft-specific
  *  keywords (`items: [...]` vs `prefixItems`) and the CLI validator and the API
@@ -53,7 +50,6 @@ const SYSTEM = `You convert one selfie into parameters for a tiny 36x56-pixel ca
 type Extracted = z.infer<typeof Extraction>;
 
 export async function recipeFromSelfie(args: { orgId: string; apiKey: string; model: string; imageBase64: string; mime: string }): Promise<{ recipe: AvatarRecipe; confidence: Record<string, number> }> {
-  if (!args.apiKey) throw new Error('Selfie extraction needs an API key for now — or build your Pixie by hand (it takes a minute).');
   // Normalise: strip EXIF, cap at 512px, re-encode as JPEG — the model never sees the original bytes.
   const input = Buffer.from(args.imageBase64, 'base64');
   let jpeg: Buffer;
@@ -62,20 +58,13 @@ export async function recipeFromSelfie(args: { orgId: string; apiKey: string; mo
   } catch {
     throw new Error('Could not read this photo format. Use a JPG or PNG — screenshotting the photo and uploading the screenshot always works.');
   }
-  const client = new Anthropic({ apiKey: args.apiKey });
-  const res = await client.messages.parse({
-    model: args.model,
-    max_tokens: 2048,
-    system: SYSTEM,
-    messages: [{ role: 'user', content: [
-      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: jpeg.toString('base64') } },
-      { type: 'text', text: 'Produce the portrait parameters for this person.' },
-    ] }],
-    output_config: { format: zodOutputFormat(Extraction) },
+  // Rail-aware: API key → Messages API; keyless + bridge → vision job on the user's own subscription.
+  const x: Extracted = await structuredCall({
+    orgId: args.orgId, cloneId: '00000000-0000-0000-0000-000000000000', kind: 'avatar',
+    apiKey: args.apiKey, model: args.model, schema: Extraction,
+    system: SYSTEM, user: 'Produce the portrait parameters for this person.',
+    image: { base64: jpeg.toString('base64'), mime: 'image/jpeg' },
   });
-  await db.insert(sessionCosts).values({ orgId: args.orgId, cloneId: '00000000-0000-0000-0000-000000000000', kind: 'avatar', model: args.model, inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens, costUsd: costOf(args.model, res.usage) }).catch(() => {});
-  if (!res.parsed_output) throw new Error('vision model returned no structured output');
-  const x: Extracted = res.parsed_output;
   const rgb = (a: number[]): RGB => [a[0] ?? 0, a[1] ?? 0, a[2] ?? 0];
   const recipe: AvatarRecipe = {
     skin: x.skin, hair: x.hair, hairc: rgb(x.hairc), cloth: x.cloth, c1: rgb(x.c1), brow: x.brow, mouth: x.mouth,
