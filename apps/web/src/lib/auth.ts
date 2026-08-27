@@ -140,7 +140,13 @@ export const auth = betterAuth({
   // indefinitely. The matching safety valve is Settings -> Account -> Devices
   // (review active sessions, sign out any of them).
   session: { expiresIn: 60 * 60 * 24 * 60, updateAge: 60 * 60 * 24 },
-  advanced: { useSecureCookies: (process.env.BETTER_AUTH_URL ?? '').startsWith('https://') },
+  advanced: {
+    useSecureCookies: (process.env.BETTER_AUTH_URL ?? '').startsWith('https://'),
+    // Caddy terminates TLS in front of us: without this, rate limiting cannot see
+    // client IPs and every visitor shares ONE bucket (5 signups/hour for the whole
+    // internet — discovered the hard way on launch day).
+    ipAddress: { ipAddressHeaders: ['x-forwarded-for'] },
+  },
   socialProviders: {
     ...(SOCIAL.google ? { google: { clientId: process.env.GOOGLE_CLIENT_ID!, clientSecret: process.env.GOOGLE_CLIENT_SECRET! } } : {}),
     ...(SOCIAL.apple ? { apple: { clientId: process.env.APPLE_CLIENT_ID!, clientSecret: process.env.APPLE_CLIENT_SECRET!, appBundleIdentifier: process.env.APPLE_APP_BUNDLE_IDENTIFIER } } : {}),
