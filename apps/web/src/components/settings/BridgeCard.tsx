@@ -56,18 +56,18 @@ export function BridgeCard() {
           </div>
           <div className="space-y-1.5">
             <p className="text-xs font-medium">Mac <span className="chip ml-1">easiest</span></p>
-            <a href="/download/opersona.dmg" className="btn-primary inline-block" data-dmg-download>⬇ Download opersona for Mac</a>
-            <ol className="muted list-inside list-decimal space-y-0.5 text-xs">
-              <li>Open the .dmg, drag <span className="font-medium">opersona</span> to Applications</li>
+            <ol className="muted list-inside list-decimal space-y-1 text-xs">
               <li>
-                macOS will claim it&apos;s &ldquo;damaged&rdquo; (it isn&apos;t — the build is unsigned). One command in Terminal fixes it forever:
+                <a href="/download/opersona.dmg" className="font-medium underline underline-offset-2" data-dmg-download>Download the app</a> — open the .dmg, drag <span className="font-medium">opersona</span> to Applications, then one Terminal command (Apple marks unsigned apps &ldquo;damaged&rdquo; — it isn&apos;t):
                 <span className="mt-1 flex items-center gap-2">
                   <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">xattr -cr /Applications/opersona.app</code>
                   <CopyButton text="xattr -cr /Applications/opersona.app" />
                 </span>
               </li>
-              <li>Open it, paste the token into the pairing window — a pixie appears in your menu bar, done</li>
+              <li>Open the app once (a pixie appears in your menu bar), then press:</li>
             </ol>
+            <a href={`opersona://pair?token=${fresh}`} className="btn-primary inline-block" data-deeplink-pair>⚡ Pair the app — one click, no copying</a>
+            <p className="muted text-xs">The menu flips to <span className="font-medium">● Online</span> within seconds. (Manual fallback: menu → Pair this machine… and paste the token above.)</p>
           </div>
           <div className="space-y-1.5 border-t border-amber-200 pt-2 dark:border-amber-900">
             <p className="muted text-xs">Any other machine with Node 20+ (terminal):</p>

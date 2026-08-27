@@ -357,11 +357,16 @@ fn takeover_launchd() {
     }
 }
 
-#[tauri::command]
-fn save_token(app: AppHandle, token: String) -> Result<(), String> {
+fn apply_token(app: &AppHandle, token: &str) -> Result<(), String> {
     let t = token.trim();
-    if !t.starts_with("obr_") || t.len() < 20 {
-        return Err("that does not look like a bridge token".into());
+    if !t.starts_with("obr_") {
+        return Err("that does not look like a bridge token (it starts with obr_)".into());
+    }
+    if t.len() != 52 {
+        return Err(format!(
+            "that token looks incomplete ({} characters — a real one is 52). Mint a fresh one and use the Copy button.",
+            t.len()
+        ));
     }
     std::fs::create_dir_all(cfg_dir()).map_err(|e| e.to_string())?;
     let cfg = serde_json::json!({ "url": SITE, "token": t });
@@ -384,8 +389,31 @@ fn save_token(app: AppHandle, token: String) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("pair") {
         let _ = w.hide();
     }
-    start_daemon(&app);
+    start_daemon(app);
     Ok(())
+}
+
+#[tauri::command]
+fn save_token(app: AppHandle, token: String) -> Result<(), String> {
+    apply_token(&app, &token)
+}
+
+/// opersona://pair?token=obr_… — one click on the website pairs the app.
+fn handle_deep_link(app: &AppHandle, url: &str) {
+    tlog(&format!("deep link: {}", url.split("token=").next().unwrap_or(url)));
+    let Some(raw) = url.split("token=").nth(1) else { return };
+    let token = raw.split('&').next().unwrap_or(raw).trim();
+    match apply_token(app, token) {
+        Ok(()) => tlog("deep-link pairing accepted"),
+        Err(e) => {
+            tlog(&format!("deep-link pairing failed: {e}"));
+            set_note(app, Some(format!("Pairing link problem: {e}")));
+            if let Some(w) = app.get_webview_window("pair") {
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }
+    }
 }
 
 #[tauri::command]
@@ -399,6 +427,7 @@ fn main() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_deep_link::init())
         .manage(AppState {
             daemon: Arc::new(Mutex::new(Daemon {
                 child: None,
@@ -416,6 +445,22 @@ fn main() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             takeover_launchd();
+
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| {
+                    for url in event.urls() {
+                        handle_deep_link(&handle, url.as_str());
+                    }
+                });
+                if let Ok(Some(urls)) = app.deep_link().get_current() {
+                    let handle = app.handle().clone();
+                    for url in urls {
+                        handle_deep_link(&handle, url.as_str());
+                    }
+                }
+            }
 
             let status = MenuItem::with_id(app, "status", "○ Starting…", false, None::<&str>)?;
             let learned = MenuItem::with_id(app, "learned", "Learned 0 sessions today", false, None::<&str>)?;
