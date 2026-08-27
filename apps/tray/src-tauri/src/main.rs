@@ -18,9 +18,11 @@ const SITE: &str = "https://opersona.me";
 struct Daemon {
     child: Option<Child>,
     want_running: bool,
+    spawning: bool,
     connected: bool,
     learned_today: u32,
     day: String,
+    note: Option<String>,
 }
 
 struct UiItems {
@@ -36,6 +38,19 @@ struct AppState {
 
 fn cfg_dir() -> PathBuf {
     dirs::home_dir().expect("no home").join(".opersona-bridge")
+}
+
+/// Everything noteworthy lands in ~/.opersona-bridge/tray.log — GUI apps have no terminal.
+fn tlog(msg: &str) {
+    use std::io::Write;
+    let _ = std::fs::create_dir_all(cfg_dir());
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(cfg_dir().join("tray.log"))
+    {
+        let _ = writeln!(f, "{msg}");
+    }
 }
 
 fn has_token() -> bool {
@@ -91,27 +106,56 @@ fn ensure_bridge_js() -> Result<PathBuf, String> {
     Err("bridge bundle not found in package".into())
 }
 
-/// Claude Code users always have node; GUI apps just don't inherit shell PATH.
+/// Claude Code users always have node; GUI apps just don't inherit shell PATH,
+/// and version managers (nvm/fnm/volta) hide it in dotfile-loaded dirs.
 fn find_node() -> Option<String> {
-    for c in [
-        "/opt/homebrew/bin/node",
-        "/usr/local/bin/node",
-        "/usr/bin/node",
-    ] {
-        if std::path::Path::new(c).exists() {
-            return Some(c.to_string());
+    let mut cands: Vec<PathBuf> = vec![
+        PathBuf::from("/opt/homebrew/bin/node"),
+        PathBuf::from("/usr/local/bin/node"),
+        PathBuf::from("/usr/bin/node"),
+    ];
+    if let Some(h) = dirs::home_dir() {
+        cands.push(h.join(".volta/bin/node"));
+        for base in [
+            h.join(".nvm/versions/node"),
+            h.join(".fnm/node-versions"),
+            h.join("Library/Application Support/fnm/node-versions"),
+            h.join(".local/share/fnm/node-versions"),
+        ] {
+            if let Ok(rd) = std::fs::read_dir(&base) {
+                let mut vers: Vec<PathBuf> = rd.flatten().map(|e| e.path()).collect();
+                vers.sort();
+                for v in vers.into_iter().rev() {
+                    cands.push(v.join("bin/node"));
+                    cands.push(v.join("installation/bin/node"));
+                }
+            }
         }
     }
-    let out = Command::new("/bin/zsh")
-        .args(["-lc", "command -v node"])
-        .output()
-        .ok()?;
-    let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if p.is_empty() {
-        None
-    } else {
-        Some(p)
+    for c in &cands {
+        if c.exists() {
+            return Some(c.to_string_lossy().into_owned());
+        }
     }
+    // Last resort: ask real shells (interactive login loads .zshrc where nvm lives).
+    for (sh, flag) in [("/bin/zsh", "-ilc"), ("/bin/zsh", "-lc"), ("/bin/bash", "-lc")] {
+        if let Ok(out) = Command::new(sh).args([flag, "command -v node"]).output() {
+            let raw = String::from_utf8_lossy(&out.stdout);
+            let p = raw.trim().lines().last().unwrap_or("").trim().to_string();
+            if !p.is_empty() && std::path::Path::new(&p).exists() {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+fn set_note(app: &AppHandle, note: Option<String>) {
+    {
+        let state = app.state::<AppState>();
+        state.daemon.lock().unwrap().note = note;
+    }
+    refresh_menu(app);
 }
 
 fn set_status(app: &AppHandle, text: String, learned: String, toggle: String) {
@@ -126,11 +170,13 @@ fn set_status(app: &AppHandle, text: String, learned: String, toggle: String) {
 
 fn refresh_menu(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let (running, connected, learned) = {
+    let (running, connected, learned, note) = {
         let d = state.daemon.lock().unwrap();
-        (d.want_running, d.connected, d.learned_today)
+        (d.want_running, d.connected, d.learned_today, d.note.clone())
     };
-    let status = if !running {
+    let status = if let Some(n) = note {
+        format!("⚠ {n}")
+    } else if !running {
         "○ Stopped".to_string()
     } else if connected {
         "● Online — this machine powers your persona".to_string()
@@ -148,6 +194,7 @@ fn refresh_menu(app: &AppHandle) {
 }
 
 fn parse_line(app: &AppHandle, line: &str) {
+    tlog(line);
     let state = app.state::<AppState>();
     let mut changed = false;
     {
@@ -188,17 +235,19 @@ fn start_daemon(app: &AppHandle) {
     let state = app.state::<AppState>();
     {
         let mut d = state.daemon.lock().unwrap();
-        if d.child.is_some() {
-            d.want_running = true;
-            return;
-        }
         d.want_running = true;
+        if d.child.is_some() || d.spawning {
+            return; // one supervisor thread is plenty
+        }
+        d.spawning = true;
     }
     let app = app.clone();
     std::thread::spawn(move || loop {
         {
             let state = app.state::<AppState>();
-            if !state.daemon.lock().unwrap().want_running {
+            let mut d = state.daemon.lock().unwrap();
+            if !d.want_running {
+                d.spawning = false;
                 break;
             }
         }
@@ -223,7 +272,8 @@ fn start_daemon(app: &AppHandle) {
         let mut child = match child {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("spawn failed: {e}");
+                tlog(&format!("spawn failed: {e}"));
+                set_note(&app, Some(format!("Couldn't start the bridge: {e}")));
                 std::thread::sleep(std::time::Duration::from_secs(10));
                 continue;
             }
@@ -305,6 +355,15 @@ fn save_token(app: AppHandle, token: String) -> Result<(), String> {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
     }
+    tlog("token saved — (re)starting daemon");
+    {
+        let state = app.state::<AppState>();
+        let mut d = state.daemon.lock().unwrap();
+        d.note = None;
+        if let Some(mut c) = d.child.take() {
+            let _ = c.kill(); // restart so the new token is used immediately
+        }
+    }
     if let Some(w) = app.get_webview_window("pair") {
         let _ = w.hide();
     }
@@ -327,9 +386,11 @@ fn main() {
             daemon: Arc::new(Mutex::new(Daemon {
                 child: None,
                 want_running: false,
+                spawning: false,
                 connected: false,
                 learned_today: 0,
                 day: today(),
+                note: None,
             })),
             ui: Mutex::new(None),
         })
