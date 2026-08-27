@@ -1,0 +1,25 @@
+appId: me.opersona.desktop
+productName: opersona
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+asarUnpack:
+  - "**/node_modules/node-pty/**"
+npmRebuild: true
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: zip
+      arch: [arm64]
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  gatekeeperAssess: false
+  notarize: false
+  extendInfo:
+    NSMicrophoneUsageDescription: Not used.
+    NSCameraUsageDescription: Not used.
