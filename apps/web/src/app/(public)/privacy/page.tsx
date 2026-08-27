@@ -8,10 +8,9 @@ export const metadata = { title: 'Privacy — opersona' };
  */
 export default function PrivacyPage() {
   return (
-    <div className="mx-auto max-w-2xl space-y-8 px-5 py-10">
+    <div className="mx-auto max-w-2xl space-y-8 py-4">
       <header>
-        <p className="muted text-xs uppercase tracking-widest"><Link href="/" className="hover:underline">opersona.me</Link></p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Privacy, honestly</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Privacy, honestly</h1>
         <p className="muted mt-2 text-sm">
           No legalese. This page says exactly what happens to your data — including the parts
           other products don&apos;t like to mention. Everything below is enforced by code, not policy.

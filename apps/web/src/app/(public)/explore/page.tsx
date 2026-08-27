@@ -3,7 +3,6 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { getSessionCtx } from '@/lib/session';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
-import { CommunityHeader } from '@/components/community/CommunityHeader';
 
 export const metadata = {
   title: 'Explore personas — opersona',
@@ -25,8 +24,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
     : rows).slice(0, 60);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-5 py-8">
-      <CommunityHeader />
+    <div className="space-y-6">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Explore personas</h1>
         <p className="muted text-sm">

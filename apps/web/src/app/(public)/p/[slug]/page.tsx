@@ -5,7 +5,6 @@ import { db, schema } from '@opersona/db';
 import { getSessionCtx } from '@/lib/session';
 import { getPublishedBySlug, canViewPublished } from '@/lib/community';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
-import { CommunityHeader } from '@/components/community/CommunityHeader';
 import { ImportButton } from '@/components/community/ImportButton';
 import { ReportForm } from '@/components/community/ReportForm';
 
@@ -56,8 +55,7 @@ export default async function PublicPersonaPage({ params }: { params: Promise<{ 
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-5 py-8">
-      <CommunityHeader />
+    <div className="mx-auto max-w-2xl space-y-6">
       <header className="space-y-4">
         {pub.visibility === 'restricted' && <p><span className="chip">shared with you</span></p>}
         <div className="flex items-start gap-4">
