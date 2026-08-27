@@ -40,28 +40,33 @@ function saveState(ident: string, sent: Record<string, Sent>): void {
 }
 
 interface Candidate { path: string; sessionId: string; project?: string; bytes: number }
+export interface ScanStats { projects: number; files: number; recent: number; small: number; big: number; self: number; eligible: number; dirMissing: boolean }
 
-function scanClaudeCode(root: string): Candidate[] {
+function scanClaudeCode(root: string, stats: ScanStats): Candidate[] {
   const out: Candidate[] = [];
   let projects: string[] = [];
-  try { projects = readdirSync(root); } catch { return out; }
+  try { projects = readdirSync(root); } catch { stats.dirMissing = true; return out; }
+  stats.projects += projects.length;
   for (const p of projects) {
-    if (SELF_RE.test(p)) continue;
+    if (SELF_RE.test(p)) { stats.self++; continue; }
     let entries: string[] = [];
     try { entries = readdirSync(join(root, p)); } catch { continue; }
     for (const f of entries) {
       if (!f.endsWith('.jsonl')) continue;
+      stats.files++;
       const full = join(root, p, f);
       let st; try { st = statSync(full); } catch { continue; }
-      if (Date.now() - st.mtimeMs < IDLE_MS) continue;       // still in use
-      if (st.size < 2000 || st.size > MAX_BYTES) continue;   // too small to matter / too big to ship
+      if (Date.now() - st.mtimeMs < IDLE_MS) { stats.recent++; continue; }  // still in use
+      if (st.size < 2000) { stats.small++; continue; }
+      if (st.size > MAX_BYTES) { stats.big++; continue; }
+      stats.eligible++;
       out.push({ path: full, sessionId: f.replace(/\.jsonl$/, ''), project: p.replace(/^-/, '/').replace(/-/g, '/'), bytes: st.size });
     }
   }
   return out;
 }
 
-function scanCodex(root: string): Candidate[] {
+function scanCodex(root: string, stats: ScanStats): Candidate[] {
   const out: Candidate[] = [];
   const walk = (dir: string, depth: number): void => {
     if (depth > 4) return;
@@ -72,8 +77,11 @@ function scanCodex(root: string): Candidate[] {
       let st; try { st = statSync(full); } catch { continue; }
       if (st.isDirectory()) { walk(full, depth + 1); continue; }
       if (!e.endsWith('.jsonl')) continue;
-      if (Date.now() - st.mtimeMs < IDLE_MS) continue;
-      if (st.size < 2000 || st.size > MAX_BYTES) continue;
+      stats.files++;
+      if (Date.now() - st.mtimeMs < IDLE_MS) { stats.recent++; continue; }
+      if (st.size < 2000) { stats.small++; continue; }
+      if (st.size > MAX_BYTES) { stats.big++; continue; }
+      stats.eligible++;
       out.push({ path: full, sessionId: e.replace(/\.jsonl$/, ''), bytes: st.size });
     }
   };
@@ -91,8 +99,10 @@ export function startWatcher(io: WatcherIO, opts: { claudeDir?: string; codexDir
   let hadWork = false;   // for the "backfill complete" line
   let totalSent = 0;
 
+  let firstTick = true;
   const tick = (): void => {
-    const candidates = [...scanClaudeCode(claudeRoot), ...(existsSync(codexRoot) ? scanCodex(codexRoot) : [])]
+    const stats: ScanStats = { projects: 0, files: 0, recent: 0, small: 0, big: 0, self: 0, eligible: 0, dirMissing: false };
+    const candidates = [...scanClaudeCode(claudeRoot, stats), ...(existsSync(codexRoot) ? scanCodex(codexRoot, stats) : [])]
       // a session is re-sent only when it has grown noticeably since last send
       .filter((c) => { const seen = state[c.sessionId]; return !seen || (c.bytes > seen.bytes * 1.15 && c.bytes - seen.bytes > 100_000); })
       .sort((a, b) => b.bytes - a.bytes);
@@ -107,6 +117,10 @@ export function startWatcher(io: WatcherIO, opts: { claudeDir?: string; codexDir
       state[c.sessionId] = { bytes: c.bytes };
     }
     saveState(ident, state);
+    if (firstTick || (stats.eligible === 0 && candidates.length === 0)) {
+      console.log(`[watch] scan: ${claudeRoot}${stats.dirMissing ? ' (MISSING)' : ''} — ${stats.projects} project dirs, ${stats.files} session files: ${stats.eligible} eligible, ${stats.recent} still-active, ${stats.small} tiny, ${stats.big} oversized, ${stats.self} opersona-own; ${candidates.length} new to send`);
+      firstTick = false;
+    }
     if (sentNow > 0) {
       hadWork = true; totalSent += sentNow;
       const remaining = candidates.length - sentNow;
