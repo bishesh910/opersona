@@ -7,6 +7,7 @@
  *   - evidence is never lost: observations are re-keyed, aggregates recomputed
  * Runs nightly (03:00–04:00 server time) and on demand ("Tidy up" button).
  */
+import { config } from '../config.js';
 import { z } from 'zod';
 import { and, eq, inArray } from 'drizzle-orm';
 import { db, reasoningPatterns, reasoningObservations, learningEvents, clones } from '@opersona/db';
@@ -79,7 +80,29 @@ export async function tidyPatterns(orgId: string, cloneId: string): Promise<Merg
 
 // nightly, in-process (03:00–03:59 server time, once per day per clone)
 let lastRun = '';
+/** Uploads (import zips) are transient by contract: nothing survives 24h. */
+export function sweepUploads(): void {
+  try {
+    const { readdirSync, statSync, unlinkSync } = require('node:fs') as typeof import('node:fs');
+    const { join } = require('node:path') as typeof import('node:path');
+    const orgsDir = join(config.dataDir, 'orgs');
+    for (const org of readdirSync(orgsDir)) {
+      const up = join(orgsDir, org, 'uploads');
+      let files: string[] = [];
+      try { files = readdirSync(up); } catch { continue; }
+      for (const f of files) {
+        try {
+          const full = join(up, f);
+          if (Date.now() - statSync(full).mtimeMs > 24 * 3600_000) { unlinkSync(full); console.log('[tidy] shredded stale upload', org, f); }
+        } catch { /* raced */ }
+      }
+    }
+  } catch (e) { console.error('[tidy] upload sweep failed', e); }
+}
+
 export function startNightlyTidy(): void {
+  setTimeout(sweepUploads, 60_000);
+  setInterval(sweepUploads, 6 * 3600_000).unref();
   if (process.env.TIDY_NIGHTLY === 'false') return;
   setInterval(async () => {
     const now = new Date();

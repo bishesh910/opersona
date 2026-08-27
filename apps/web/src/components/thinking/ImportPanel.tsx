@@ -78,7 +78,7 @@ export function ImportPanel({ cloneId, initialJobs, readOnly }: { cloneId: strin
           <p className="muted text-sm">
             <strong>ChatGPT</strong>: chatgpt.com → Settings → Data controls → Export data — OpenAI emails you a zip; upload it here.</p>
           <p className="muted text-sm">
-            Accepted: either export zip or its <code>conversations.json</code>. Processed in the background, newest first, up to 300 conversations; chats already learned from are skipped. Max 200 MB.
+            Accepted: either export zip or its <code>conversations.json</code>. Processed in the background, newest first, up to 300 conversations; chats already learned from are skipped. Max 200 MB. Your export file is deleted from our servers as soon as learning finishes (24h at most) — only what your persona learned remains, all of it visible and deletable under Mind.
           </p>
         </div>
         {!readOnly && (

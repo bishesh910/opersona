@@ -155,6 +155,10 @@ export async function runImport(importId: string): Promise<void> {
     await recomputeFingerprint(job.orgId, job.cloneId);
     await publishSnapshot(job.orgId, job.cloneId);
     await set({ status: 'done' });
+    // Privacy: the raw export is shredded the moment learning finishes — only the
+    // derived, user-visible memory remains. (Kept on failure so a retry can run;
+    // the nightly sweep removes anything older than 24h regardless.)
+    try { const { unlinkSync } = await import('node:fs'); unlinkSync(uploadPath(job.orgId, `import-${importId}`)); } catch { /* already gone */ }
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e);
     // Never leak server paths to the UI; ENOENT means the stored upload is gone.
