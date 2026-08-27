@@ -11,19 +11,25 @@ const TABS: { key: string; label: string }[] = [
   { key: 'chat', label: 'Chat' },
   { key: 'memory', label: 'Memory' },
   { key: 'documents', label: 'Documents' },
+  { key: 'share', label: 'Share' },
 ];
+
+/** Imported copies are read-mostly: no survey/memory/docs/share — they never learn. */
+const IMPORTED_TABS = new Set(['brief', 'thinking', 'personality', 'avatar', 'chat']);
 
 /** Tabs with chat/learning content are the owner's alone — colleagues and admins see
  *  only the persona-identity tabs (privacy: the system enforces it, nobody "watches"). */
 const PUBLIC_TABS = new Set(['brief', 'thinking', 'personality', 'avatar', 'documents']);
 
-export function CloneTabs({ cloneId, isOwner = false }: { cloneId: string; isOwner?: boolean }) {
+export function CloneTabs({ cloneId, isOwner = false, kind = 'member' }: { cloneId: string; isOwner?: boolean; kind?: 'member' | 'hired' | 'imported' }) {
   const path = usePathname();
   const router = useRouter();
-  const visible = isOwner ? TABS : TABS.filter((t) => PUBLIC_TABS.has(t.key));
+  const visible = kind === 'imported'
+    ? TABS.filter((t) => IMPORTED_TABS.has(t.key))
+    : isOwner ? TABS : TABS.filter((t) => PUBLIC_TABS.has(t.key));
   const hrefFor = (t: { key: string }) => {
     const short = t.key === 'documents' ? 'docs' : t.key;
-    return isOwner ? (t.key === 'thinking' ? '/me' : `/me/${short}`) : `/clones/${cloneId}/${t.key}`;
+    return isOwner && kind === 'member' ? (t.key === 'thinking' ? '/me' : `/me/${short}`) : `/clones/${cloneId}/${t.key}`;
   };
   const isActive = (t: { key: string }) => {
     const href = hrefFor(t);

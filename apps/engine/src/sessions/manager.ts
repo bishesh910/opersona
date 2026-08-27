@@ -201,7 +201,7 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
   const cloneMode = conv.mode === 'clone';
   const visitor = conv.userId !== clone.ownerUserId; // anyone but the owner gets the shareable-only persona
   const isBoss = cloneMode && settings.bossCloneId === args.cloneId;
-  const audience = clone.kind === 'hired' ? 'hired' as const : visitor ? 'visitor' as const : 'owner' as const;
+  const audience = clone.kind === 'hired' ? 'hired' as const : clone.kind === 'imported' ? 'imported' as const : visitor ? 'visitor' as const : 'owner' as const;
   let { prompt, promptHash } = cloneMode ? await activePrompt(args.orgId, args.cloneId, audience) : { prompt: PLAIN_CLAUDE_PROMPT, promptHash: 'plain' };
   if (isBoss) { prompt += BOSS_ADDENDUM; promptHash += '.boss'; }
   const ctx = { orgId: args.orgId, cloneId: args.cloneId, conversationId: args.conversationId, userId: args.userId, visitor: conv.userId !== clone.ownerUserId, isBoss };

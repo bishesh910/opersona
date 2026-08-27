@@ -10,7 +10,7 @@ import { sql } from 'drizzle-orm';
 import {
   pgTable, text, timestamp, boolean, integer, real, jsonb, uuid, primaryKey, index, uniqueIndex, customType,
 } from 'drizzle-orm/pg-core';
-import type { AvatarRecipe } from '@opersona/shared';
+import type { AvatarRecipe, PersonaArtifact } from '@opersona/shared';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 import { randomBytes } from 'node:crypto';
@@ -21,7 +21,7 @@ const now = () => timestamp('created_at', { withTimezone: true }).defaultNow().n
 const updated = () => timestamp('updated_at', { withTimezone: true }).defaultNow().notNull();
 
 export type LearnedStatus = 'candidate' | 'confirmed' | 'disputed' | 'retired';
-export type SourceKind = 'conversation' | 'teach' | 'correction' | 'document' | 'reflection' | 'admin';
+export type SourceKind = 'conversation' | 'teach' | 'correction' | 'document' | 'reflection' | 'admin' | 'import';
 export interface Evidence { quote: string; turn_id?: string }
 
 /** Provenance spine mixed into every learned-layer table. */
@@ -68,8 +68,8 @@ export const clones = pgTable('clones', {
   name: text('name').notNull(),
   avatarRecipe: jsonb('avatar_recipe').$type<AvatarRecipe>(),
   activeSnapshotId: uuid('active_snapshot_id'),
-  /** 'member': a colleague's learned persona. 'hired': a temp persona the boss created. */
-  kind: text('kind').$type<'member' | 'hired'>().notNull().default('member'),
+  /** 'member': a person's learned persona. 'hired': a temp specialist. 'imported': a materialized copy of a published persona. */
+  kind: text('kind').$type<'member' | 'hired' | 'imported'>().notNull().default('member'),
   /** hired personas park here between engagements; rehiring clears it */
   archivedAt: timestamp('archived_at', { withTimezone: true }),
   createdAt: now(),
@@ -566,3 +566,60 @@ export const authFailures = pgTable('auth_failures', {
   email: text('email').notNull(),
   createdAt: now(),
 }, (t) => [index('auth_failures_email_idx').on(t.email, t.createdAt)]);
+
+// ─── community: publish / grants / reports / imports (0018) ─────────────────
+
+/** A persona the owner chose to publish. `artifact` is the frozen `opersona/persona@1` snapshot — republish bumps `version` and replaces it. */
+export const publishedPersonas = pgTable('published_personas', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: text('org_id').notNull(),
+  cloneId: uuid('clone_id').notNull().unique(),
+  ownerUserId: text('owner_user_id').notNull(),
+  slug: text('slug').notNull().unique(),
+  artifact: jsonb('artifact').$type<PersonaArtifact>().notNull(),
+  /** Which sections the owner included at publish time (facts/playbooks/personality toggles). */
+  sections: jsonb('sections').$type<Record<string, boolean>>().notNull().default({}),
+  /** Owner-sovereign: 'public' (anyone, incl. logged out) or 'restricted' (author + granted people). Private = not published. */
+  visibility: text('visibility').$type<'public' | 'restricted'>().notNull().default('restricted'),
+  /** 'active' | 'unpublished' (owner took it down) | 'delisted' (moderation). Non-active → /p 404s; existing imports keep working. */
+  status: text('status').$type<'active' | 'unpublished' | 'delisted'>().notNull().default('active'),
+  version: integer('version').notNull().default(1),
+  importCount: integer('import_count').notNull().default(0),
+  publishedAt: timestamp('published_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: updated(),
+  unpublishedAt: timestamp('unpublished_at', { withTimezone: true }),
+}, (t) => [index('published_personas_browse_idx').on(t.visibility, t.status, t.importCount)]);
+
+/** Restricted-visibility access grants, by email (pending until that email has an account). */
+export const personaGrants = pgTable('persona_grants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  publishedId: uuid('published_id').notNull(),
+  granteeEmail: text('grantee_email').notNull(),
+  granteeUserId: text('grantee_user_id'),
+  createdAt: now(),
+}, (t) => [uniqueIndex('persona_grants_uq').on(t.publishedId, t.granteeEmail), index('persona_grants_pub_idx').on(t.publishedId)]);
+
+export const personaReports = pgTable('persona_reports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  publishedId: uuid('published_id').notNull(),
+  reporterUserId: text('reporter_user_id'),
+  reason: text('reason').notNull(),
+  details: text('details'),
+  createdAt: now(),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolution: text('resolution'),
+}, (t) => [index('persona_reports_open_idx').on(t.resolvedAt, t.createdAt)]);
+
+/** Provenance for an imported (materialized) persona living as a local clone with kind='imported'. */
+export const importedPersonas = pgTable('imported_personas', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: text('org_id').notNull(),
+  cloneId: uuid('clone_id').notNull().unique(),
+  importedBy: text('imported_by').notNull(),
+  sourcePublishedId: uuid('source_published_id'),
+  sourceSlug: text('source_slug'),
+  sourceVersion: integer('source_version').notNull(),
+  artifact: jsonb('artifact').$type<PersonaArtifact>().notNull(),
+  createdAt: now(),
+  updatedAt: updated(),
+}, (t) => [index('imported_personas_org_idx').on(t.orgId)]);

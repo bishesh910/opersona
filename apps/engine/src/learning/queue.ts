@@ -38,7 +38,12 @@ async function run(j: Job): Promise<void> {
     // Only the OWNER's words teach the persona: a visitor's conversation (or a persona-test chat)
     // must never leak someone else's reasoning into this fingerprint.
     const { clones } = await import('@opersona/db');
-    const [ownerRow] = await db.select({ owner: clones.ownerUserId }).from(clones).where(eq(clones.id, j.cloneId)).limit(1);
+    const [ownerRow] = await db.select({ owner: clones.ownerUserId, kind: clones.kind }).from(clones).where(eq(clones.id, j.cloneId)).limit(1);
+    // Imported and hired personas never learn — they are copies/specialists, not the user.
+    if (!ownerRow || ownerRow.kind !== 'member') {
+      await db.update(conversations).set({ extractedAt: new Date() }).where(eq(conversations.id, j.conversationId));
+      return;
+    }
     if (conv.mode === 'clone' || (ownerRow && conv.userId !== ownerRow.owner)) {
       // Owner persona-test chats still leave an episode (what was worked on) even though
       // their reasoning is never extracted; a visitor's conversation leaves nothing.

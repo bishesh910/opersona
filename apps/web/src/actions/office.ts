@@ -92,11 +92,11 @@ export async function setBossAction(cloneId: string | null): Promise<void> {
   }
   await db.insert(schema.orgSettings).values({ orgId: ctx.orgId, bossCloneId: cloneId })
     .onConflictDoUpdate({ target: schema.orgSettings.orgId, set: { bossCloneId: cloneId } });
-  revalidatePath('/office');
+  revalidatePath('/command-center');
 }
 
 export interface CommandCenterData {
-  team: { cloneId: string; name: string; role: string; kind: 'member' | 'hired'; archived: boolean; boss: boolean }[];
+  team: { cloneId: string; name: string; role: string; kind: 'member' | 'hired' | 'imported'; archived: boolean; boss: boolean }[];
   tasks: { slug: string; cloneId: string; assignee: string; title: string; status: string; hasResult: boolean; at: string }[];
   canManage: boolean;
 }
@@ -142,7 +142,7 @@ export async function setHiredArchivedAction(cloneId: string, archived: boolean)
     .where(and(eq(schema.clones.id, cloneId), eq(schema.clones.orgId, ctx.orgId))).limit(1);
   if (!row || row.kind !== 'hired') throw new Error('Only hired personas can be archived');
   await db.update(schema.clones).set({ archivedAt: archived ? new Date() : null }).where(eq(schema.clones.id, cloneId));
-  revalidatePath('/office');
+  revalidatePath('/command-center');
 }
 
 export interface ActivityEvent { kind: 'hired' | 'archived' | 'boss'; text: string; at: string }
@@ -174,7 +174,7 @@ export async function openActivity(): Promise<{ events: ActivityEvent[] }> {
 }
 
 export interface MonitorRow {
-  cloneId: string; name: string; kind: 'member' | 'hired';
+  cloneId: string; name: string; kind: 'member' | 'hired' | 'imported';
   costUsd: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; sessions: number;
 }
 export interface MonitorData {

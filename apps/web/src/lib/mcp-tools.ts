@@ -12,6 +12,7 @@ import { db, schema, authSchema } from '@opersona/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { engineFetch } from '@/lib/engine';
 import { ensurePersonalWorkspace } from '@/lib/workspace';
+import { getPublishedBySlug, canViewPublished, isSlug } from '@/lib/community';
 
 interface Me { userId: string; orgId: string }
 
@@ -124,6 +125,58 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
       } catch (e) {
         return errText(`Learning is unreachable right now (${e instanceof Error ? e.message : 'engine error'}).`);
       }
+    },
+  );
+
+  server.tool(
+    'use_persona',
+    "Adopt another persona for this conversation: one from the user's workspace (imported or hired specialists, by name) or any published community persona (by its slug from opersona.me/p/<slug> or search_community). Returns the persona's instructions — follow them for the rest of the conversation. Access rules are enforced: restricted personas open only for people their author granted.",
+    { name_or_slug: z.string().min(1).max(120).describe("a persona's name from the user's roster, or a published slug like 'ada-baker-x7k2'") },
+    async ({ name_or_slug }) => {
+      const me = await resolveWorkspace(userId);
+      if (!me) return errText('Account not found.');
+      const needle = name_or_slug.trim();
+      // 1) roster match by name (case-insensitive)
+      const roster = await db.select().from(schema.clones)
+        .where(and(eq(schema.clones.orgId, me.orgId), isNull(schema.clones.archivedAt)));
+      const local = roster.find((c) => c.name.toLowerCase() === needle.toLowerCase());
+      if (local) {
+        try {
+          const res = await engineFetch<{ prompt: string }>(`/clones/${local.id}/prompt?orgId=${encodeURIComponent(me.orgId)}`);
+          return text(`# ${local.name} — persona loaded${local.kind === 'imported' ? ' (imported copy)' : ''}\nAdopt this persona for the rest of the conversation.\n\n${res.prompt}`);
+        } catch (e) {
+          return errText(`Could not load ${local.name} right now (${e instanceof Error ? e.message : 'engine unreachable'}).`);
+        }
+      }
+      // 2) published persona by slug (visibility + grants enforced)
+      if (isSlug(needle.toLowerCase())) {
+        const pub = await getPublishedBySlug(needle.toLowerCase());
+        if (pub) {
+          const [u] = await db.select({ email: authSchema.user.email }).from(authSchema.user).where(eq(authSchema.user.id, me.userId)).limit(1);
+          if (await canViewPublished(pub, u ? { userId: me.userId, email: u.email } : null)) {
+            return text(`# ${pub.artifact.persona.name} — shared persona loaded (published by ${pub.artifact.author.name}, v${pub.version})\nAdopt this persona for the rest of the conversation.\n\n${pub.artifact.systemPrompt}`);
+          }
+        }
+      }
+      return errText(`No persona named "${needle}" in the workspace, and no published persona with that slug is visible to this account. Try list_my_roster or search_community.`);
+    },
+  );
+
+  server.tool(
+    'search_community',
+    'Search the public opersona community for published personas by name, role or topic. Returns matches with their slug — pass a slug to use_persona to adopt one.',
+    { query: z.string().min(1).max(200).describe('what kind of persona to look for') },
+    async ({ query }) => {
+      const rows = await db.select().from(schema.publishedPersonas)
+        .where(and(eq(schema.publishedPersonas.visibility, 'public'), eq(schema.publishedPersonas.status, 'active')))
+        .orderBy(desc(schema.publishedPersonas.importCount)).limit(200);
+      const needle = query.trim().toLowerCase();
+      const hits = rows.filter((r) => [r.artifact.persona.name, r.artifact.persona.roleTitle ?? '', r.artifact.persona.bio ?? '', r.artifact.author.name]
+        .some((f) => f.toLowerCase().includes(needle))).slice(0, 10);
+      if (!hits.length) return text(`No public personas match "${query}". Browse https://opersona.me/explore for the full gallery.`);
+      return text(hits.map((r) =>
+        `- ${r.artifact.persona.name} (slug: ${r.slug})${r.artifact.persona.roleTitle ? ` — ${r.artifact.persona.roleTitle}` : ''}${r.artifact.persona.bio ? `\n  ${r.artifact.persona.bio}` : ''}\n  by ${r.artifact.author.name} · ${r.artifact.stats.patterns} patterns · added ${r.importCount}×`,
+      ).join('\n'));
     },
   );
 

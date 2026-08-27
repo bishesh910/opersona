@@ -17,11 +17,11 @@ export default async function CloneLayout({ children, params }: { children: Reac
         <AvatarThumb recipe={clone.avatarRecipe} name={clone.name} scale={2} />
         <div className="min-w-0">
           <h1 className="truncate text-lg font-semibold leading-tight sm:text-xl">{clone.name}</h1>
-          <div className="muted text-xs">{canWrite ? 'Your persona' : 'Public profile — what this persona shares with the org'}</div>
+          <div className="muted text-xs">{clone.kind === 'imported' ? 'Imported copy — it thinks like its author but never learns about them' : canWrite ? 'Your persona' : 'Public profile — what this persona shares with the org'}</div>
         </div>
       </div>
       <div className="sticky top-0 z-10 -mx-3 bg-white/95 px-3 backdrop-blur-sm md:static md:mx-0 md:bg-transparent md:px-0 md:backdrop-blur-none dark:bg-neutral-950/95 md:dark:bg-transparent">
-        <CloneTabs cloneId={clone.id} isOwner={access.isOwner} />
+        <CloneTabs cloneId={clone.id} isOwner={access.isOwner} kind={clone.kind} />
       </div>
       <div>{children}</div>
     </div>

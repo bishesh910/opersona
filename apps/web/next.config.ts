@@ -36,6 +36,9 @@ const nextConfig: NextConfig = {
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
     ] }];
   },
+  async redirects() {
+    return [{ source: '/office', destination: '/command-center', permanent: true }];
+  },
   async rewrites() {
     return [
       { source: '/me', destination: '/clones/me/thinking' },

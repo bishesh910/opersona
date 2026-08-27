@@ -6,13 +6,14 @@ import { createMyCloneAction } from '@/actions/clones';
 import { askPersonaAction } from '@/actions/conversations';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
 import { InviteButton } from '@/components/clones/InviteButton';
+import { ImportFileButton } from '@/components/community/ImportFileButton';
 
 export default async function ClonesPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const ctx = await requireOrg();
   const { error } = await searchParams;
   const admin = isOrgAdmin(ctx);
   // Everyone sees the org roster (to ask a colleague's persona); only owner/admin get the tab links.
-  const all = await db.select().from(schema.clones).where(eq(schema.clones.orgId, ctx.orgId)).orderBy(desc(schema.clones.createdAt));
+  const all = await db.select().from(schema.clones).where(and(eq(schema.clones.orgId, ctx.orgId), sql`${schema.clones.archivedAt} is null`)).orderBy(desc(schema.clones.createdAt));
   // Members who joined but haven't built their persona yet — visible so the org roster tells the truth.
   const memberRows = await db
     .select({ uid: authSchema.user.id, name: authSchema.user.name, email: authSchema.user.email })
@@ -21,7 +22,7 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
   const solo = memberRows.length <= 1; // personal workspace: no org furniture
   const builders = new Set(all.map((c) => c.ownerUserId));
   const notBuilt = solo ? [] : memberRows.filter((m) => !builders.has(m.uid));
-  const mine = all.find((c) => c.ownerUserId === ctx.userId);
+  const mine = all.find((c) => c.ownerUserId === ctx.userId && c.kind === 'member');
   const ownerIds = [...new Set(all.map((c) => c.ownerUserId))];
   const owners = ownerIds.length
     ? await db.select({ id: authSchema.user.id, name: authSchema.user.name, email: authSchema.user.email }).from(authSchema.user).where(inArray(authSchema.user.id, ownerIds))
@@ -41,8 +42,9 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">{solo ? 'My personas' : 'Personas'}</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {admin && !solo && <InviteButton />}
+          <ImportFileButton />
           {!mine && (
             <form action={createMyCloneAction}>
               <button className="btn-primary">Create my persona</button>
@@ -65,7 +67,7 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
               <div className="flex items-center gap-3">
                 <AvatarThumb recipe={c.avatarRecipe} name={c.name} scale={2} />
                 <div className="min-w-0">
-                  <div className="truncate font-medium">{c.name}{isMine && <span className="chip ml-2">mine</span>}</div>
+                  <div className="truncate font-medium">{c.name}{c.kind === 'imported' ? <span className="chip ml-2">imported</span> : isMine && <span className="chip ml-2">mine</span>}</div>
                   <div className="muted truncate text-xs">{owner?.name ?? owner?.email ?? c.ownerUserId}</div>
                   <div className="muted text-xs">{nPatterns === 1 ? '1 pattern learned' : `${nPatterns} patterns learned`}</div>
                 </div>
@@ -74,7 +76,7 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
             return (
               <li key={c.id} className="card space-y-3">
                 {isMine || admin
-                  ? <Link href={isMine ? '/me' : `/clones/${c.id}`} className="-m-1 block rounded p-1 hover:bg-neutral-50 dark:hover:bg-neutral-900">{body}</Link>
+                  ? <Link href={isMine && c.kind === 'member' ? '/me' : `/clones/${c.id}`} className="-m-1 block rounded p-1 hover:bg-neutral-50 dark:hover:bg-neutral-900">{body}</Link>
                   : body}
                 {!isMine && (
                   <form action={askPersonaAction}>

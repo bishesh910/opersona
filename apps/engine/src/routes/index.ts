@@ -18,7 +18,8 @@ import { orgModelConfig } from '../keys.js';
 import { enqueue, queueSize } from '../learning/queue.js';
 import { recomputeFingerprint, setPatternVerdict } from '../learning/fingerprint.js';
 import { recordFeedback } from '../learning/feedback.js';
-import { exportPersona, exportHireManifest } from '../persona/export.js';
+import { exportPersona } from '../persona/export.js';
+import { exportSharedPersona } from '../persona/sharedArtifact.js';
 import { exportVault } from '../persona/vault.js';
 import { backfillEpisodes } from '../learning/episodes.js';
 import { importJobs, ingestTokens, claudeCodeSessions } from '@opersona/db';
@@ -151,9 +152,12 @@ routes.post('/clones/:id/snapshot', async (c) => {
 
 routes.get('/clones/:id/prompt', async (c) => {
   const orgId = c.req.query('orgId') ?? '';
-  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, orgId))).limit(1);
+  const [clone] = await db.select({ id: clones.id, kind: clones.kind }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, orgId))).limit(1);
   if (!clone) return c.json({ error: 'clone not found' }, 404);
-  return c.json(await activePrompt(orgId, clone.id));
+  // audience follows the clone kind; ?audience=shared forces the privacy-safe render
+  const audience = c.req.query('audience') === 'shared' ? 'shared' as const
+    : clone.kind === 'hired' ? 'hired' as const : clone.kind === 'imported' ? 'imported' as const : 'owner' as const;
+  return c.json(await activePrompt(orgId, clone.id, audience));
 });
 
 /** Onboarding interview → persona brief, on the cheapest model (condense = haiku
@@ -260,10 +264,21 @@ routes.post('/imports/:id/start', async (c) => {
 // ─── export ─────────────────────────────────────────────────────────────────
 routes.get('/clones/:id/export', async (c) => {
   const orgId = c.req.query('orgId') ?? '';
-  const kind = c.req.query('kind') ?? 'persona';
-  const body = kind === 'hire' ? await exportHireManifest(orgId, c.req.param('id')) : await exportPersona(orgId, c.req.param('id'));
-  const fname = kind === 'hire' ? `${body.name}.agent.json` : `${body.name}.persona.json`;
+  const body = await exportPersona(orgId, c.req.param('id'));
+  const fname = `${body.name}.persona.json`;
   return new Response(JSON.stringify(body, null, 2), { headers: { 'content-type': 'application/json', 'content-disposition': `attachment; filename="${fname.replace(/[^A-Za-z0-9._-]/g, '_')}"` } });
+});
+
+/** The privacy-safe shared artifact — what publishing snapshots. Server-to-server (web publish action). */
+routes.post('/clones/:id/export-shared', async (c) => {
+  const body = await parse(c, z.object({
+    orgId: z.string(),
+    version: z.number().int().min(1),
+    bio: z.string().max(500).nullish(),
+    author: z.object({ name: z.string().min(1).max(80), slug: z.string().max(80).nullish(), site: z.string().max(200) }),
+    sections: z.object({ facts: z.boolean().optional(), playbooks: z.boolean().optional(), personality: z.boolean().optional() }).default({}),
+  }));
+  return c.json(await exportSharedPersona(body.orgId, c.req.param('id'), body));
 });
 
 /** The brain as an Obsidian-ready markdown vault (zip). Owner-only — the web proxy enforces it. */

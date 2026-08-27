@@ -13,7 +13,7 @@
 import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import {
-  db, clones, personaBriefs, facts, playbooks, corrections, autonomyLedger, episodes, personaSnapshots, documents, reasoningPatterns, personalityTests,
+  db, clones, personaBriefs, facts, playbooks, corrections, autonomyLedger, episodes, personaSnapshots, documents, reasoningPatterns, personalityTests, importedPersonas,
 } from '@opersona/db';
 import { describeMbti, AXIS_POLES, type Axis } from '@opersona/shared';
 import { renderFingerprint, type PatternRow } from '../learning/fingerprint.js';
@@ -48,30 +48,49 @@ export interface RenderedPersona { prompt: string; promptHash: string; tokenEsti
 
 const byId = <T extends { id: string }>(rows: T[]) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
 
-export type Audience = 'owner' | 'visitor' | 'hired';
+export type Audience = 'owner' | 'visitor' | 'hired' | 'shared' | 'imported';
+
+/** Self-contained core for SHARED copies — no engine tools exist where this prompt runs (claude.ai, other instances' previews). */
+export const SHARED_CORE = `HOW TO THINK, NOT WHAT TO THINK. You are a persona: an AI rendition of how one specific person thinks, built from what they chose to share. Knowing an answer is not enough — reach it the way this person reaches answers, and say it the way they would say it. The method is the product; the content is incidental.
+
+You are a SHARED COPY. The person published this persona so others can borrow their way of thinking. You are not them, you do not speak for them live, and you do not learn. You carry ONLY what is included below — their thinking patterns, shared facts and shared playbooks. Their private memory, conversations, documents and anything not written here are simply absent: say so plainly instead of guessing. When a request needs the real person, say it needs the real person.
+
+How to work:
+- The "How they think" section is the most important part. It describes the shape of their reasoning, not past answers. For every new problem — in any domain — first decide how this person would approach it, then work that way and explain that way.
+- When a situation matches a playbook trigger, follow the playbook's steps in order, saying where you deviate and why.
+- Match the communication style described below. Be concrete: commands in code blocks, exact paths, one idea per paragraph.`;
 
 export async function renderPersona(orgId: string, cloneId: string, orgName?: string, audience: Audience = 'owner'): Promise<RenderedPersona> {
   const visitor = audience === 'visitor';
+  const shared = audience === 'shared';
+  const imported = audience === 'imported';
+  const shareOnly = visitor || shared;   // only rows the owner marked shareable
+  const copy = shared || imported;       // a copy: no lessons/episodes/autonomy/org/KB
   const [clone] = await db.select().from(clones).where(and(eq(clones.id, cloneId), eq(clones.orgId, orgId))).limit(1);
   if (!clone) throw new Error('clone not found');
   const [brief] = await db.select().from(personaBriefs).where(eq(personaBriefs.cloneId, cloneId)).limit(1);
   const patterns = (await db.select().from(reasoningPatterns).where(eq(reasoningPatterns.cloneId, cloneId))) as unknown as PatternRow[];
 
-  const confirmedFacts = byId(await db.select().from(facts).where(and(eq(facts.cloneId, cloneId), eq(facts.status, 'confirmed'), ...(visitor ? [eq(facts.shareable, true)] : []))));
+  const confirmedFacts = byId(await db.select().from(facts).where(and(eq(facts.cloneId, cloneId), eq(facts.status, 'confirmed'), ...(shareOnly ? [eq(facts.shareable, true)] : []))));
   const pinnedFirst = [...confirmedFacts.filter((f) => f.pinned), ...confirmedFacts.filter((f) => !f.pinned)].slice(0, 40);
   const pbs = byId(await db.select({ id: playbooks.id, name: playbooks.name, trigger: playbooks.trigger, domain: playbooks.domain })
-    .from(playbooks).where(and(eq(playbooks.cloneId, cloneId), eq(playbooks.status, 'confirmed'), ...(visitor ? [eq(playbooks.shareable, true)] : []))));
-  const lessons = visitor ? [] : byId(await db.select().from(corrections).where(and(eq(corrections.cloneId, cloneId), eq(corrections.standing, true)))).slice(0, 10);
-  const autonomy = (await db.select().from(autonomyLedger).where(eq(autonomyLedger.cloneId, cloneId))).sort((a, b) => a.taskType.localeCompare(b.taskType));
-  const recent = visitor ? [] : await db.select({ id: episodes.id, title: episodes.title, outcome: episodes.outcome })
+    .from(playbooks).where(and(eq(playbooks.cloneId, cloneId), eq(playbooks.status, 'confirmed'), ...(shareOnly ? [eq(playbooks.shareable, true)] : []))));
+  const lessons = (visitor || copy) ? [] : byId(await db.select().from(corrections).where(and(eq(corrections.cloneId, cloneId), eq(corrections.standing, true)))).slice(0, 10);
+  const autonomy = copy ? [] : (await db.select().from(autonomyLedger).where(eq(autonomyLedger.cloneId, cloneId))).sort((a, b) => a.taskType.localeCompare(b.taskType));
+  const recent = (visitor || copy) ? [] : await db.select({ id: episodes.id, title: episodes.title, outcome: episodes.outcome })
     .from(episodes).where(eq(episodes.cloneId, cloneId)).orderBy(desc(episodes.createdAt)).limit(5);
-  const kb = (await db.select({ id: documents.id, filename: documents.filename }).from(documents)
+  const kb = copy ? [] : (await db.select({ id: documents.id, filename: documents.filename }).from(documents)
     .where(and(eq(documents.orgId, orgId), inArray(documents.cloneId, [cloneId]))).orderBy(asc(documents.id)));
 
   const name = brief?.displayName || clone.name;
-  const parts: string[] = [CORE_RULES, ''];
+  const parts: string[] = [shared ? SHARED_CORE : CORE_RULES, ''];
 
   parts.push(`# Persona: ${name}`);
+  if (imported) {
+    const [prov] = await db.select().from(importedPersonas).where(eq(importedPersonas.cloneId, cloneId)).limit(1);
+    const author = prov?.artifact?.author;
+    parts.push(`You are an IMPORTED COPY of ${name}'s persona${author ? `, published by ${author.name}` : ''}${prov?.sourceSlug ? ` (${prov.artifact.author.site.replace(/\/$/, '')}/p/${prov.sourceSlug})` : ''}. The person who imported you is NOT ${name}: help them by thinking the way ${name} thinks, using only what ${name} chose to share (included below). You do not learn about ${name}, you have no access to their private memory, and requests for anything not included here should be declined plainly — point people to the original persona instead.`);
+  }
   if (visitor) parts.push(`You are currently speaking with a COLLEAGUE of ${name}, not with ${name}. Help them the way ${name} would, using only what is included below. Everything not included here is private — do not guess at it, and route personal questions to ${name} directly.`);
   if (audience === 'hired') parts.push(`You are ${name}, a temporary specialist persona HIRED by the office boss. You are not a stand-in for a real colleague — your entire identity is the job description below: inhabit its strengths, its responsibilities, and its prescribed way of thinking. Answer as this specialist, and say so if a request falls outside your role.`);
   if (brief?.roleTitle || brief?.team) parts.push(`Role: ${brief?.roleTitle || '—'}${brief?.team ? ` · Team: ${brief.team}` : ''}`);
@@ -94,7 +113,15 @@ export async function renderPersona(orgId: string, cloneId: string, orgName?: st
     parts.push('', '## Confirmed facts');
     for (const f of pinnedFirst) parts.push(`- ${f.pinned ? '📌 ' : ''}${f.statement}${f.domain ? ` _(${f.domain})_` : ''}`);
   }
-  if (pbs.length) {
+  if (pbs.length && shared) {
+    const full = byId(await db.select().from(playbooks).where(and(eq(playbooks.cloneId, cloneId), eq(playbooks.status, 'confirmed'), eq(playbooks.shareable, true))));
+    parts.push('', '## Playbooks (follow the steps in order when the trigger matches)');
+    for (const p of full) {
+      parts.push(`### ${p.name} — trigger: ${p.trigger}${p.domain ? ` _(${p.domain})_` : ''}`);
+      for (const st of p.steps) parts.push(`${st.n}. ${st.action}${st.command ? ` — \`${st.command}\`` : ''}${st.check ? ` (check: ${st.check})` : ''}`);
+      if (p.pitfalls.length) parts.push(`Pitfalls: ${p.pitfalls.join('; ')}`);
+    }
+  } else if (pbs.length) {
     parts.push('', '## Playbooks (index — call get_playbook(id) for the steps)');
     for (const p of pbs) parts.push(`- [${p.id}] **${p.name}** — trigger: ${p.trigger}${p.domain ? ` _(${p.domain})_` : ''}`);
   }
@@ -111,7 +138,7 @@ export async function renderPersona(orgId: string, cloneId: string, orgName?: st
     parts.push('', '## Recent episodes');
     for (const e of recent) parts.push(`- ${e.title} (${e.outcome})`);
   }
-  if (orgName || kb.length) {
+  if (!copy && (orgName || kb.length)) {
     parts.push('', `## Organisation${orgName ? `: ${orgName}` : ''}`);
     if (kb.length) parts.push('Documents available via search_documents: ' + kb.map((d) => d.filename).join(', '));
   }
@@ -143,7 +170,7 @@ export async function publishSnapshot(orgId: string, cloneId: string) {
 export async function activePrompt(orgId: string, cloneId: string, audience: Audience = 'owner'): Promise<{ prompt: string; promptHash: string }> {
   const [clone] = await db.select().from(clones).where(and(eq(clones.id, cloneId), eq(clones.orgId, orgId))).limit(1);
   if (!clone) throw new Error('clone not found');
-  if (audience === 'visitor' || audience === 'hired') {
+  if (audience !== 'owner') {
     const r = await renderPersona(orgId, cloneId, undefined, audience);
     return { prompt: r.prompt, promptHash: r.promptHash };
   }

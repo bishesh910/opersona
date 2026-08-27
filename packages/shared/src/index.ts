@@ -7,3 +7,4 @@ export * from './mbti.js';
 export * from './bridge.js';
 export * from './persona-tools.js';
 export * from './seal.js';
+export * from './persona-artifact.js';

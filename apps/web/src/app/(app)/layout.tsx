@@ -48,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <aside style={{ width: 'var(--sb-w, 224px)' }} className="app-sidebar relative hidden h-full shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 p-4 md:flex dark:border-neutral-800 dark:bg-neutral-900/40">
         <Link href="/chat" className="mb-6 block px-2 text-lg font-semibold tracking-tight">opersona.me</Link>
         <SideNav include={['/chat']} />
-        <SideNav include={['/office']} />
+        <SideNav include={['/command-center']} />
         <div className="my-2 border-t border-neutral-200 dark:border-neutral-800" />
         <TalkToPersona options={personaOptions} />
         <div className="my-3 border-t border-neutral-200 dark:border-neutral-800" />
@@ -67,7 +67,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Link href="/chat" className="text-base font-semibold tracking-tight">opersona.me</Link>
           <div className="flex items-center gap-2">
             <Link
-              href="/office"
+              href="/command-center"
               aria-label="Command Center (beta)"
               title="Command Center (beta)"
               className="grid h-8 w-8 place-items-center rounded-lg border border-amber-300/70 bg-amber-50 font-mono text-[11px] font-bold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/70"
