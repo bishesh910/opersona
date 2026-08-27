@@ -95,12 +95,17 @@ fn ensure_bridge_installed(node: &str) -> Result<PathBuf, String> {
                 .arg("install")
                 .arg("--prefix")
                 .arg(&app_dir)
-                .args(["--no-fund", "--no-audit", "--loglevel=error", "opersona@latest"])
+                .args(["--no-fund", "--no-audit", "--loglevel=error", "--prefer-online", "opersona@latest"])
                 .env("PATH", path_env)
                 .output()
                 .map_err(|e| e.to_string())?;
             if out.status.success() {
-                tlog("npm install ok");
+                let ver = std::fs::read_to_string(app_dir.join("node_modules/opersona/package.json"))
+                    .ok()
+                    .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                    .and_then(|v| v["version"].as_str().map(String::from))
+                    .unwrap_or_else(|| "?".into());
+                tlog(&format!("npm install ok — bridge v{ver}"));
             } else {
                 tlog(&format!(
                     "npm install failed: {}",
@@ -521,6 +526,16 @@ fn refresh_tray_icon(app: &AppHandle) {
 
 fn main() {
     tauri::Builder::default()
+        // MUST be first: a second copy (launched e.g. right after a dmg update while the
+        // old one still runs) hands its argv to the running instance and exits instead of
+        // fighting it for the daemon.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            for a in args {
+                if a.starts_with("opersona://") {
+                    handle_deep_link(app, &a);
+                }
+            }
+        }))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
