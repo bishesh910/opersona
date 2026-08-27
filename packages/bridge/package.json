@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": false,
   "type": "module",
-  "description": "Your opersona, powered by your own Claude subscription \u2014 chats run on your machine, and your persona learns from every Claude Code session you finish.",
+  "description": "Your opersona, powered by your own Claude subscription — chats run on your machine, and your persona learns from every Claude Code session you finish.",
   "bin": {
-    "opersona": "./dist/index.js",
-    "opersona-bridge": "./dist/index.js"
+    "opersona": "dist/index.js",
+    "opersona-bridge": "dist/index.js"
   },
   "scripts": {
     "start": "tsx src/index.ts",
@@ -31,7 +31,7 @@
   "homepage": "https://opersona.me",
   "repository": {
     "type": "git",
-    "url": "https://github.com/bishesh910/opersona"
+    "url": "git+https://github.com/bishesh910/opersona.git"
   },
   "files": [
     "dist",
