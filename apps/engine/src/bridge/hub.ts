@@ -88,6 +88,7 @@ async function handleFrame(conn: BridgeConn, raw: Buffer): Promise<void> {
     case 'hello':
       conn.host = frame.host;
       conn.claude = frame.claude;
+      console.log('[bridge] hello org=%s host=%s bridge=v%s caps=%j', conn.orgId, frame.host, frame.bridgeVersion, frame.caps);
       break;
     case 'pong':
       conn.alive = true;
