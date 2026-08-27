@@ -27,7 +27,7 @@ export function BridgeCard() {
     try { const { token } = await mintBridgeToken('my machine'); setFresh(token); reload(); } finally { setBusy(false); }
   }
 
-  const cmd = fresh ? `npx tsx packages/bridge/src/index.ts --url ${typeof window !== 'undefined' ? window.location.origin : 'https://opersona.me'} --token ${fresh}` : '';
+  const cmd = fresh ? `npx opersona --token ${fresh}` : '';
 
   return (
     <section className="card space-y-3" data-bridge-card>
@@ -54,7 +54,7 @@ export function BridgeCard() {
             <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-xs dark:bg-neutral-900" data-bridge-token>{fresh}</code>
             <CopyButton text={fresh} />
           </div>
-          <p className="muted text-xs">On a machine with Node 22+ and Claude Code signed in, from the opersona checkout:</p>
+          <p className="muted text-xs">On any machine with Node 20+ and Claude Code signed in:</p>
           <div className="flex items-center gap-2">
             <pre className="min-w-0 flex-1 overflow-x-auto rounded bg-white p-2 font-mono text-[11px] leading-snug dark:bg-neutral-900">{cmd}</pre>
             <CopyButton text={cmd} />

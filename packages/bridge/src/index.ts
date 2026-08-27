@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * opersona bridge — run your opersona chats on your own machine, on the Claude
  * subscription you already have.
@@ -11,8 +10,11 @@
  * ~/.opersona-bridge/work, and anything else requires your explicit approval
  * in the opersona web UI.
  */
-import { hostname } from 'node:os';
+import { hostname, homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import WebSocket from 'ws';
 import { BRIDGE_PROTOCOL_VERSION, type EngineToBridge, type BridgeStart, type BridgeJob } from '@opersona/shared';
 import { BridgeSession } from './session.js';
@@ -21,17 +23,52 @@ import { startWatcher } from './watcher.js';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
 const VERSION = '0.1.0';
+const CONFIG_DIR = join(homedir(), '.opersona-bridge');
+const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
-const URL_ = (arg('url') ?? process.env.OPERSONA_URL ?? 'https://opersona.me').replace(/\/$/, '');
-const TOKEN = arg('token') ?? process.env.OPERSONA_BRIDGE_TOKEN ?? '';
-if (!TOKEN.startsWith('obr_')) {
-  console.error('opersona-bridge: missing token. Mint one in opersona → Settings → Models → "Your own subscription", then run:\n  opersona-bridge --token obr_…');
-  process.exit(1);
+
+interface Config { url?: string; token?: string }
+function loadConfig(): Config {
+  try { return JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) as Config; } catch { return {}; }
 }
+function saveConfig(cfg: Config): void {
+  mkdirSync(CONFIG_DIR, { recursive: true });
+  writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), { mode: 0o600 });
+}
+
+const saved = loadConfig();
+const URL_ = (arg('url') ?? process.env.OPERSONA_URL ?? saved.url ?? 'https://opersona.me').replace(/\/$/, '');
+let TOKEN = arg('token') ?? process.env.OPERSONA_BRIDGE_TOKEN ?? saved.token ?? '';
+
+// First run: ask once, remember forever (~/.opersona-bridge/config.json, 0600).
+if (!TOKEN.startsWith('obr_')) {
+  if (!process.stdin.isTTY) {
+    console.error('opersona: no bridge token. Pair this machine at ' + URL_ + ' → Settings → Models → "Chat on your own subscription", then run:\n  npx opersona --token obr_…');
+    process.exit(1);
+  }
+  console.log('Welcome to opersona — this machine is about to become your persona\'s brain.');
+  console.log('');
+  console.log('  1. Open  ' + URL_ + '  → Settings → Models');
+  console.log('  2. Under "Chat on your own subscription", press  Pair a machine');
+  console.log('  3. Paste the token here');
+  console.log('');
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const answer = (await rl.question('bridge token (obr_…): ')).trim();
+  rl.close();
+  if (!answer.startsWith('obr_')) { console.error('That does not look like a bridge token — it starts with obr_. Nothing saved.'); process.exit(1); }
+  TOKEN = answer;
+}
+if (TOKEN !== saved.token || URL_ !== saved.url) saveConfig({ url: URL_, token: TOKEN });
+
+if (!existsSync(join(homedir(), '.claude'))) {
+  console.warn('[note] Claude Code does not look signed in on this machine (~/.claude missing).');
+  console.warn('       Install it and run `claude` once to log in — the bridge thinks with YOUR Claude.');
+}
+
 const WS_URL = URL_.replace(/^http/, 'ws') + '/bridge/ws';
 const WATCH = !process.argv.includes('--no-watch');
 const CLAUDE_DIR = arg('claude-dir');   // test override for ~/.claude/projects

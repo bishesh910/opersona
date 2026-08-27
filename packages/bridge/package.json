@@ -1,26 +1,43 @@
 {
-  "name": "@opersona/bridge",
+  "name": "opersona",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
-  "description": "Run your opersona chats on your own machine, on your own Claude subscription.",
+  "description": "Your opersona, powered by your own Claude subscription \u2014 chats run on your machine, and your persona learns from every Claude Code session you finish.",
   "bin": {
-    "opersona-bridge": "./bin.js"
+    "opersona": "./dist/index.js",
+    "opersona-bridge": "./dist/index.js"
   },
   "scripts": {
     "start": "tsx src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --banner:js='#!/usr/bin/env node' --external:@anthropic-ai/claude-agent-sdk --external:ws",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.241",
-    "@opersona/shared": "workspace:*",
-    "ws": "^8.18.0",
-    "zod": "^4.4.3"
+    "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@opersona/shared": "workspace:*",
     "@types/node": "^26",
     "@types/ws": "^8.5.13",
+    "esbuild": "^0.28.0",
     "tsx": "^4.23.12",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "zod": "^4.4.3"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "homepage": "https://opersona.me",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bishesh910/opersona"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
   }
 }
