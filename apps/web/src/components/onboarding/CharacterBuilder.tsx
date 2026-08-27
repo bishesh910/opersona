@@ -104,6 +104,9 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
     return () => { stop = true; clearInterval(t); };
   }, [props.hasRail, railLive]);
   const hasRail = props.hasRail || railLive;
+  // The AI story draft lives up here: step components unmount on navigation,
+  // and a generated story must never evaporate (it is also persisted server-side).
+  const [storyDraft, setStoryDraft] = useState<BuilderBrief | null>(null);
 
   // A little hello on the final step.
   useEffect(() => {
@@ -159,6 +162,8 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
               <StoryStep
                 cloneId={props.clone.id}
                 initial={props.brief ?? { displayName: props.userName, roleTitle: '', team: '', briefMd: '', operatingRules: '' }}
+                draft={storyDraft}
+                onDraft={setStoryDraft}
                 onName={setDisplayName}
                 onRole={setRoleTitle}
                 onNext={() => go(4)}
@@ -307,9 +312,11 @@ function FaceStep({ cloneId, recipe, onRecipe, onNext, hasRail }: {
 
 /* ── Step 2: Story ────────────────────────────────────────────────────────── */
 
-function StoryStep({ cloneId, initial, onName, onRole, onNext }: {
+function StoryStep({ cloneId, initial, draft, onDraft, onName, onRole, onNext }: {
   cloneId: string;
   initial: BuilderBrief;
+  draft: BuilderBrief | null;
+  onDraft: (d: BuilderBrief | null) => void;
   onName: (v: string) => void;
   onRole: (v: string) => void;
   onNext: () => void;
@@ -321,8 +328,7 @@ function StoryStep({ cloneId, initial, onName, onRole, onNext }: {
   }, [state, onNext]);
   // Interview-first: four one-liners → the cheapest model drafts the story →
   // the form becomes "tweak the draft". Skippable both ways.
-  const [mode, setMode] = useState<'interview' | 'form'>(initial.briefMd.trim() ? 'form' : 'interview');
-  const [draft, setDraft] = useState<BuilderBrief | null>(null);
+  const [mode, setMode] = useState<'interview' | 'form'>((draft ?? initial).briefMd.trim() ? 'form' : 'interview');
   const [drafting, setDrafting] = useState(false);
   const [draftErr, setDraftErr] = useState<string | null>(null);
   const eff = draft ?? initial;
@@ -338,7 +344,7 @@ function StoryStep({ cloneId, initial, onName, onRole, onNext }: {
       setMode('form');
       return;
     }
-    setDraft({ displayName: initial.displayName, roleTitle: r.roleTitle, team: initial.team, briefMd: r.briefMd, operatingRules: r.operatingRules });
+    onDraft({ displayName: initial.displayName, roleTitle: r.roleTitle, team: initial.team, briefMd: r.briefMd, operatingRules: r.operatingRules });
     onRole(r.roleTitle);
     setMode('form');
   }

@@ -52,6 +52,14 @@ export async function composeBriefAction(cloneId: string, userName: string, answ
   try {
     const out = await engineFetch<{ roleTitle: string; briefMd: string; operatingRules: string }>(
       `/clones/${cloneId}/compose-brief`, { body: { orgId: ctx.orgId, userName: userName.slice(0, 120), answers } });
+    // Persist immediately: a generated draft must survive navigation/refresh even
+    // before the user presses save (the form's save simply overwrites with tweaks).
+    await db.insert(schema.personaBriefs)
+      .values({ cloneId, orgId: ctx.orgId, displayName: userName.slice(0, 120), roleTitle: out.roleTitle, briefMd: out.briefMd, operatingRules: out.operatingRules })
+      .onConflictDoUpdate({
+        target: schema.personaBriefs.cloneId,
+        set: { roleTitle: out.roleTitle, briefMd: out.briefMd, operatingRules: out.operatingRules, version: sql`${schema.personaBriefs.version} + 1`, updatedAt: new Date() },
+      });
     return { ok: true, ...out };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'drafting failed' };
