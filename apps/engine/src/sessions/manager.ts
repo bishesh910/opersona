@@ -47,6 +47,7 @@ export class InputQueue implements AsyncIterable<SDKUserMessage> {
 
 interface Live {
   conversationId: string; orgId: string; cloneId: string; userId: string;
+  sealed: boolean;
   input: { push(m: SDKUserMessage): void; close(): void };
   stream: AsyncIterable<SDKMessage>;
   interrupt: () => void;
@@ -254,6 +255,7 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
     });
     const s: Live = {
       conversationId: args.conversationId, orgId: args.orgId, userId: args.userId, cloneId: args.cloneId,
+      sealed: !!settings.sealKeyFp,
       input: { push: (m) => b.push(m), close: () => { /* bridge sessions end via cancel */ } },
       stream: b.messages, interrupt: b.interrupt, viaBridge: true, abort,
       sdkSessionId: conv.sdkSessionId ?? undefined, promptHash: promptHash + '.bridge', model,
@@ -291,6 +293,7 @@ async function start(args: { conversationId: string; orgId: string; userId: stri
   const q = query({ prompt: input, options });
   const s: Live = {
     conversationId: args.conversationId, orgId: args.orgId, userId: args.userId, cloneId: args.cloneId,
+    sealed: false, // sealing requires the bridge rail (the key lives on the user's machine)
     input, stream: q as AsyncIterable<SDKMessage>, interrupt: () => abort.abort(), viaBridge: false, abort,
     sdkSessionId: conv.sdkSessionId ?? undefined, promptHash, model, textBuf: '', toolUses: [], workdir, filesBefore: scanDir(workdir), done: Promise.resolve(),
   };
@@ -339,17 +342,21 @@ async function consume(s: Live): Promise<void> {
         case 'result': {
           const ok = m.subtype === 'success';
           const text = s.textBuf.trim() || (ok ? m.result : '');
+          // Sealed workspace: the bridge attached the ciphertext of this turn; the
+          // engine stores that and NEVER the plaintext (fail closed if it's missing).
+          const sealedCipher = s.sealed ? String((m as unknown as { opersona_sealed?: string }).opersona_sealed ?? '') : null;
+          const storedText = s.sealed ? (sealedCipher || '[sealed — this bridge build cannot seal; update it]') : redactSecrets(text);
           // Any files the turn created/changed in the workdir become downloads.
           const files = diffFiles(s.workdir, s.filesBefore);
           s.filesBefore = scanDir(s.workdir);
           let turnId: string | undefined;
           if (text || s.toolUses.length || files.length) {
-            const [row] = await db.insert(turns).values({ conversationId: s.conversationId, orgId: s.orgId, role: 'assistant', content: redactSecrets(text), toolUses: s.toolUses, files: files.length ? files : null }).returning({ id: turns.id });
+            const [row] = await db.insert(turns).values({ conversationId: s.conversationId, orgId: s.orgId, role: 'assistant', content: storedText, toolUses: s.toolUses, files: files.length ? files : null }).returning({ id: turns.id });
             turnId = row?.id;
           }
           if (text) emit({ type: 'assistant_message', text, turn_id: turnId });
           if (files.length) emit({ type: 'files', files, turn_id: turnId });
-          void maybeTitleConversation(s.orgId, s.cloneId, s.conversationId).catch((e) => console.error('[title]', e));
+          if (!s.sealed) void maybeTitleConversation(s.orgId, s.cloneId, s.conversationId).catch((e) => console.error('[title]', e));
           const u = m.usage;
           // Bridge turns run on the user's subscription: keep token counts, but no USD
           // (budget guards sum costUsd — subscription usage must never trip them).

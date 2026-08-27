@@ -357,6 +357,25 @@ fn takeover_launchd() {
     }
 }
 
+fn read_config() -> serde_json::Value {
+    std::fs::read_to_string(cfg_dir().join("config.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+fn write_config(cfg: &serde_json::Value) -> Result<(), String> {
+    std::fs::create_dir_all(cfg_dir()).map_err(|e| e.to_string())?;
+    let path = cfg_dir().join("config.json");
+    std::fs::write(&path, serde_json::to_vec_pretty(cfg).unwrap()).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
 fn apply_token(app: &AppHandle, token: &str) -> Result<(), String> {
     let t = token.trim();
     if !t.starts_with("obr_") {
@@ -368,15 +387,10 @@ fn apply_token(app: &AppHandle, token: &str) -> Result<(), String> {
             t.len()
         ));
     }
-    std::fs::create_dir_all(cfg_dir()).map_err(|e| e.to_string())?;
-    let cfg = serde_json::json!({ "url": SITE, "token": t });
-    let path = cfg_dir().join("config.json");
-    std::fs::write(&path, serde_json::to_vec_pretty(&cfg).unwrap()).map_err(|e| e.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-    }
+    let mut cfg = read_config();
+    cfg["url"] = serde_json::json!(SITE);
+    cfg["token"] = serde_json::json!(t);
+    write_config(&cfg)?;
     tlog("token saved — (re)starting daemon");
     {
         let state = app.state::<AppState>();
@@ -398,12 +412,55 @@ fn save_token(app: AppHandle, token: String) -> Result<(), String> {
     apply_token(&app, &token)
 }
 
-/// opersona://pair?token=obr_… — one click on the website pairs the app.
+fn url_param(url: &str, name: &str) -> Option<String> {
+    let needle = format!("{name}=");
+    url.split(['?', '&'])
+        .find(|part| part.starts_with(&needle))
+        .map(|part| part[needle.len()..].trim().to_string())
+        .filter(|v| !v.is_empty())
+}
+
+/// URL-safe → standard base64 (the seal key rides the link URL-encoded-ish).
+fn decode_key_param(v: &str) -> String {
+    v.replace("%2B", "+").replace("%2F", "/").replace("%3D", "=").replace('-', "+").replace('_', "/")
+}
+
+fn save_seal_key(app: &AppHandle, key: &str) -> Result<(), String> {
+    let k = decode_key_param(key);
+    let mut cfg = read_config();
+    cfg["sealKey"] = serde_json::json!(k);
+    write_config(&cfg)?;
+    tlog("seal key saved — sealed conversations active on this machine");
+    // restart so the daemon picks it up
+    {
+        let state = app.state::<AppState>();
+        let mut d = state.daemon.lock().unwrap();
+        if let Some(mut c) = d.child.take() {
+            let _ = c.kill();
+        }
+    }
+    start_daemon(app);
+    Ok(())
+}
+
+/// opersona://pair?token=obr_…[&seal=…] pairs (and keys) the app in one click;
+/// opersona://seal?key=… updates only the seal key. The key never touches the
+/// server — deep links are an OS-local browser→app hop.
 fn handle_deep_link(app: &AppHandle, url: &str) {
-    tlog(&format!("deep link: {}", url.split("token=").next().unwrap_or(url)));
-    let Some(raw) = url.split("token=").nth(1) else { return };
-    let token = raw.split('&').next().unwrap_or(raw).trim();
-    match apply_token(app, token) {
+    tlog(&format!("deep link: {}", url.split(['?']).next().unwrap_or(url)));
+    if url.contains("://seal") {
+        if let Some(k) = url_param(url, "key") {
+            if let Err(e) = save_seal_key(app, &k) {
+                tlog(&format!("seal deep link failed: {e}"));
+            }
+        }
+        return;
+    }
+    let Some(token) = url_param(url, "token") else { return };
+    if let Some(k) = url_param(url, "seal") {
+        let _ = save_seal_key(app, &k);
+    }
+    match apply_token(app, &token) {
         Ok(()) => tlog("deep-link pairing accepted"),
         Err(e) => {
             tlog(&format!("deep-link pairing failed: {e}"));

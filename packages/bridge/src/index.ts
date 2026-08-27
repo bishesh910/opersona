@@ -22,7 +22,7 @@ import { runJob } from './jobs.js';
 import { startWatcher } from './watcher.js';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
-const VERSION = '0.1.4';
+const VERSION = '0.2.0';
 
 // Subcommands: `opersona install` / `opersona uninstall` (background service).
 const sub = process.argv[2];
@@ -60,7 +60,7 @@ function arg(name: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-interface Config { url?: string; token?: string }
+interface Config { url?: string; token?: string; sealKey?: string }
 function loadConfig(): Config {
   try { return JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) as Config; } catch { return {}; }
 }
@@ -72,6 +72,7 @@ function saveConfig(cfg: Config): void {
 const saved = loadConfig();
 const URL_ = (arg('url') ?? process.env.OPERSONA_URL ?? saved.url ?? 'https://opersona.me').replace(/\/$/, '');
 let TOKEN = arg('token') ?? process.env.OPERSONA_BRIDGE_TOKEN ?? saved.token ?? '';
+const SEAL_KEY = arg('seal-key') ?? saved.sealKey ?? undefined;
 
 // First run: ask once, remember forever (~/.opersona-bridge/config.json, 0600).
 if (!TOKEN.startsWith('obr_')) {
@@ -91,7 +92,7 @@ if (!TOKEN.startsWith('obr_')) {
   if (!answer.startsWith('obr_')) { console.error('That does not look like a bridge token — it starts with obr_. Nothing saved.'); process.exit(1); }
   TOKEN = answer;
 }
-if (TOKEN !== saved.token || URL_ !== saved.url) saveConfig({ url: URL_, token: TOKEN });
+if (TOKEN !== saved.token || URL_ !== saved.url) saveConfig({ url: URL_, token: TOKEN, sealKey: SEAL_KEY });
 
 if (!existsSync(join(homedir(), '.claude'))) {
   console.warn('[note] Claude Code does not look signed in on this machine (~/.claude missing).');
@@ -134,14 +135,14 @@ function startSession(startFrame: BridgeStart): void {
       const r = await rpc({ t: 'approval', sid, id: randomUUID(), tool: toolName, input }, 12 * 60_000);
       return r as { behavior: 'allow' | 'deny'; message?: string; updatedInput?: unknown };
     },
-  });
+  }, SEAL_KEY);
   sessions.set(sid, session);
   console.log(`[bridge] session ${sid.slice(0, 8)} started (${startFrame.model})`);
   void session.run().finally(() => console.log(`[bridge] session ${sid.slice(0, 8)} ended`));
 }
 
 function runJobFrame(job: BridgeJob): void {
-  void runJob(job).then((r) => sendFrame({ t: 'jobResult', id: job.id, ok: r.ok, output: r.output, text: r.text, error: r.error, usage: r.usage }));
+  void runJob(job, SEAL_KEY).then((r) => sendFrame({ t: 'jobResult', id: job.id, ok: r.ok, output: r.output, text: r.text, error: r.error, usage: r.usage }));
 }
 
 function onFrame(frame: EngineToBridge): void {
@@ -174,7 +175,7 @@ function connect(): void {
   ws = sock;
   sock.on('open', () => {
     backoffMs = 1000;
-    sendFrame({ t: 'hello', version: BRIDGE_PROTOCOL_VERSION, bridgeVersion: VERSION, host: hostname(), caps: { chat: true, jobs: true, watch: WATCH } });
+    sendFrame({ t: 'hello', version: BRIDGE_PROTOCOL_VERSION, bridgeVersion: VERSION, host: hostname(), caps: { chat: true, jobs: true, watch: WATCH, seal: !!SEAL_KEY } });
     console.log('[bridge] connected — chats on this account now run on THIS machine (your Claude subscription).');
     if (WATCH && !watcher) {
       watcher = startWatcher({ sendIngest: (f) => { if (ws?.readyState === WebSocket.OPEN) { ws.send(JSON.stringify(f)); return true; } return false; } }, { claudeDir: CLAUDE_DIR, codexDir: CODEX_DIR, ident: TOKEN.slice(0, 12) });

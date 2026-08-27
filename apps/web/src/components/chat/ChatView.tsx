@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { isSealed, loadSealKey, storeSealKey, sealDecrypt, sealEncrypt, sealKeyFingerprint } from '@/lib/seal-client';
 import { useRouter } from 'next/navigation';
 import type { AvatarRecipe, EngineEvent } from '@opersona/shared';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
@@ -206,7 +207,7 @@ function friendlyErr(m: string): string {
 export function ChatView({
   cloneId, cloneName, avatar, conversationId, history, readOnly, canResolveApprovals, feedback: initialFeedback = {}, mode = 'claude',
   title: initialTitle = '', model: initialModel = null, effort: initialEffort = null, userFirstName = '', showCost = true,
-  visitorView = false, newHref, embedded = false, initialLive = false, keyMissing = null,
+  visitorView = false, newHref, embedded = false, initialLive = false, keyMissing = null, seal = null,
 }: {
   mode?: 'claude' | 'clone'; cloneId: string; cloneName: string; avatar: AvatarRecipe | null; conversationId: string; history: HistoryTurn[]; readOnly: boolean; canResolveApprovals: boolean;
   /**
@@ -227,6 +228,9 @@ export function ChatView({
    *  viewer's own workspace (show the add-key CTA), 'theirs' = someone else's
    *  (persona owner hasn't connected Claude). Composer is replaced by a gate card. */
   keyMissing?: 'mine' | 'theirs' | null;
+  /** Sealed-conversations key fingerprint for this workspace (null = not sealed).
+   *  Content decrypts in THIS browser; the server stores only ciphertext. */
+  seal?: string | null;
   /** Existing "that's me / not me" verdicts by turn id (so they survive a reload). */
   feedback?: Record<string, FeedbackVerdict>;
   title?: string;
@@ -238,6 +242,23 @@ export function ChatView({
 }) {
   const router = useRouter();
   const [items, setItems] = useState<Item[]>(() => fromHistory(history));
+  const [sealKey, setSealKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!seal) return;
+    const k = loadSealKey(seal);
+    setSealKey(k);
+    if (!history.some((t) => isSealed(t.content))) return;
+    if (!k) {
+      setItems(fromHistory(history.map((t) => (isSealed(t.content) ? { ...t, content: '🔒 Sealed message — unlock this device with your key (below).' } : t))));
+      return;
+    }
+    void (async () => {
+      const dec = await Promise.all(history.map(async (t) =>
+        isSealed(t.content) ? { ...t, content: await sealDecrypt(k, t.content).catch(() => '🔒 (cannot decrypt — wrong key for this workspace?)') } : t));
+      setItems(fromHistory(dec));
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seal]);
   const [feedback, setFeedback] = useState<Record<string, FeedbackVerdict>>(initialFeedback);
   const [learning, setLearning] = useState<string | null>(null);
   const [title, setTitle] = useState(initialTitle);
@@ -373,6 +394,7 @@ export function ChatView({
   }
 
   async function send(text: string, attachments: { name: string; mime: string; dataBase64: string }[], views: PendingAttachmentView[]): Promise<boolean> {
+    if (seal && !sealKey) { setError('This workspace seals conversations — unlock this device with your key first (below).'); return false; }
     if (busy || replying) return false;
     setBusy(true); setError(null);
     stickToBottom.current = true;
@@ -380,7 +402,11 @@ export function ChatView({
     setItems((prev) => [...prev, { kind: 'user', key, text, attachments: views.length ? views : undefined }]);
     const res = await fetch(`/api/engine/conversations/${conversationId}/messages`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cloneId, text, ...(attachments.length ? { attachments } : {}) }),
+      body: JSON.stringify({
+        cloneId, text,
+        ...(seal && sealKey && text ? { sealed: await sealEncrypt(sealKey, text) } : {}),
+        ...(attachments.length ? { attachments } : {}),
+      }),
     });
     setBusy(false);
     if (!res.ok) {
@@ -668,6 +694,10 @@ export function ChatView({
               {visitorView ? 'Read-only: this is a colleague’s conversation with your persona — only they can write here.' : 'Read-only: only the persona owner can chat.'}
             </p>
           </div>
+        ) : seal && !sealKey ? (
+          <div className="safe-b mx-auto w-full max-w-3xl px-4 pb-4">
+            <SealUnlock fp={seal} onUnlocked={() => window.location.reload()} />
+          </div>
         ) : keyMissing ? (
           <div className="safe-b mx-auto w-full max-w-3xl px-4 pb-4">
             <div className="mx-auto w-full max-w-md rounded-2xl border border-amber-300/70 bg-amber-50 px-5 py-4 text-center text-sm dark:border-amber-800/60 dark:bg-amber-950/30" data-key-gate>
@@ -689,6 +719,34 @@ export function ChatView({
           <div className="safe-b mx-auto w-full max-w-3xl px-4 pb-3 sm:px-6">{composer}</div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** This device doesn't hold the workspace's seal key: paste the recovery key
+ *  (fingerprint-checked locally; the key itself never leaves the browser). */
+function SealUnlock({ fp, onUnlocked }: { fp: string; onUnlocked: () => void }) {
+  const [val, setVal] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function unlock() {
+    setBusy(true); setErr(null);
+    const k = val.trim();
+    try {
+      if ((await sealKeyFingerprint(k)) !== fp) { setErr('That key does not match this workspace.'); setBusy(false); return; }
+      storeSealKey(fp, k);
+      onUnlocked();
+    } catch { setErr('That does not look like a valid key.'); setBusy(false); }
+  }
+  return (
+    <div className="mx-auto w-full max-w-md rounded-2xl border border-amber-300/70 bg-amber-50 px-5 py-4 text-sm dark:border-amber-800/60 dark:bg-amber-950/30" data-seal-unlock>
+      <p className="font-medium">🔒 Sealed conversations</p>
+      <p className="muted mt-1 text-xs">This workspace encrypts chats with a key only you hold. Paste your recovery key to unlock this device — it is checked and stored locally, never sent to the server.</p>
+      <div className="mt-2 flex gap-2">
+        <input className="input flex-1 font-mono text-xs" type="password" placeholder="your seal key" value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void unlock(); }} />
+        <button type="button" className="btn-primary" disabled={busy || !val.trim()} onClick={() => void unlock()}>Unlock</button>
+      </div>
+      {err && <p className="mt-1.5 text-xs text-red-600" role="alert">{err}</p>}
     </div>
   );
 }

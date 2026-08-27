@@ -6,7 +6,7 @@ import { requireOrg } from '@/lib/session';
 import { getCloneAccess } from '@/lib/clones';
 import { engineFetch } from '@/lib/engine';
 import { DEFAULT_TITLE_RE } from '@/lib/chat';
-import { orgHasChatKey } from '@/lib/keys';
+import { orgHasChatKey, orgSealFp } from '@/lib/keys';
 import { ChatView, type FeedbackVerdict, type HistoryTurn } from '@/components/chat/ChatView';
 
 /** Full-height conversation view (own persona): slim bar on top, the rest is chat. */
@@ -26,6 +26,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
   const feedback: Record<string, FeedbackVerdict> = {};
   for (const f of fb) feedback[f.turnId] = f.verdict;
   const hasKey = await orgHasChatKey(ctx.orgId);
+  const sealFp = await orgSealFp(ctx.orgId);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -50,6 +51,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
           userFirstName={(ctx.user.name?.trim().split(/\s+/)[0]) || ''}
           showCost
           keyMissing={hasKey ? null : 'mine'}
+          seal={sealFp}
           initialLive={conv.status === 'live'}
         />
       </div>

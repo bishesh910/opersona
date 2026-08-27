@@ -3,8 +3,8 @@ import { db, orgSettings, sessionCosts } from '@opersona/db';
 import { decryptSecret } from '@opersona/shared';
 import { config } from './config.js';
 
-export interface OrgModelConfig { apiKey: string; chatModel: string; extractModel: string; condenseModel: string; chatEffort: string; bossCloneId: string | null }
-export interface OrgSettingsOnly { chatModel: string; extractModel: string; condenseModel: string; chatEffort: string; bossCloneId: string | null }
+export interface OrgModelConfig { apiKey: string; chatModel: string; extractModel: string; condenseModel: string; chatEffort: string; bossCloneId: string | null; sealKeyFp: string | null }
+export interface OrgSettingsOnly { chatModel: string; extractModel: string; condenseModel: string; chatEffort: string; bossCloneId: string | null; sealKeyFp: string | null }
 
 /** Model defaults + boss star WITHOUT resolving a key — for bridge sessions,
  *  which run on the user's own subscription (no key, no cloud budget). */
@@ -16,6 +16,7 @@ export async function orgSettingsOnly(orgId: string): Promise<OrgSettingsOnly> {
     condenseModel: row?.condenseModel ?? 'claude-haiku-4-5',
     chatEffort: row?.chatEffort ?? 'high',
     bossCloneId: row?.bossCloneId ?? null,
+    sealKeyFp: row?.sealKeyFp ?? null,
   };
 }
 
@@ -48,6 +49,7 @@ export async function orgModelConfig(orgId: string): Promise<OrgModelConfig> {
         condenseModel: r2?.condenseModel ?? 'claude-haiku-4-5',
         chatEffort: r2?.chatEffort ?? 'high',
         bossCloneId: r2?.bossCloneId ?? null,
+        sealKeyFp: r2?.sealKeyFp ?? null,
       };
     }
     throw new Error('no_api_key: connect your Claude in Settings — run the opersona bridge (your subscription) or add an API key');
@@ -75,5 +77,6 @@ export async function orgModelConfig(orgId: string): Promise<OrgModelConfig> {
     condenseModel: row?.condenseModel ?? 'claude-haiku-4-5',
     chatEffort: row?.chatEffort ?? 'high',
     bossCloneId: row?.bossCloneId ?? null,
+    sealKeyFp: row?.sealKeyFp ?? null,
   };
 }

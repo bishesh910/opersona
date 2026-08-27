@@ -14,6 +14,7 @@ import { and, eq, asc } from 'drizzle-orm';
 import { db, turns, reasoningObservations, reasoningPatterns } from '@opersona/db';
 import { redactSecrets } from '@opersona/shared';
 import { structuredCall } from '../llm.js';
+import { isSealed } from '@opersona/shared';
 import { orgModelConfig } from '../keys.js';
 
 export const DIMENSIONS = ['decomposition', 'starting_point', 'information', 'verification', 'explanation', 'risk', 'pace', 'other'] as const;
@@ -87,7 +88,7 @@ export function windows(t: TranscriptTurn[], maxChars = 70_000, maxWindows = 4):
 }
 
 export async function extractFromTranscript(args: {
-  orgId: string; cloneId: string; transcript: TranscriptTurn[]; sourceKind: 'conversation' | 'import' | 'feedback'; sourceRef: string;
+  orgId: string; cloneId: string; transcript: TranscriptTurn[]; sourceKind: 'conversation' | 'import' | 'feedback'; sourceRef: string; sealed?: string[];
 }): Promise<Extraction> {
   const humanTurns = args.transcript.filter((t) => t.role === 'human');
   if (humanTurns.length === 0 || humanTurns.reduce((n, t) => n + t.text.length, 0) < 40) return { observations: [], note: 'no human reasoning to learn from' };
@@ -97,7 +98,7 @@ export async function extractFromTranscript(args: {
   for (const [i, part] of parts.entries()) {
     const digest = await existingPatternsDigest(args.cloneId); // refreshed per window so later windows reuse keys coined earlier
     const user = `EXISTING PATTERNS for this person (reuse keys when the same):\n${digest}\n\nCONVERSATION${parts.length > 1 ? ` (part ${i + 1} of ${parts.length})` : ''}:\n${renderTranscript(part)}`;
-    const out = await structuredCall({ orgId: args.orgId, cloneId: args.cloneId, kind: 'extract', apiKey: cfg.apiKey, model: cfg.extractModel, system: EXTRACT_SYSTEM, user, schema: Extraction, effort: 'medium' });
+    const out = await structuredCall({ orgId: args.orgId, cloneId: args.cloneId, kind: 'extract', apiKey: cfg.apiKey, model: cfg.extractModel, system: EXTRACT_SYSTEM, user, schema: Extraction, effort: 'medium', sealed: args.sealed });
     if (out.observations.length) {
       await db.insert(reasoningObservations).values(out.observations.map((o) => ({
         orgId: args.orgId, cloneId: args.cloneId, patternKey: o.pattern_key, dimension: o.dimension, description: o.description,
@@ -109,9 +110,25 @@ export async function extractFromTranscript(args: {
   return all;
 }
 
+/** Sealed turns become <<SEALED:i>> markers (space-padded to the estimated
+ *  plaintext size so windowing stays honest); the ciphertexts ride alongside and
+ *  only the user's bridge can substitute them back. */
+export function sealAwareTranscript(rows: { role: string; content: string; editedContent?: string | null }[]): { transcript: TranscriptTurn[]; sealed: string[] } {
+  const sealed: string[] = [];
+  const transcript: TranscriptTurn[] = rows.filter((r) => r.role !== 'system').map((r) => {
+    const raw = r.editedContent ?? r.content;
+    if (!isSealed(raw)) return { role: r.role === 'user' ? 'human' as const : 'assistant' as const, text: raw };
+    const i = sealed.push(raw) - 1;
+    const est = Math.max(1, Math.round(raw.length * 0.75) - 28);
+    const marker = `<<SEALED:${i}>>`;
+    return { role: r.role === 'user' ? 'human' as const : 'assistant' as const, text: marker + ' '.repeat(Math.max(0, Math.min(est, 3200) - marker.length)) };
+  });
+  return { transcript, sealed };
+}
+
 /** Extract from an in-app conversation (turns table). */
 export async function extractFromConversation(orgId: string, cloneId: string, conversationId: string): Promise<Extraction> {
   const rows = await db.select().from(turns).where(and(eq(turns.conversationId, conversationId), eq(turns.orgId, orgId))).orderBy(asc(turns.createdAt));
-  const transcript: TranscriptTurn[] = rows.filter((r) => r.role !== 'system').map((r) => ({ role: r.role === 'user' ? 'human' : 'assistant', text: r.editedContent ?? r.content }));
-  return extractFromTranscript({ orgId, cloneId, transcript, sourceKind: 'conversation', sourceRef: conversationId });
+  const { transcript, sealed } = sealAwareTranscript(rows);
+  return extractFromTranscript({ orgId, cloneId, transcript, sourceKind: 'conversation', sourceRef: conversationId, sealed });
 }

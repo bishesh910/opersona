@@ -221,8 +221,12 @@ async function handle(req: NextRequest, { params }: Ctx): Promise<Response> {
         json.text = text;
         if (attachments.length) json.attachments = attachments; else delete json.attachments;
         json.cloneId = verdict.cloneId; // never trust the client for this
+        // Sealed workspaces: the browser sends a ciphertext copy for storage; the
+        // plaintext is transit-only (fed to the model, never persisted here).
+        const sealedCopy = typeof json.sealed === 'string' && json.sealed.startsWith('enc1:') && json.sealed.length < 400_000 ? json.sealed : null;
+        delete json.sealed;
         // History stores what was attached (names only) — never the bytes.
-        const stored = redactSecrets(text) + (attachments.length ? `${text ? '\n' : ''}[attached: ${attachments.map((a) => a.name).join(', ')}]` : '');
+        const stored = sealedCopy ?? (redactSecrets(text) + (attachments.length ? `${text ? '\n' : ''}[attached: ${attachments.map((a) => a.name).join(', ')}]` : ''));
         const convId = verdict.conversationId;
         insertedTurnId = await db.transaction(async (tx) => {
           const [t] = await tx.insert(schema.turns)
@@ -230,7 +234,8 @@ async function handle(req: NextRequest, { params }: Ctx): Promise<Response> {
             .returning({ id: schema.turns.id });
           const patch: Partial<typeof schema.conversations.$inferInsert> = { lastActivityAt: new Date(), status: 'live' };
           // Auto-title: the first user message names an untitled conversation.
-          if (verdict.conversationTitle != null && isDefaultTitle(verdict.conversationTitle)) {
+          // (Never for sealed messages — a title would leak content in plaintext.)
+          if (!sealedCopy && verdict.conversationTitle != null && isDefaultTitle(verdict.conversationTitle)) {
             const [{ n }] = await tx.select({ n: count() }).from(schema.turns).where(and(eq(schema.turns.conversationId, convId), eq(schema.turns.role, 'user')));
             if (n <= 1) {
               const base = (text || attachments.map((a) => a.name).join(', ')).replace(/\s+/g, ' ').trim();

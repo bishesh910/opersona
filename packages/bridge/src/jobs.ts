@@ -7,7 +7,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { query, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { BridgeJob } from '@opersona/shared';
+import { sealDecrypt, type BridgeJob } from '@opersona/shared';
 
 function jobEnv(): Record<string, string> {
   const env: Record<string, string> = {};
@@ -32,9 +32,19 @@ async function slot(): Promise<void> {
 }
 function release(): void { running--; waiters.shift()?.(); }
 
-export async function runJob(job: BridgeJob): Promise<JobOutcome> {
+export async function runJob(job: BridgeJob, sealKey?: string): Promise<JobOutcome> {
   await slot();
   try {
+    // Sealed substitution: the server ships ciphertext; only this machine can read it.
+    let user = job.user;
+    if (job.sealed?.length) {
+      if (!sealKey) return { ok: false, error: 'sealed content but this bridge has no seal key — re-pair from Settings' };
+      try {
+        user = user.replace(/<<SEALED:(\d+)>> */g, (_, i) => sealDecrypt(sealKey, job.sealed![Number(i)] ?? ''));
+      } catch (e) {
+        return { ok: false, error: `could not unseal content: ${e instanceof Error ? e.message : e}` };
+      }
+    }
     const cwd = join(homedir(), '.opersona-bridge', 'jobs');
     mkdirSync(cwd, { recursive: true });
     const structured = job.kind === 'structured';
@@ -51,11 +61,11 @@ export async function runJob(job: BridgeJob): Promise<JobOutcome> {
       ...(structured && job.schema ? { outputFormat: { type: 'json_schema', schema: job.schema } } : {}),
     };
     let out: JobOutcome = { ok: false, error: 'no result' };
-    let prompt: string | AsyncIterable<SDKUserMessage> = job.user;
+    let prompt: string | AsyncIterable<SDKUserMessage> = user;
     if (job.image) {
       const msg: SDKUserMessage = { type: 'user', parent_tool_use_id: null, message: { role: 'user', content: [
         { type: 'image', source: { type: 'base64', media_type: job.image.mime as 'image/jpeg', data: job.image.base64 } },
-        { type: 'text', text: job.user },
+        { type: 'text', text: user },
       ] } };
       prompt = (async function* once() { yield msg; })();
     }

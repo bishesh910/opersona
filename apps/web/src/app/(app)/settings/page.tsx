@@ -12,6 +12,7 @@ import { MembersCard } from '@/components/settings/MembersCard';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
 import { ConnectorCard } from '@/components/settings/ConnectorCard';
 import { BridgeCard } from '@/components/settings/BridgeCard';
+import { SealCard } from '@/components/settings/SealCard';
 import { engineFetch } from '@/lib/engine';
 
 const MODEL_LABELS: Record<string, string> = {
@@ -119,6 +120,7 @@ export default async function SettingsPage() {
                 />
               )}
             </section>
+            <SealCard />
             <BridgeCard />
             <ConnectorCard />
             <section className="card space-y-2">

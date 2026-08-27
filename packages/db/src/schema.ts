@@ -54,6 +54,9 @@ export const orgSettings = pgTable('org_settings', {
   timezone: text('timezone').notNull().default('UTC'),
   /** The starred persona who runs the floor: delegates work, hires temp personas. */
   bossCloneId: uuid('boss_clone_id'),
+  /** Sealed conversations: fingerprint of the user-held key (never the key). */
+  sealKeyFp: text('seal_key_fp'),
+  sealedAt: timestamp('sealed_at'),
   updatedAt: updated(),
 });
 

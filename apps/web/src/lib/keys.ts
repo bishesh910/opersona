@@ -15,3 +15,9 @@ export async function orgHasChatKey(orgId: string): Promise<boolean> {
   const [paired] = await db.select({ id: bridgeTokens.id }).from(bridgeTokens).where(and(eq(bridgeTokens.orgId, orgId), isNull(bridgeTokens.revokedAt))).limit(1);
   return !!paired;
 }
+
+/** Sealed-conversations state for a workspace: the key FINGERPRINT only. */
+export async function orgSealFp(orgId: string): Promise<string | null> {
+  const [row] = await db.select({ fp: schema.orgSettings.sealKeyFp }).from(schema.orgSettings).where(eq(schema.orgSettings.orgId, orgId)).limit(1);
+  return row?.fp ?? null;
+}

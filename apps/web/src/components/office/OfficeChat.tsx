@@ -55,6 +55,7 @@ export function OfficeChat({ cloneId, avatar }: { cloneId: string; avatar: Avata
         userFirstName={data.userFirstName}
         showCost={data.showCost}
         keyMissing={data.keyMissing ? 'mine' : null}
+        seal={data.seal}
         initialLive={data.live}
       />
       <div className="border-t border-neutral-100 px-2 py-1 text-right dark:border-neutral-800">

@@ -14,7 +14,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve, isAbsolute } from 'node:path';
 import { query, tool, createSdkMcpServer, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
-import { PERSONA_SERVER, PERSONA_TOOL_SPECS, type BridgeStart } from '@opersona/shared';
+import { PERSONA_SERVER, PERSONA_TOOL_SPECS, sealEncrypt, type BridgeStart } from '@opersona/shared';
 
 export interface SessionIO {
   sendEv: (m: SDKMessage) => void;
@@ -69,8 +69,9 @@ export class BridgeSession {
   readonly input = new InputQueue();
   private abort = new AbortController();
   private sawAnyMessage = false;
+  private textBuf = '';
 
-  constructor(private start: BridgeStart, private io: SessionIO) {}
+  constructor(private start: BridgeStart, private io: SessionIO, private sealKey?: string) {}
 
   push(m: SDKUserMessage): void { this.input.push(m); }
   cancel(): void { this.input.close(); this.abort.abort(); }
@@ -140,6 +141,22 @@ export class BridgeSession {
     const q = query({ prompt: this.input, options });
     for await (const m of q as AsyncIterable<SDKMessage>) {
       this.sawAnyMessage = true;
+      // Sealed conversations: THIS machine holds the key, so the assistant turn is
+      // encrypted here before storage — the server persists only the ciphertext it
+      // receives on the result event (live deltas remain transit-only plaintext).
+      if (this.sealKey) {
+        if (m.type === 'stream_event') {
+          const ev = (m as { event?: { type?: string; delta?: { type?: string; text?: string } } }).event;
+          if (ev?.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) this.textBuf += ev.delta.text;
+        }
+        if (m.type === 'result') {
+          const text = this.textBuf.trim() || ((m as { subtype?: string; result?: string }).subtype === 'success' ? ((m as { result?: string }).result ?? '') : '');
+          const wrapped = { ...m, opersona_sealed: text ? sealEncrypt(this.sealKey, text) : '' };
+          this.textBuf = '';
+          this.io.sendEv(wrapped as unknown as SDKMessage);
+          continue;
+        }
+      }
       this.io.sendEv(m);
     }
   }

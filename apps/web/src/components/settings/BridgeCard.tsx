@@ -5,6 +5,8 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { bridgeState, mintBridgeToken, revokeBridgeToken, type BridgeState } from '@/actions/bridge';
+import { sealState, enableSealAction } from '@/actions/seal';
+import { generateSealKeyB64, sealKeyFingerprint, storeSealKey, loadSealKey, keyForLink } from '@/lib/seal-client';
 import { CopyButton } from '@/components/shell/CopyButton';
 
 function ago(iso: string): string {
@@ -19,12 +21,32 @@ export function BridgeCard() {
   const [state, setState] = useState<BridgeState | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sealForLink, setSealForLink] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState<string | null>(null);
   const reload = useCallback(() => { bridgeState().then(setState).catch(() => {}); }, []);
   useEffect(() => { reload(); const t = setInterval(reload, 10_000); return () => clearInterval(t); }, [reload]);
 
   async function mint() {
     setBusy(true);
-    try { const { token } = await mintBridgeToken('my machine'); setFresh(token); reload(); } finally { setBusy(false); }
+    try {
+      const { token } = await mintBridgeToken('my machine');
+      // Sealed conversations are the default: the FIRST pairing generates the key
+      // in this browser; it reaches the app only through the opersona:// link.
+      try {
+        const st = await sealState();
+        if (!st.fp) {
+          const key = generateSealKeyB64();
+          const fp = await sealKeyFingerprint(key);
+          const r = await enableSealAction(fp);
+          if (r.ok) { storeSealKey(fp, key); setSealForLink(key); setRecovery(key); }
+        } else {
+          const key = loadSealKey(st.fp);
+          setSealForLink(key); // null = this device lacks the key; link pairs without it
+        }
+      } catch { /* sealing is best-effort at pair time */ }
+      setFresh(token);
+      reload();
+    } finally { setBusy(false); }
   }
 
   const cmd = fresh ? `npx opersona@latest --token ${fresh}` : '';
@@ -66,8 +88,18 @@ export function BridgeCard() {
               </li>
               <li>Open the app once (a pixie appears in your menu bar), then press:</li>
             </ol>
-            <a href={`opersona://pair?token=${fresh}`} className="btn-primary inline-block" data-deeplink-pair>⚡ Pair the app — one click, no copying</a>
+            <a href={`opersona://pair?token=${fresh}${sealForLink ? `&seal=${keyForLink(sealForLink)}` : ''}`} className="btn-primary inline-block" data-deeplink-pair>⚡ Pair the app — one click, no copying</a>
             <p className="muted text-xs">The menu flips to <span className="font-medium">● Online</span> within seconds. (Manual fallback: menu → Pair this machine… and paste the token above.)</p>
+          {recovery && (
+            <div className="space-y-1.5 rounded-lg border border-emerald-300 bg-emerald-50 p-2.5 dark:border-emerald-800 dark:bg-emerald-950/40" data-seal-recovery>
+              <p className="text-xs font-medium">🔑 Your conversations are now SEALED — save this key like a password.</p>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">{recovery}</code>
+                <CopyButton text={recovery} />
+              </div>
+              <p className="muted text-[11px]">Chats are encrypted with it before they are stored — we keep only ciphertext and can never read them. Lose the key on all your devices = chat history unreadable forever. Derived persona memory stays readable so recall and sharing keep working.</p>
+            </div>
+          )}
           </div>
           <div className="space-y-1.5 border-t border-amber-200 pt-2 dark:border-amber-900">
             <p className="muted text-xs">Any other machine with Node 20+ (terminal):</p>

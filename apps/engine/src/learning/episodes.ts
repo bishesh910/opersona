@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { and, asc, desc, eq, ne } from 'drizzle-orm';
 import { db, clones, conversations, turns, episodes } from '@opersona/db';
 import { structuredCall } from '../llm.js';
+import { sealAwareTranscript } from './extractReasoning.js';
 import { orgModelConfig } from '../keys.js';
 import { renderTranscript, type TranscriptTurn } from './extractReasoning.js';
 
@@ -56,14 +57,13 @@ export async function writeEpisode(orgId: string, cloneId: string, conversationI
     .where(and(eq(episodes.conversationId, conversationId), eq(episodes.cloneId, cloneId))).limit(1);
   if (existing && existing.turnCount === rows.length) return { wrote: false, reason: 'episode up to date' };
 
-  const transcript: TranscriptTurn[] = rows.filter((r) => r.role !== 'system')
-    .map((r) => ({ role: r.role === 'user' ? 'human' : 'assistant', text: r.editedContent ?? r.content }));
+  const { transcript, sealed } = sealAwareTranscript(rows);
   const cfg = await orgModelConfig(orgId);
   const out = await structuredCall({
     orgId, cloneId, kind: 'episode', apiKey: cfg.apiKey, model: cfg.condenseModel,
     system: EPISODE_SYSTEM,
     user: `CONVERSATION (title: ${conv.title}):\n${renderTranscript(transcript, 60_000)}`,
-    schema: Episode, effort: 'low',
+    schema: Episode, effort: 'low', sealed,
   });
 
   const first = rows[0]!.createdAt.getTime(); const last = rows[rows.length - 1]!.createdAt.getTime();

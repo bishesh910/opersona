@@ -6,7 +6,7 @@ import { requireOrg } from '@/lib/session';
 import { getAskAccess } from '@/lib/clones';
 import { engineFetch } from '@/lib/engine';
 import { DEFAULT_TITLE_RE } from '@/lib/chat';
-import { orgHasChatKey } from '@/lib/keys';
+import { orgHasChatKey, orgSealFp } from '@/lib/keys';
 import { ChatView, type HistoryTurn } from '@/components/chat/ChatView';
 
 /** Full-height chat with a colleague's persona. Only the asker's OWN conversations resolve here. */
@@ -25,6 +25,7 @@ export default async function AskConversationPage({ params }: { params: Promise<
   const turns = await db.select().from(schema.turns).where(eq(schema.turns.conversationId, conv.id)).orderBy(asc(schema.turns.createdAt));
   const history: HistoryTurn[] = turns.map((t) => ({ id: t.id, role: t.role, content: t.editedContent ?? t.content, toolUses: t.toolUses, files: t.files ?? undefined }));
   const hasKey = await orgHasChatKey(ctx.orgId);
+  const sealFp = await orgSealFp(ctx.orgId);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -50,6 +51,7 @@ export default async function AskConversationPage({ params }: { params: Promise<
           userFirstName={(ctx.user.name?.trim().split(/\s+/)[0]) || ''}
           showCost
           keyMissing={hasKey ? null : 'mine'}
+          seal={sealFp}
           initialLive={conv.status === 'live'}
         />
       </div>

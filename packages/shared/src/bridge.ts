@@ -45,6 +45,10 @@ export interface BridgeJob {
   schema?: Record<string, unknown>;
   /** Optional image for vision jobs (selfie → pixie). */
   image?: { base64: string; mime: string };
+  /** Sealed-content substitution: `user` may contain <<SEALED:i>> markers; the
+   *  bridge decrypts sealed[i] with its local key and substitutes before the
+   *  model ever sees the prompt. The server only ever holds the ciphertext. */
+  sealed?: string[];
 }
 export interface BridgeIngestResult { t: 'ingestResult'; id: string; status: string; observations?: number; note?: string }
 export type EngineToBridge = BridgeStart | BridgeUserMsg | BridgeCancel | BridgeToolResult | BridgeApprovalResult | BridgePing | BridgeJob | BridgeIngestResult;

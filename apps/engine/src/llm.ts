@@ -21,6 +21,9 @@ export interface StructuredCallArgs<S extends z.ZodTypeAny> {
   effort?: 'low' | 'medium' | 'high';
   /** Vision input (selfie extraction). */
   image?: { base64: string; mime: string };
+  /** Sealed-content substitutions for <<SEALED:i>> markers in `user` — decrypted
+   *  ONLY on the user's bridge; the API rail refuses them by design. */
+  sealed?: string[];
 }
 
 /** zod → JSON Schema both the API (2020-12) and the CLI validator accept: no `$schema`
@@ -59,8 +62,9 @@ export async function textCall(a: { orgId: string; cloneId: string; kind: string
 }
 
 export async function structuredCall<S extends z.ZodTypeAny>(a: StructuredCallArgs<S>): Promise<z.infer<S>> {
+  if (a.sealed?.length && a.apiKey) throw new Error('sealed content can only be processed on the bridge rail');
   if (!a.apiKey) {
-    const r = await runBridgeJob(bridgeOrThrow(a.orgId), { kind: 'structured', model: a.model, effort: a.effort, system: a.system, user: a.user, schema: jsonSchemaOf(a.schema), image: a.image });
+    const r = await runBridgeJob(bridgeOrThrow(a.orgId), { kind: 'structured', model: a.model, effort: a.effort, system: a.system, user: a.user, schema: jsonSchemaOf(a.schema), image: a.image, sealed: a.sealed });
     await logCost(a, r.usage, null);
     if (!r.ok) throw new Error(`structured call failed on bridge: ${r.error ?? 'no output'}`);
     return a.schema.parse(r.output);
