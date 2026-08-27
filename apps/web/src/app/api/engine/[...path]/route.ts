@@ -44,6 +44,16 @@ function parseAttachments(raw: unknown): Attachment[] | string {
   return out;
 }
 
+/** A refused send must leave no trace: drop the user turn AND un-strand the
+ *  conversation status (a stale 'live' locks the composer at "Thinking…" on
+ *  every future page load — the stuck-chat bug). */
+async function rollbackSend(turnId: string, conversationId?: string): Promise<void> {
+  await db.delete(schema.turns).where(eq(schema.turns.id, turnId)).catch(() => {});
+  if (conversationId) {
+    await db.update(schema.conversations).set({ status: 'idle' }).where(eq(schema.conversations.id, conversationId)).catch(() => {});
+  }
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const deny = (status: number, error: string): Deny => ({ status, error });
 
@@ -274,12 +284,12 @@ async function handle(req: NextRequest, { params }: Ctx): Promise<Response> {
     // A client abort (tab closed mid-send) is not an engine refusal: the engine has the
     // request and will likely finish the turn — keep the user turn so history stays whole.
     const aborted = e instanceof Error && e.name === 'AbortError';
-    if (insertedTurnId && !aborted) await db.delete(schema.turns).where(eq(schema.turns.id, insertedTurnId)).catch(() => {});
+    if (insertedTurnId && !aborted) await rollbackSend(insertedTurnId, verdict.conversationId);
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: `engine unreachable: ${msg}` }, { status: 502 });
   }
   // The engine refused the message → don't leave a dangling user turn in history.
-  if (insertedTurnId && !up.ok) await db.delete(schema.turns).where(eq(schema.turns.id, insertedTurnId)).catch(() => {});
+  if (insertedTurnId && !up.ok) await rollbackSend(insertedTurnId, verdict.conversationId);
 
   if (isEvents && up.ok) {
     return new Response(up.body, {

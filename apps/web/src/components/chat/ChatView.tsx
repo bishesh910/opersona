@@ -277,7 +277,19 @@ export function ChatView({
 
   useEffect(() => { setTitle(initialTitle); }, [initialTitle]);
 
+  const sawEventRef = useRef(false);
+  // Safety valve: initialLive comes from the conversation row, which can be
+  // stranded at 'live' by a failed send. If the event stream stays silent for
+  // 10s after mount, the turn is not actually running — unlock the composer.
+  useEffect(() => {
+    if (!initialLive) return;
+    const t = setTimeout(() => { if (!sawEventRef.current) setReplying(false); }, 10_000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const apply = useCallback((ev: EngineEvent) => {
+    sawEventRef.current = true;
     if (ev.type === 'result' || ev.type === 'error') setReplying(false);
     setItems((prev) => {
       const next = [...prev];
