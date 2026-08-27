@@ -36,9 +36,14 @@ const wss = new WebSocketServer({ noServer: true, maxPayload: 40_000_000 }); // 
   if (url.pathname !== '/bridge/ws') { socket.destroy(); return; }
   const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '') || url.searchParams.get('token') || '';
   void authBridgeToken(token).then((auth) => {
-    if (!auth) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
+    if (!auth) {
+      console.warn('[bridge] REJECTED upgrade: token %s… (len %d, prefix-ok %s) from %s',
+        token.slice(0, 12), token.length, String(token.startsWith('obr_')), req.socket.remoteAddress ?? '?');
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return;
+    }
+    console.log('[bridge] accepted upgrade for org=%s', auth.orgId);
     wss.handleUpgrade(req, socket, head, (ws) => register(ws, auth));
-  }).catch(() => socket.destroy());
+  }).catch((e) => { console.error('[bridge] upgrade auth error', e); socket.destroy(); });
 });
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { void shutdown().finally(() => { server.close(); process.exit(0); }); });

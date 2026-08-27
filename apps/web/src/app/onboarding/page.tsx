@@ -41,8 +41,9 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   const doneEnough = !!clone?.avatarRecipe && !!(brief?.briefMd ?? '').trim();
   // Persona already built (face + story done) and not mid-flow → nothing to do here.
   if (doneEnough && !hasStep) redirect('/chat');
-  // Never past the first missing piece — except the tail, reachable once face+story exist.
-  const initialStep = Math.max(1, hasStep ? Math.min(requested, doneEnough ? 5 : derived) : derived);
+  // Mid-flow the URL's ?step= wins outright (clamping back to the first missing
+  // piece made every refresh yank people out of the step they were on).
+  const initialStep = hasStep ? Math.min(Math.max(requested, 1), 5) : derived;
 
   return (
     <CharacterBuilder
