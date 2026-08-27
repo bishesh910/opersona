@@ -284,6 +284,15 @@ fn start_daemon(app: &AppHandle) {
                 continue;
             }
         };
+        // Stop pressed while npm was installing? honour it — don't spawn anyway.
+        {
+            let state = app.state::<AppState>();
+            let mut d = state.daemon.lock().unwrap();
+            if !d.want_running {
+                d.spawning = false;
+                break;
+            }
+        }
         tlog(&format!("spawning {node} {}", script.display()));
         set_note(&app, None);
         let child = Command::new(&node)
@@ -332,6 +341,8 @@ fn start_daemon(app: &AppHandle) {
             }
             d.connected = false;
             if !d.want_running {
+                // clear the latch or Start can never spawn a supervisor again
+                d.spawning = false;
                 break;
             }
         }
