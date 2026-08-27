@@ -6,7 +6,8 @@ import { useActionState } from 'react';
 import { DEFAULT_RECIPE, type AvatarRecipe, type MbtiResult } from '@opersona/shared';
 import { finishOnboardingAction } from '@/actions/onboarding';
 import { saveAvatarAction } from '@/actions/avatar';
-import { saveBriefAction, type ActionResult } from '@/actions/brief';
+import { saveBriefAction, composeBriefAction, type ActionResult } from '@/actions/brief';
+import { StoryInterview, type InterviewAnswers } from './StoryInterview';
 import { AvatarCanvas } from '@/components/avatar/AvatarCanvas';
 import { RecipeEditor } from '@/components/avatar/RecipeEditor';
 import { SelfieUpload } from '@/components/avatar/SelfieUpload';
@@ -318,37 +319,73 @@ function StoryStep({ cloneId, initial, onName, onRole, onNext }: {
   useEffect(() => {
     if (state?.ok && !advanced.current) { advanced.current = true; onNext(); }
   }, [state, onNext]);
+  // Interview-first: four one-liners → the cheapest model drafts the story →
+  // the form becomes "tweak the draft". Skippable both ways.
+  const [mode, setMode] = useState<'interview' | 'form'>(initial.briefMd.trim() ? 'form' : 'interview');
+  const [draft, setDraft] = useState<BuilderBrief | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [draftErr, setDraftErr] = useState<string | null>(null);
+  const eff = draft ?? initial;
+
+  async function runCompose(answers: InterviewAnswers) {
+    setDrafting(true); setDraftErr(null);
+    const r = await composeBriefAction(cloneId, initial.displayName, answers);
+    setDrafting(false);
+    if (!r.ok) {
+      setDraftErr(r.error.startsWith('no_api_key') || r.error.startsWith('bridge_offline')
+        ? 'Drafting needs your Claude connected (step 1) — write it by hand for now.'
+        : `Drafting hiccuped (${r.error}) — write it by hand or try again.`);
+      setMode('form');
+      return;
+    }
+    setDraft({ displayName: initial.displayName, roleTitle: r.roleTitle, team: initial.team, briefMd: r.briefMd, operatingRules: r.operatingRules });
+    onRole(r.roleTitle);
+    setMode('form');
+  }
+
+  if (mode === 'interview') {
+    return (
+      <div className="space-y-3">
+        <StoryInterview onDone={(a) => { void runCompose(a); }} onSkip={() => setMode('form')} busy={drafting} />
+      </div>
+    );
+  }
 
   return (
-    <form action={action} className="card space-y-4">
-      <p className="muted text-sm">Who is this persona at work? 2–3 sentences is plenty — what do you do? how do you like to work?</p>
+    <form key={draft ? 'drafted' : 'blank'} action={action} className="card space-y-4">
+      {draft ? (
+        <p className="text-sm"><span className="chip border-amber-400 text-amber-700 dark:border-amber-600 dark:text-amber-400">✨ drafted from your answers</span> <span className="muted">Tweak anything — it should sound like you.</span> <button type="button" className="muted underline underline-offset-2" onClick={() => setMode('interview')}>redo the questions</button></p>
+      ) : (
+        <p className="muted text-sm">Who is this persona at work? 2–3 sentences is plenty — what do you do? how do you like to work? <button type="button" className="underline underline-offset-2" onClick={() => setMode('interview')}>or answer 4 quick questions and let AI draft it</button></p>
+      )}
+      {draftErr && <p className="text-xs text-amber-600">{draftErr}</p>}
       <input type="hidden" name="cloneId" value={cloneId} />
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
           <label className="label" htmlFor="displayName">Name</label>
-          <input id="displayName" name="displayName" className="input" required defaultValue={initial.displayName} onChange={(e) => onName(e.target.value)} />
+          <input id="displayName" name="displayName" className="input" required defaultValue={eff.displayName} onChange={(e) => onName(e.target.value)} />
         </div>
         <div>
           <label className="label" htmlFor="roleTitle">Role title</label>
-          <input id="roleTitle" name="roleTitle" className="input" defaultValue={initial.roleTitle} placeholder="SOC engineer" onChange={(e) => onRole(e.target.value)} />
+          <input id="roleTitle" name="roleTitle" className="input" defaultValue={eff.roleTitle} placeholder="SOC engineer" onChange={(e) => onRole(e.target.value)} />
         </div>
         <div>
           <label className="label" htmlFor="team">Team</label>
-          <input id="team" name="team" className="input" defaultValue={initial.team} placeholder="Security" />
+          <input id="team" name="team" className="input" defaultValue={eff.team} placeholder="Security" />
         </div>
       </div>
       <div>
         <label className="label" htmlFor="briefMd">Your story</label>
         <p className="muted mb-1 text-xs">What you do, what you own, how you like to work. Your persona opens with this.</p>
         <textarea
-          id="briefMd" name="briefMd" className="input min-h-32 text-sm" defaultValue={initial.briefMd}
+          id="briefMd" name="briefMd" className="input min-h-32 text-sm" defaultValue={eff.briefMd}
           placeholder={'I run detection engineering for our SOC. I like short, direct answers with the evidence up front, and I always ask for a rollback plan.'}
         />
       </div>
       <div>
         <label className="label" htmlFor="operatingRules">Operating rules <span className="muted font-normal">(optional)</span></label>
         <p className="muted mb-1 text-xs">Hard rules, one per line — things your persona must never get wrong.</p>
-        <textarea id="operatingRules" name="operatingRules" className="input min-h-20 text-sm" defaultValue={initial.operatingRules} placeholder="Never approve production changes on a Friday." />
+        <textarea id="operatingRules" name="operatingRules" className="input min-h-20 text-sm" defaultValue={eff.operatingRules} placeholder="Never approve production changes on a Friday." />
       </div>
       <div className="flex items-center gap-3">
         <button className="btn-primary" disabled={pending}>{pending ? 'Saving…' : 'That’s my story — continue'}</button>

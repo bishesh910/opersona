@@ -4,7 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
 import { getCloneAccess } from '@/lib/clones';
-import { snapshotClone } from '@/lib/engine';
+import { snapshotClone, engineFetch } from '@/lib/engine';
 
 const BriefInput = z.object({
   cloneId: z.string().uuid(),
@@ -42,4 +42,18 @@ export async function saveBriefAction(_prev: ActionResult | null, form: FormData
   });
   const snap = await snapshotClone(d.cloneId, ctx.orgId);
   return { ok: true, savedAt: new Date().toISOString(), warning: snap.ok ? undefined : `Saved, but snapshot failed: ${snap.error}` };
+}
+
+/** Onboarding interview → AI-drafted brief (runs on the workspace's cheapest rail). */
+export async function composeBriefAction(cloneId: string, userName: string, answers: { role: string; knownFor?: string; style?: string; rules?: string }): Promise<{ ok: true; roleTitle: string; briefMd: string; operatingRules: string } | { ok: false; error: string }> {
+  const ctx = await requireOrg();
+  const access = await getCloneAccess(ctx, cloneId);
+  if (!access?.canWrite) return { ok: false, error: 'Not allowed' };
+  try {
+    const out = await engineFetch<{ roleTitle: string; briefMd: string; operatingRules: string }>(
+      `/clones/${cloneId}/compose-brief`, { body: { orgId: ctx.orgId, userName: userName.slice(0, 120), answers } });
+    return { ok: true, ...out };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'drafting failed' };
+  }
 }

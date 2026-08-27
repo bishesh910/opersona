@@ -107,6 +107,8 @@ async function authorize(ctx: OrgCtx, method: string, path: string[]): Promise<A
     // Self-test accuracy is part of the persona's public stats — readable by anyone with access.
     if (leaf === 'accuracy' && method === 'GET') return { ok: true, cloneId: id };
     if (leaf === 'snapshot' && method === 'POST') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'read-only');
+    // Onboarding interview → AI-drafted brief (cheap model). Owner only.
+    if (leaf === 'compose-brief' && method === 'POST') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'read-only');
     // "Does it sound like me?" — generate a fresh 3-problem self-test batch. Owner only.
     if (leaf === 'self-test' && method === 'POST') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can run self-tests');
     return deny(404, 'unknown engine path');

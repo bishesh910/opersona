@@ -137,6 +137,43 @@ routes.get('/clones/:id/prompt', async (c) => {
   return c.json(await activePrompt(orgId, clone.id));
 });
 
+/** Onboarding interview → persona brief, on the cheapest model (condense = haiku
+ *  by default) with low effort: a handful of one-line answers become the story. */
+routes.post('/clones/:id/compose-brief', async (c) => {
+  const body = await parse(c, z.object({
+    orgId: z.string(),
+    userName: z.string().max(120),
+    answers: z.object({
+      role: z.string().min(2).max(300),
+      knownFor: z.string().max(400).optional(),
+      style: z.string().max(300).optional(),
+      rules: z.string().max(500).optional(),
+    }),
+  }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const cfg = await orgModelConfig(body.orgId);
+  const { structuredCall } = await import('../llm.js');
+  const Brief = z.object({
+    roleTitle: z.string().max(80).describe('short job title, e.g. "Detection Engineer"'),
+    briefMd: z.string().max(900).describe('2-4 first-person sentences: what I do, what people come to me for, how I like to work. Concrete and warm; no corporate fluff, no bullet points.'),
+    operatingRules: z.string().max(400).describe('hard rules one per line, ONLY from what the user actually said; empty string when they gave none'),
+  });
+  const qa = [
+    `What do you do: ${body.answers.role}`,
+    body.answers.knownFor ? `People come to you for: ${body.answers.knownFor}` : '',
+    body.answers.style ? `How you like answers: ${body.answers.style}` : '',
+    body.answers.rules ? `Hard rules: ${body.answers.rules}` : '',
+  ].filter(Boolean).join('\n');
+  const out = await structuredCall({
+    orgId: body.orgId, cloneId: clone.id, kind: 'compose-brief',
+    apiKey: cfg.apiKey, model: cfg.condenseModel, effort: 'low', schema: Brief,
+    system: 'You turn quick interview answers into a work persona brief, written AS the person (first person "I"). Stay strictly faithful to their answers — never invent employers, projects, or skills they did not mention. Match their tone: casual answers get a casual brief.',
+    user: `Person: ${body.userName}\n${qa}`,
+  });
+  return c.json(out);
+});
+
 /** claude.ai connector: learn from a conversation the user explicitly saved. */
 routes.post('/clones/:id/learn-transcript', async (c) => {
   const body = await parse(c, z.object({
