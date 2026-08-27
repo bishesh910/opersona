@@ -57,7 +57,12 @@ routes.post('/models/check', async (c) => {
 
 routes.get('/bridge/status', async (c) => {
   const { bridgeStatus } = await import('../bridge/hub.js');
-  return c.json(bridgeStatus(c.req.query('orgId') ?? ''));
+  const { bridgeTokens } = await import('@opersona/db');
+  const { isNull } = await import('drizzle-orm');
+  const orgId = c.req.query('orgId') ?? '';
+  const [tok] = await db.select({ id: bridgeTokens.id }).from(bridgeTokens)
+    .where(and(eq(bridgeTokens.orgId, orgId), isNull(bridgeTokens.revokedAt))).limit(1);
+  return c.json({ ...bridgeStatus(orgId), paired: !!tok });
 });
 
 // ─── chat ───────────────────────────────────────────────────────────────────

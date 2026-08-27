@@ -197,8 +197,8 @@ function Title({ conversationId, title, canEdit, editing, setEditing, onRenamed 
 /** Engine errors worth translating for humans (stable prefixes from the engine). */
 function friendlyErr(m: string): string {
   if (m.startsWith('no_api_key:')) return 'No API key connected — add yours in Settings → Claude access to start chatting.';
-  if (m.startsWith('bridge_offline:')) return 'Your bridge is paired but not running — run `npx opersona@latest` on your machine, then resend.';
-  if (/bridge (disconnected|reconnected elsewhere)/.test(m)) return 'Your bridge went offline mid-reply — run `npx opersona@latest` again and resend this message.';
+  if (m.startsWith('bridge_offline:')) return 'The opersona app on your machine is off — flip the bridge toggle (top right) to wake it, wait for it to turn green, then resend.';
+  if (/bridge (disconnected|reconnected elsewhere)/.test(m)) return 'Your machine went offline mid-reply — flip the bridge toggle (top right) to reconnect, then resend.';
   if (/model_not_found|not_found_error|no access to.*model|unknown model|does not exist.*model/i.test(m)) return 'Your Claude doesn\u2019t have access to the selected model — pick a different one in Settings \u2192 Models (Fable/Mythos-tier access varies by plan).';
   if (m.startsWith('budget_exceeded:')) return m.replace('budget_exceeded:', 'Monthly budget reached —') + '. Raise or clear it in Settings → Models.';
   return m;
@@ -563,10 +563,7 @@ export function ChatView({
                 onClick={() => setConfirmingDelete(true)}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg>
               </button>
-              <button type="button" className="icon-btn h-7 w-7" title="Start the opersona app on this machine" aria-label="Start the opersona app" data-open-app
-                onClick={() => { window.location.href = 'opersona://open'; }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v8" /><path d="M6.3 6.5a8 8 0 1 0 11.4 0" /></svg>
-              </button>
+              <BridgeToggle />
             </>
           )}
         </div>
@@ -741,6 +738,40 @@ export function ChatView({
 
 /** This device doesn't hold the workspace's seal key: paste the recovery key
  *  (fingerprint-checked locally; the key itself never leaves the browser). */
+/** Bridge activate/deactivate — mirrors whether YOUR machine is powering this
+ *  persona right now. Off → opersona://open launches the app and starts the
+ *  daemon; on → opersona://stop parks it. Hidden until a machine is paired. */
+function BridgeToggle() {
+  const [st, setSt] = useState<{ paired: boolean; connected: boolean } | null>(null);
+  const fastUntil = useRef(0);
+  useEffect(() => {
+    let alive = true;
+    let t: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      try {
+        const r = await fetch('/api/engine/bridge/status');
+        if (r.ok) { const j = (await r.json()) as { paired?: boolean; connected?: boolean }; if (alive) setSt({ paired: !!j.paired, connected: !!j.connected }); }
+      } catch { /* keep the last known state */ }
+      if (alive) t = setTimeout(tick, Date.now() < fastUntil.current ? 2000 : 30_000);
+    };
+    void tick();
+    return () => { alive = false; clearTimeout(t); };
+  }, []);
+  if (!st?.paired) return null;
+  const on = st.connected;
+  return (
+    <button type="button" role="switch" aria-checked={on} data-bridge-toggle
+      aria-label={on ? 'Deactivate the opersona app on your machine' : 'Activate the opersona app on your machine'}
+      title={on ? 'Active — your machine is powering this persona. Click to deactivate.' : 'Inactive — click to start the opersona app on your machine.'}
+      className="ml-1 inline-flex h-7 items-center px-0.5"
+      onClick={() => { fastUntil.current = Date.now() + 25_000; window.location.href = on ? 'opersona://stop' : 'opersona://open'; }}>
+      <span className={'relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ' + (on ? 'bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-700')}>
+        <span className={'absolute h-[14px] w-[14px] rounded-full bg-white shadow transition-all ' + (on ? 'left-[16px]' : 'left-[2px]')} />
+      </span>
+    </button>
+  );
+}
+
 function SealUnlock({ fp, onUnlocked }: { fp: string; onUnlocked: () => void }) {
   const [val, setVal] = useState('');
   const [err, setErr] = useState<string | null>(null);

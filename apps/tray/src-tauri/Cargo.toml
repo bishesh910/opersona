@@ -1,6 +1,6 @@
 [package]
 name = "opersona-tray"
-version = "0.3.1"
+version = "0.3.2"
 description = "opersona menu-bar app — your persona's face on this machine"
 edition = "2021"
 

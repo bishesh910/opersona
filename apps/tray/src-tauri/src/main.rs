@@ -471,6 +471,11 @@ fn save_seal_key(app: &AppHandle, key: &str) -> Result<(), String> {
 /// server — deep links are an OS-local browser→app hop.
 fn handle_deep_link(app: &AppHandle, url: &str) {
     tlog(&format!("deep link: {}", url.split(['?']).next().unwrap_or(url)));
+    if url.contains("://stop") {
+        // web toggle: deactivate — stop the daemon (the tray stays in the menu bar)
+        stop_daemon(app);
+        return;
+    }
     if url.contains("://open") {
         // "start my app" from the web: make sure the daemon runs (pairing already done)
         if has_token() {
