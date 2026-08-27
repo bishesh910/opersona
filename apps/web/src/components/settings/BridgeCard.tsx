@@ -27,7 +27,7 @@ export function BridgeCard() {
     try { const { token } = await mintBridgeToken('my machine'); setFresh(token); reload(); } finally { setBusy(false); }
   }
 
-  const cmd = fresh ? `npx opersona --token ${fresh}` : '';
+  const cmd = fresh ? `npx opersona@latest --token ${fresh}` : '';
 
   return (
     <section className="card space-y-3" data-bridge-card>

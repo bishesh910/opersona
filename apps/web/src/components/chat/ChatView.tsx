@@ -196,8 +196,8 @@ function Title({ conversationId, title, canEdit, editing, setEditing, onRenamed 
 /** Engine errors worth translating for humans (stable prefixes from the engine). */
 function friendlyErr(m: string): string {
   if (m.startsWith('no_api_key:')) return 'No API key connected — add yours in Settings → Claude access to start chatting.';
-  if (m.startsWith('bridge_offline:')) return 'Your bridge is paired but not running — run `npx opersona` on your machine, then resend.';
-  if (/bridge (disconnected|reconnected elsewhere)/.test(m)) return 'Your bridge went offline mid-reply — run `npx opersona` again and resend this message.';
+  if (m.startsWith('bridge_offline:')) return 'Your bridge is paired but not running — run `npx opersona@latest` on your machine, then resend.';
+  if (/bridge (disconnected|reconnected elsewhere)/.test(m)) return 'Your bridge went offline mid-reply — run `npx opersona@latest` again and resend this message.';
   if (m.startsWith('budget_exceeded:')) return m.replace('budget_exceeded:', 'Monthly budget reached —') + '. Raise or clear it in Settings → Models.';
   return m;
 }

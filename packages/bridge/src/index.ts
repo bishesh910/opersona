@@ -22,7 +22,7 @@ import { runJob } from './jobs.js';
 import { startWatcher } from './watcher.js';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
-const VERSION = '0.1.1';
+const VERSION = '0.1.2';
 
 // Subcommands: `opersona install` / `opersona uninstall` (background service).
 const sub = process.argv[2];
@@ -34,6 +34,26 @@ if (sub === 'install' || sub === 'uninstall') {
 if (sub === 'version' || sub === '--version' || sub === '-v') { console.log(VERSION); process.exit(0); }
 const CONFIG_DIR = join(homedir(), '.opersona-bridge');
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
+
+/** Nag when npm has a newer version — npx's cache happily serves stale ones forever. */
+function newerThan(a: string, b: string): boolean {
+  const pa = a.split('.').map(Number); const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) { if ((pa[i] ?? 0) > (pb[i] ?? 0)) return true; if ((pa[i] ?? 0) < (pb[i] ?? 0)) return false; }
+  return false;
+}
+async function checkForUpdate(): Promise<void> {
+  try {
+    const res = await fetch('https://registry.npmjs.org/opersona/latest', { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return;
+    const latest = ((await res.json()) as { version?: string }).version ?? '';
+    if (latest && newerThan(latest, VERSION)) {
+      const svc = existsSync(join(CONFIG_DIR, 'bridge.js'));
+      console.log(`[update] opersona ${latest} is available (you are on ${VERSION}) — update with:  npx opersona@latest${svc ? ' install' : ''}`);
+    }
+  } catch { /* offline is fine */ }
+}
+void checkForUpdate();
+setInterval(() => { void checkForUpdate(); }, 24 * 3600_000).unref();
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);

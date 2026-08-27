@@ -3,7 +3,7 @@
 Run your [opersona](https://opersona.me) on the Claude subscription you already have.
 
 ```bash
-npx opersona
+npx opersona@latest
 ```
 
 That's the whole setup. On first run it asks for a pairing token (opersona.me →

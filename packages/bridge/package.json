@@ -1,6 +1,6 @@
 {
   "name": "opersona",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "type": "module",
   "description": "Your opersona, powered by your own Claude subscription \u2014 chats run on your machine, and your persona learns from every Claude Code session you finish.",

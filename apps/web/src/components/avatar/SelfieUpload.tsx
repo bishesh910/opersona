@@ -59,7 +59,7 @@ const BUSY_MESSAGES = [
 /** Engine errors that must never reach a human raw. */
 function friendlySelfieErr(m: string): string {
   if (m.startsWith('no_api_key:')) return 'Reading a selfie uses Claude vision, which needs your Claude connected first — you can do that in the Connect step (or Settings) and redo your Pixie from a selfie any time.';
-  if (m.startsWith('bridge_offline:')) return 'Your bridge is paired but not running — start `npx opersona` on your machine, then try the selfie again.';
+  if (m.startsWith('bridge_offline:')) return 'Your bridge is paired but not running — start `npx opersona@latest` on your machine, then try the selfie again.';
   return m;
 }
 
