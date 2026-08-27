@@ -1,25 +1,26 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { MBTI_ITEMS, LIKERT, scoreMbti, type MbtiResult } from '@opersona/shared';
+import { MBTI_ITEMS, LIKERT, scoreMbti, type MbtiItem, type MbtiResult } from '@opersona/shared';
 import { savePersonalityAction } from '@/actions/personality';
 
 const STEP_SIZE = 6;
-const STEPS = Math.ceil(MBTI_ITEMS.length / STEP_SIZE); // 4
+
 
 /**
  * The paginated 24-item Likert test. Saves via savePersonalityAction (server-side
  * scoring) and hands the result to the caller. Shared by the personality tab and
  * the onboarding character builder — one implementation, two homes.
  */
-export function MbtiTest({ cloneId, onDone }: { cloneId: string; onDone: (result: MbtiResult, warning: string | null) => void }) {
+export function MbtiTest({ cloneId, onDone, items = MBTI_ITEMS }: { cloneId: string; onDone: (result: MbtiResult, warning: string | null) => void; items?: MbtiItem[] }) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const stepItems = useMemo(() => MBTI_ITEMS.slice(step * STEP_SIZE, (step + 1) * STEP_SIZE), [step]);
+  const STEPS = Math.ceil(items.length / STEP_SIZE);
+  const stepItems = useMemo(() => items.slice(step * STEP_SIZE, (step + 1) * STEP_SIZE), [step, items]);
   const stepDone = stepItems.every((it) => answers[it.id] != null);
-  const allDone = MBTI_ITEMS.every((it) => answers[it.id] != null);
+  const allDone = items.every((it) => answers[it.id] != null);
 
   async function submit() {
     setPending(true);

@@ -43,15 +43,27 @@ export const LIKERT = ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Str
 
 export interface MbtiResult { type: string; scores: Record<Axis, number> } // -100..100, negative → E/S/T/J
 
-/** answers: itemId → 1..5 (Likert). Every item must be answered. */
+/** The quick take: 3 items per axis (~90 seconds). Same fixed instrument, fewer
+ *  samples — retakes with the full 24 refine the confidence, not the meaning. */
+export const MBTI_QUICK_IDS = ['ei1', 'ei2', 'ei3', 'sn1', 'sn2', 'sn3', 'tf1', 'tf2', 'tf3', 'jp1', 'jp2', 'jp3'] as const;
+export const MBTI_QUICK_ITEMS: MbtiItem[] = MBTI_ITEMS.filter((i) => (MBTI_QUICK_IDS as readonly string[]).includes(i.id));
+
+/** answers: itemId → 1..5 (Likert). Scores whatever subset was answered, normalised
+ *  per axis; every axis needs at least 3 answered items (the quick take's floor). */
 export function scoreMbti(answers: Record<string, number>): MbtiResult {
   const sums: Record<Axis, number> = { EI: 0, SN: 0, TF: 0, JP: 0 };
+  const counts: Record<Axis, number> = { EI: 0, SN: 0, TF: 0, JP: 0 };
   for (const item of MBTI_ITEMS) {
     const a = answers[item.id];
-    if (!a || a < 1 || a > 5) throw new Error(`missing answer for ${item.id}`);
+    if (a == null) continue;
+    if (a < 1 || a > 5) throw new Error(`bad answer for ${item.id}`);
     sums[item.axis] += (a - 3) * item.keyed; // -2..2 toward the keyed pole
+    counts[item.axis] += 1;
   }
-  const scores = Object.fromEntries((Object.entries(sums) as [Axis, number][]).map(([k, v]) => [k, Math.round((v / 12) * 100)])) as Record<Axis, number>;
+  for (const axis of Object.keys(counts) as Axis[]) {
+    if (counts[axis] < 3) throw new Error(`too few answers on ${axis} (${counts[axis]}; need at least 3)`);
+  }
+  const scores = Object.fromEntries((Object.entries(sums) as [Axis, number][]).map(([k, v]) => [k, Math.round((v / (counts[k as Axis] * 2)) * 100)])) as Record<Axis, number>;
   const type = (scores.EI < 0 ? 'E' : 'I') + (scores.SN < 0 ? 'S' : 'N') + (scores.TF < 0 ? 'T' : 'F') + (scores.JP < 0 ? 'J' : 'P');
   return { type, scores };
 }
