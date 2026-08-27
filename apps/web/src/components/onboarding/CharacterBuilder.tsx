@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useActionState } from 'react';
 import { DEFAULT_RECIPE, type AvatarRecipe, type MbtiResult } from '@opersona/shared';
@@ -12,13 +13,14 @@ import { SelfieUpload } from '@/components/avatar/SelfieUpload';
 import { MbtiTest } from '@/components/brief/MbtiTest';
 import { ApiKeyForm } from '@/components/settings/ApiKeyForm';
 import { ConnectorCard } from '@/components/settings/ConnectorCard';
+import { BridgeCard } from '@/components/settings/BridgeCard';
 import { randomRecipe } from './random-recipe';
 
 const STEPS = [
-  { n: 1, label: 'Pixie' },
-  { n: 2, label: 'Story' },
-  { n: 3, label: 'Mind' },
-  { n: 4, label: 'Connect' },
+  { n: 1, label: 'Connect' },
+  { n: 2, label: 'Pixie' },
+  { n: 3, label: 'Story' },
+  { n: 4, label: 'Mind' },
   { n: 5, label: 'Ready' },
 ] as const;
 
@@ -64,8 +66,9 @@ function StepDots({ current }: { current: number }) {
   );
 }
 
-/** First-run character builder: Pixie → Story → Mind → Connect → Ready, avatar front and center.
- *  The personal workspace already exists (auto-created at signup) — no team step. */
+/** First-run character builder: Connect → Pixie → Story → Mind → Ready.
+ *  Connecting first (bridge / connector / key) unlocks selfie extraction and chat
+ *  for everything after; the personal workspace already exists from signup. */
 export function CharacterBuilder(props: CharacterBuilderProps) {
   const [step, setStepState] = useState(props.initialStep);
   const [recipe, setRecipe] = useState<AvatarRecipe>(props.clone?.recipe ?? DEFAULT_RECIPE);
@@ -75,6 +78,7 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
   const [roleTitle, setRoleTitle] = useState(props.brief?.roleTitle ?? '');
   const [mbtiType, setMbtiType] = useState<string | null>(props.personalityType);
   const [talking, setTalking] = useState(false);
+  const router = useRouter();
 
   // A little hello on the final step.
   useEffect(() => {
@@ -92,10 +96,10 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
   }
 
   const heading =
-    step === 1 ? 'Build your Pixie' :
-    step === 2 ? 'Your story' :
-    step === 3 ? 'Your mind' :
-    step === 4 ? 'Connect your Claude' :
+    step === 1 ? 'Connect your Claude' :
+    step === 2 ? 'Build your Pixie' :
+    step === 3 ? 'Your story' :
+    step === 4 ? 'Your mind' :
     'Your persona is ready';
 
   return (
@@ -121,22 +125,22 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
           </aside>
           <section className="w-full min-w-0 md:max-w-xl">
             {step === 1 && (
-              <FaceStep cloneId={props.clone.id} recipe={recipe} onRecipe={setRecipe} onNext={() => go(2)} hasRail={props.hasRail} />
+              <ConnectStep hasApiKey={props.hasApiKey} hasRail={props.hasRail} onNext={() => { go(2); router.refresh(); }} />
             )}
             {step === 2 && (
+              <FaceStep cloneId={props.clone.id} recipe={recipe} onRecipe={setRecipe} onNext={() => go(3)} hasRail={props.hasRail} />
+            )}
+            {step === 3 && (
               <StoryStep
                 cloneId={props.clone.id}
                 initial={props.brief ?? { displayName: props.userName, roleTitle: '', team: '', briefMd: '', operatingRules: '' }}
                 onName={setDisplayName}
                 onRole={setRoleTitle}
-                onNext={() => go(3)}
+                onNext={() => go(4)}
               />
             )}
-            {step === 3 && (
-              <MindStep cloneId={props.clone.id} existingType={mbtiType} onType={setMbtiType} onNext={() => go(4)} />
-            )}
             {step === 4 && (
-              <ConnectStep hasApiKey={props.hasApiKey} onNext={() => go(5)} />
+              <MindStep cloneId={props.clone.id} existingType={mbtiType} onType={setMbtiType} onNext={() => go(5)} />
             )}
             {step === 5 && (
               <ReadyStep displayName={displayName} roleTitle={roleTitle} mbtiType={mbtiType} />
@@ -150,35 +154,60 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
 
 /* ── Step 4: Connect ──────────────────────────────────────────────────────── */
 
-function ConnectStep({ hasApiKey, onNext }: { hasApiKey: boolean; onNext: () => void }) {
+function ConnectStep({ hasApiKey, hasRail, onNext }: { hasApiKey: boolean; hasRail: boolean; onNext: () => void }) {
   const [saved, setSaved] = useState(hasApiKey);
   const [showKey, setShowKey] = useState(hasApiKey);
+  const [bridgeOnline, setBridgeOnline] = useState(false);
+  useEffect(() => {
+    let stop = false;
+    const poll = () => { void import('@/actions/bridge').then(({ bridgeState }) => bridgeState()).then((st) => { if (!stop) setBridgeOnline(st.connected); }).catch(() => {}); };
+    poll();
+    const t = setInterval(poll, 5000);
+    return () => { stop = true; clearInterval(t); };
+  }, []);
+  const unlocked = bridgeOnline || saved || hasRail;
   return (
     <div className="space-y-4">
+      <p className="muted max-w-xl text-sm">
+        Your persona thinks with <span className="font-medium text-neutral-700 dark:text-neutral-300">your own Claude</span>.
+        Connect it first and every door after this opens: selfie&nbsp;→&nbsp;Pixie, chatting, and a persona that learns from your real work.
+      </p>
+      <BridgeCard />
+      {bridgeOnline && (
+        <p className="rounded-xl border border-green-300 bg-green-50 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300" data-bridge-live>
+          ● Your bridge is online — this machine now powers your persona. Onwards!
+        </p>
+      )}
       <div className="card space-y-3">
         <p className="text-sm">
-          <span className="font-medium">Use your persona inside claude.ai — free.</span>{' '}
-          <span className="muted">Add opersona as a connector and your everyday Claude can load your persona, search its memory and keep teaching it, all on the Claude plan you already have.</span>
+          <span className="font-medium">Also nice:</span>{' '}
+          <span className="muted">add opersona to claude.ai as a connector — your persona inside your normal Claude.</span>
         </p>
         <ConnectorCard compact />
       </div>
       <div className="card space-y-3">
         <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setShowKey((v) => !v)}>
-          <span className="text-sm font-medium">Chat here on opersona.me <span className="chip ml-1.5">API key</span></span>
+          <span className="text-sm font-medium">Prefer an API key? <span className="chip ml-1.5">optional</span></span>
           <span className="muted text-xs">{showKey ? 'hide' : 'show'}</span>
         </button>
         {showKey && (
           <>
             <p className="muted text-sm">
-              Chatting on this site runs on your own Anthropic API key (billed to your Anthropic account, stored encrypted).
-              Create one at <a className="underline underline-offset-2" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>.
+              Billed to your Anthropic account, stored encrypted. Create one at <a className="underline underline-offset-2" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>.
             </p>
             <ApiKeyForm hasKey={saved} readOnly={false} onSaved={() => setSaved(true)} />
           </>
         )}
       </div>
       <div className="flex items-center gap-4">
-        <button type="button" className="btn-primary" onClick={onNext}>Continue</button>
+        <button type="button" className="btn-primary" onClick={onNext} disabled={!unlocked} data-connect-continue>
+          {unlocked ? 'Continue — build your Pixie' : 'Waiting for a connection…'}
+        </button>
+        {!unlocked && (
+          <button type="button" className="muted text-sm underline underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200" onClick={onNext}>
+            Skip for now
+          </button>
+        )}
       </div>
     </div>
   );

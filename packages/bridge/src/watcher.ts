@@ -79,24 +79,33 @@ export function startWatcher(io: WatcherIO, opts: { claudeDir?: string; codexDir
   const claudeRoot = opts.claudeDir ?? join(homedir(), '.claude', 'projects');
   const codexRoot = opts.codexDir ?? join(homedir(), '.codex', 'sessions');
   const state = loadState();
-  let inFlight = 0;
+  let hadWork = false;   // for the "backfill complete" line
+  let totalSent = 0;
 
   const tick = (): void => {
     const candidates = [...scanClaudeCode(claudeRoot), ...(existsSync(codexRoot) ? scanCodex(codexRoot) : [])]
       // a session is re-sent only when it has grown noticeably since last send
       .filter((c) => { const seen = state[c.sessionId]; return !seen || (c.bytes > seen.bytes * 1.15 && c.bytes - seen.bytes > 100_000); })
       .sort((a, b) => b.bytes - a.bytes);
+    let sentNow = 0;
     for (const c of candidates) {
-      if (inFlight >= 3) break;                      // gentle: a first backfill trickles, not floods
+      if (sentNow >= 3) break;                       // gentle: a first backfill trickles, not floods
       let jsonl: string;
       try { jsonl = readFileSync(c.path, 'utf8'); } catch { continue; }
-      inFlight++;
       const sent = io.sendIngest({ t: 'ingest', id: randomUUID(), sessionId: c.sessionId, project: c.project, source: 'bridge', jsonl });
-      inFlight--;
       if (!sent) break;                              // disconnected — try again next tick
+      sentNow++;
       state[c.sessionId] = { bytes: c.bytes };
     }
     saveState(state);
+    if (sentNow > 0) {
+      hadWork = true; totalSent += sentNow;
+      const remaining = candidates.length - sentNow;
+      console.log(`[watch] sent ${sentNow} session(s) to learn from${remaining > 0 ? ` — ${remaining} more queued (next batch in 5 min)` : ''}`);
+    } else if (hadWork) {
+      hadWork = false;
+      console.log(`[watch] backfill complete — ${totalSent} session(s) learned from this machine. New sessions are picked up automatically.`);
+    }
   };
 
   const timer = setInterval(tick, SCAN_EVERY_MS);

@@ -5,6 +5,7 @@
  * newest first, updates import_jobs progress as it goes, and is resumable (processed counter).
  */
 import { readFileSync } from 'node:fs';
+import { config } from '../config.js';
 import { createHash } from 'node:crypto';
 import AdmZip from 'adm-zip';
 import { eq } from 'drizzle-orm';
@@ -155,6 +156,11 @@ export async function runImport(importId: string): Promise<void> {
     await publishSnapshot(job.orgId, job.cloneId);
     await set({ status: 'done' });
   } catch (e) {
-    await set({ status: 'failed', error: e instanceof Error ? e.message : String(e) });
+    const raw = e instanceof Error ? e.message : String(e);
+    // Never leak server paths to the UI; ENOENT means the stored upload is gone.
+    const friendly = /ENOENT/i.test(raw)
+      ? 'the uploaded file is missing on the server — please upload it again'
+      : raw.split(config.dataDir).join('…').replace(/\/home\/[\w./-]+/g, '…');
+    await set({ status: 'failed', error: friendly });
   }
 }

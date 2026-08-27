@@ -22,7 +22,16 @@ import { runJob } from './jobs.js';
 import { startWatcher } from './watcher.js';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
+
+// Subcommands: `opersona install` / `opersona uninstall` (background service).
+const sub = process.argv[2];
+if (sub === 'install' || sub === 'uninstall') {
+  const { install, uninstall } = await import('./service.js');
+  (sub === 'install' ? install : uninstall)();
+  process.exit(process.exitCode ?? 0);
+}
+if (sub === 'version' || sub === '--version' || sub === '-v') { console.log(VERSION); process.exit(0); }
 const CONFIG_DIR = join(homedir(), '.opersona-bridge');
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
 

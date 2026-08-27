@@ -164,16 +164,20 @@ export function openBridgeSession(conn: BridgeConn, params: {
 }): { sid: string; messages: AsyncIterable<SDKishMessage>; push: (m: unknown) => void; interrupt: () => void } {
   const sid = randomUUID();
   const queue: SDKishMessage[] = [];
-  const waiters: ((r: IteratorResult<SDKishMessage>) => void)[] = [];
+  const waiters: { resolve: (r: IteratorResult<SDKishMessage>) => void; reject: (e: Error) => void }[] = [];
   let ended = false; let endError: string | undefined;
 
   const sink: BridgeSessionSink = {
     ctx: params.ctx,
-    onMessage: (m) => { const w = waiters.shift(); if (w) w({ value: m, done: false }); else queue.push(m); },
+    onMessage: (m) => { const w = waiters.shift(); if (w) w.resolve({ value: m, done: false }); else queue.push(m); },
     onEnd: (error) => {
       if (ended) return;
       ended = true; endError = error;
-      for (const w of waiters.splice(0)) w({ value: undefined as never, done: true });
+      // A waiter blocked in next() at disconnect time must see the ERROR — resolving
+      // it as done made the UI sit on "Thinking…" forever after a bridge crash.
+      for (const w of waiters.splice(0)) {
+        if (error) w.reject(new Error(error)); else w.resolve({ value: undefined as never, done: true });
+      }
     },
   };
   conn.sessions.set(sid, sink);
@@ -192,7 +196,7 @@ export function openBridgeSession(conn: BridgeConn, params: {
             if (endError) { const err = endError; endError = undefined; return Promise.reject(new Error(err)); }
             return Promise.resolve({ value: undefined as never, done: true });
           }
-          return new Promise((res) => waiters.push(res));
+          return new Promise((resolve, reject) => waiters.push({ resolve, reject }));
         },
       };
     },

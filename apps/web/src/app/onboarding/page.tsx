@@ -33,13 +33,16 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
 
   const hasApiKey = !!settings?.anthropicKeyEnc;
   const hasRail = hasApiKey || await orgHasChatKey(org.orgId);
-  const derived = !clone?.avatarRecipe ? 1 : !(brief?.briefMd ?? '').trim() ? 2 : !personality ? 3 : !hasApiKey ? 4 : 5;
+  // Connect comes FIRST: pairing the bridge (or claude.ai / a key) unlocks every
+  // door after it — selfie extraction, chat, learning. Then Pixie → Story → Mind.
+  const derived = !hasRail ? 1 : !clone?.avatarRecipe ? 2 : !(brief?.briefMd ?? '').trim() ? 3 : !personality ? 4 : 5;
   const requested = Number(stepParam);
   const hasStep = Number.isInteger(requested) && requested >= 1 && requested <= 5;
+  const doneEnough = !!clone?.avatarRecipe && !!(brief?.briefMd ?? '').trim();
   // Persona already built (face + story done) and not mid-flow → nothing to do here.
-  if (derived >= 3 && !hasStep) redirect('/chat');
-  // Never past the first missing piece — except Connect/Ready, reachable once face+story exist.
-  const initialStep = Math.max(1, hasStep ? Math.min(requested, derived >= 3 ? 5 : derived) : derived);
+  if (doneEnough && !hasStep) redirect('/chat');
+  // Never past the first missing piece — except the tail, reachable once face+story exist.
+  const initialStep = Math.max(1, hasStep ? Math.min(requested, doneEnough ? 5 : derived) : derived);
 
   return (
     <CharacterBuilder

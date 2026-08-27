@@ -1,9 +1,9 @@
 {
   "name": "opersona",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "type": "module",
-  "description": "Your opersona, powered by your own Claude subscription — chats run on your machine, and your persona learns from every Claude Code session you finish.",
+  "description": "Your opersona, powered by your own Claude subscription \u2014 chats run on your machine, and your persona learns from every Claude Code session you finish.",
   "bin": {
     "opersona": "dist/index.js",
     "opersona-bridge": "dist/index.js"
