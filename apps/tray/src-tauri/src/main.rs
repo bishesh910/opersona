@@ -29,7 +29,13 @@ struct UiItems {
     status: MenuItem<tauri::Wry>,
     learned: MenuItem<tauri::Wry>,
     toggle: MenuItem<tauri::Wry>,
+    update: MenuItem<tauri::Wry>,
 }
+
+/// Set once an update is downloaded+installed; the "update" menu click then restarts.
+static UPDATE_READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Lets our ExitRequested guard wave a deliberate restart through.
+static RESTARTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 struct AppState {
     daemon: Arc<Mutex<Daemon>>,
@@ -495,6 +501,37 @@ fn open_site() {
     let _ = open::that(format!("{SITE}/settings"));
 }
 
+/// Auto-update: check the manifest, download + install silently, then offer a
+/// one-click restart from the menu (the new version also just takes effect on
+/// the next natural launch). Runs at startup and every 6 hours.
+fn check_for_updates(app: &AppHandle) {
+    use tauri_plugin_updater::UpdaterExt;
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let updater = match app.updater() { Ok(u) => u, Err(e) => { tlog(&format!("updater unavailable: {e}")); return; } };
+        match updater.check().await {
+            Ok(Some(update)) => {
+                let ver = update.version.clone();
+                tlog(&format!("update available: v{ver} — downloading"));
+                match update.download_and_install(|_, _| {}, || {}).await {
+                    Ok(()) => {
+                        UPDATE_READY.store(true, std::sync::atomic::Ordering::SeqCst);
+                        tlog(&format!("v{ver} installed — active after restart"));
+                        let state = app.state::<AppState>();
+                        if let Some(ui) = &*state.ui.lock().unwrap() {
+                            let _ = ui.update.set_text(format!("⬆ v{ver} ready — restart to finish"));
+                            let _ = ui.update.set_enabled(true);
+                        }
+                    }
+                    Err(e) => tlog(&format!("update install failed: {e}")),
+                }
+            }
+            Ok(None) => tlog("up to date"),
+            Err(e) => tlog(&format!("update check failed: {e}")),
+        }
+    });
+}
+
 /// Wear the user's pixie as the tray icon — the same head crop the web app
 /// uses for its favicon and sidebar. Fetched with this machine's own bridge
 /// token; falls back to the bundled icon when unpaired or offline.
@@ -547,6 +584,7 @@ fn main() {
                 }
             }
         }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -592,6 +630,7 @@ fn main() {
             let pair = MenuItem::with_id(app, "pair", "Pair this machine…", true, None::<&str>)?;
             let site = MenuItem::with_id(app, "site", "Open opersona.me", true, None::<&str>)?;
             let autostart = MenuItem::with_id(app, "autostart", "Start at login", true, None::<&str>)?;
+            let update = MenuItem::with_id(app, "update", concat!("Version ", env!("CARGO_PKG_VERSION"), " — up to date"), false, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(
                 app,
@@ -604,12 +643,13 @@ fn main() {
                     &pair,
                     &autostart,
                     &PredefinedMenuItem::separator(app)?,
+                    &update,
                     &quit,
                 ],
             )?;
 
             let state = app.state::<AppState>();
-            *state.ui.lock().unwrap() = Some(UiItems { status, learned, toggle });
+            *state.ui.lock().unwrap() = Some(UiItems { status, learned, toggle, update });
 
             let icon = app.default_window_icon().cloned();
             let mut tray = TrayIconBuilder::with_id("main")
@@ -651,6 +691,13 @@ fn main() {
                         let _ = al.enable();
                     }
                 }
+                "update" => {
+                    if UPDATE_READY.load(std::sync::atomic::Ordering::SeqCst) {
+                        RESTARTING.store(true, std::sync::atomic::Ordering::SeqCst);
+                        stop_daemon(app);
+                        app.restart();
+                    }
+                }
                 "quit" => {
                     stop_daemon(app);
                     app.exit(0);
@@ -670,6 +717,7 @@ fn main() {
                 std::thread::spawn(move || loop {
                     std::thread::sleep(std::time::Duration::from_secs(3));
                     refresh_tray_icon(&handle);
+                    check_for_updates(&handle);
                     std::thread::sleep(std::time::Duration::from_secs(6 * 60 * 60));
                 });
             }
@@ -686,7 +734,7 @@ fn main() {
         .expect("error while building opersona tray")
         .run(|_app, event| {
             if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
-                if code.is_none() {
+                if code.is_none() && !RESTARTING.load(std::sync::atomic::Ordering::SeqCst) {
                     api.prevent_exit();
                 }
             }

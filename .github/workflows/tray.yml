@@ -22,12 +22,20 @@ jobs:
       - name: Generate icons
         working-directory: apps/tray
         run: npx --yes @tauri-apps/cli@^2 icon icon-src.png -o src-tauri/icons
-      - name: Build app + dmg
+      - name: Build app + dmg (signed updater artifacts)
         working-directory: apps/tray
-        run: npx --yes @tauri-apps/cli@^2 build
-      - name: Upload dmg
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          npx --yes @tauri-apps/cli@^2 build
+          node -p "require('./src-tauri/tauri.conf.json').version" > src-tauri/target/release/bundle/VERSION
+      - name: Upload dmg + updater bundle
         uses: actions/upload-artifact@v4
         with:
           name: opersona-tray-macos
-          path: apps/tray/src-tauri/target/release/bundle/dmg/*.dmg
+          path: |
+            apps/tray/src-tauri/target/release/bundle/dmg/*.dmg
+            apps/tray/src-tauri/target/release/bundle/macos/*.app.tar.gz
+            apps/tray/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
+            apps/tray/src-tauri/target/release/bundle/VERSION
           if-no-files-found: error
