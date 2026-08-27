@@ -38,18 +38,14 @@ npm run dist:mac   # unsigned dmg + zip in dist/ (arm64)
 
 The load-bearing details are lifted from a proven Electron+Claude wrapper:
 
-- **`src/main/shellEnv.ts`** — capture PATH from a fenced login shell (a
-  Dock-launched app inherits almost none) and resolve the `claude` binary.
-- **`src/main/ptyEnv.ts`** — strip inherited `CLAUDE(CODE|_)*` vars (an inherited
-  `CLAUDE_CODE_CHILD_SESSION` silently disables transcript writing and kills
-  `--resume`) and set TERM + locale (no locale → MacRoman mojibake).
-- **`src/main/pty.ts`** — one node-pty session per id, session-identity guarded.
+- **`src/main/agent.ts`** — runs Claude Code via the Agent SDK `query()` on the
+  user's subscription (API key stripped from env), cwd = the chosen folder,
+  persona as the system prompt; streams typed events to the renderer.
 - **`src/main/persona.ts`** — fetch the persona prompt with the bridge token.
-- **`src/renderer/src/terminal.ts`** — xterm with Unicode11 + allowProposedApi,
-  resize only when cols/rows actually change, redraw after open.
-- **`tools/ensure-pty-perms.cjs`** — restore `+x` on node-pty's spawn-helper.
-- **`build/entitlements.mac.plist`** — `disable-library-validation` so a
-  differently-signed `claude` can be spawned and node-pty can load.
+- **`src/renderer/src/App.tsx`** — the native chat GUI (sidebar, home, message
+  bubbles, tool + approval cards, composer). No terminal.
+- **`build/entitlements.mac.plist`** — `disable-library-validation` so the
+  bundled agent runtime can load.
 
 The persona prompt is kept byte-stable per session (no dates/counters) so
 Anthropic's prompt cache isn't defeated every turn.
