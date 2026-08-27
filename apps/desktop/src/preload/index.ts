@@ -11,6 +11,7 @@ type SpawnResult = { ok: true; pid: number } | { ok: false; error: string };
 const api = {
   getPersona: (): Promise<PersonaResult> => ipcRenderer.invoke('persona:get'),
   siteUrl: (): Promise<string> => ipcRenderer.invoke('site:url'),
+  getPixie: (): Promise<string | null> => ipcRenderer.invoke('pixie:get'),
   openSite: (path = ''): Promise<void> => ipcRenderer.invoke('site:open', path),
   chooseFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:chooseFolder'),
 

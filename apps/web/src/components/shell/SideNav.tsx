@@ -14,7 +14,6 @@ const I = {
 } as const;
 
 const ITEMS = [
-  { href: '/chat', label: 'New chat', shortLabel: 'New', icon: I.plus },
   { href: '/me', label: 'Me', icon: I.persona },
   { href: '/opersonas', label: 'Opersonas', icon: I.users },
   { href: '/command-center', label: 'Command Center', shortLabel: 'Center', icon: I.office, badge: 'beta' },
@@ -24,7 +23,7 @@ const ITEMS = [
   { href: '/settings', label: 'Settings', icon: I.gear },
 ];
 
-const LEAN = new Set(['/chat', '/approvals']); // desktop sidebar: the rest live in the account menu
+const LEAN = new Set(['/me', '/opersonas', '/approvals']); // desktop sidebar: the rest live in the account menu
 
 export function SideNav({ horizontal = false, include }: { horizontal?: boolean; include?: string[] }) {
   const path = usePathname();

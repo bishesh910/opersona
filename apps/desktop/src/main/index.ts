@@ -6,11 +6,11 @@
  * appended system prompt. Full tools, your own subscription, nothing executes
  * on our servers — the site never sits in the loop.
  */
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } from 'electron';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PtyManager } from './pty.js';
-import { fetchPersona, siteUrl } from './persona.js';
+import { fetchPersona, siteUrl, fetchPixiePng } from './persona.js';
 import { ensureClaudeTrust } from './claudeConfig.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -36,14 +36,32 @@ function createWindow(): void {
     },
   });
   win.once('ready-to-show', () => win?.show());
+  void applyPixieIcon();
   win.webContents.setWindowOpenHandler(({ url }) => { void shell.openExternal(url); return { action: 'deny' }; });
   if (isDev) void win.loadURL(process.env.ELECTRON_RENDERER_URL!);
   else void win.loadFile(join(__dirname, '../renderer/index.html'));
 }
 
+/** Wear the user's pixie as the dock + window icon (their real face, fetched live).
+ *  Falls back silently to the bundled icon when unpaired/offline. */
+async function applyPixieIcon(): Promise<void> {
+  try {
+    const png = await fetchPixiePng();
+    if (!png) return;
+    const img = nativeImage.createFromBuffer(png);
+    if (img.isEmpty()) return;
+    if (process.platform === 'darwin' && app.dock) app.dock.setIcon(img);
+    win?.setIcon(img);
+  } catch { /* bundled icon stands */ }
+}
+
 // ── IPC ─────────────────────────────────────────────────────────────────────
 ipcMain.handle('persona:get', () => fetchPersona());
 ipcMain.handle('site:url', () => siteUrl());
+ipcMain.handle('pixie:get', async () => {
+  const png = await fetchPixiePng();
+  return png ? `data:image/png;base64,${png.toString('base64')}` : null;
+});
 ipcMain.handle('site:open', (_e, path: string) => shell.openExternal(siteUrl() + (typeof path === 'string' ? path : '')));
 
 ipcMain.handle('dialog:chooseFolder', async () => {

@@ -44,3 +44,16 @@ export async function fetchPersona(): Promise<{ ok: true; persona: Persona } | {
 export function siteUrl(): string {
   return (readBridgeConfig().url || 'https://opersona.me').replace(/\/$/, '');
 }
+
+/** The user's pixie HEAD as a PNG (for the dock/window icon), via the bridge
+ *  token. Returns null when unpaired/offline — the bundled icon then stands. */
+export async function fetchPixiePng(): Promise<Buffer | null> {
+  const cfg = readBridgeConfig();
+  if (!cfg.token) return null;
+  const base = (cfg.url || 'https://opersona.me').replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/bridge/avatar?s=8`, { headers: { Authorization: `Bearer ${cfg.token}` }, signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  } catch { return null; }
+}

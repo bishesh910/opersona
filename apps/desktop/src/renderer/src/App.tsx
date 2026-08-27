@@ -20,6 +20,7 @@ export default function App() {
   const [folder, setFolder] = useState<string | null>(null);
   const [model, setModel] = useState('');
   const [startErr, setStartErr] = useState<string | null>(null);
+  const [pixie, setPixie] = useState<string | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<TermHandle | null>(null);
   const sidRef = useRef<string>('');
@@ -32,6 +33,7 @@ export default function App() {
   }, []);
 
   useEffect(() => { void loadPersona(); }, [loadPersona]);
+  useEffect(() => { void window.opersona.getPixie().then(setPixie).catch(() => {}); }, []);
 
   const start = useCallback(async () => {
     if (!persona || !folder || !hostRef.current) return;
@@ -62,6 +64,7 @@ export default function App() {
   return (
     <div style={S.app}>
       <div style={S.titlebar}>
+        {pixie && <img src={pixie} alt="" style={S.faceSm} />}
         <span style={S.brand}>opersona</span>
         {persona && <span style={S.sub}>{persona.name ? `you are ${persona.name}` : 'your persona'}</span>}
         <span style={{ flex: 1 }} />
@@ -84,6 +87,7 @@ export default function App() {
 
       {phase === 'ready' && persona && (
         <Center>
+          {pixie && <img src={pixie} alt="" style={S.faceLg} />}
           <p style={S.h}>Claude Code, thinking like {persona.name ?? 'you'}</p>
           <p style={S.muted}>
             Pick a folder. It runs the real Claude Code on your machine, on your own subscription,
@@ -132,4 +136,6 @@ const S: Record<string, React.CSSProperties> = {
   err: { fontSize: 12, color: '#ff8787', margin: 0 },
   termWrap: { flex: 1, minHeight: 0, background: '#0b0b0f' },
   term: { width: '100%', height: '100%', padding: 8, boxSizing: 'border-box' },
+  faceSm: { width: 22, height: 22, imageRendering: 'pixelated', borderRadius: 5, WebkitAppRegion: 'no-drag' } as React.CSSProperties,
+  faceLg: { width: 72, height: 72, imageRendering: 'pixelated', borderRadius: 14, background: '#12121a' },
 };
