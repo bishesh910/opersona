@@ -21,7 +21,7 @@ export default async function AskListPage({ params }: { params: Promise<{ cloneI
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Link href="/clones" className="muted text-xs hover:underline">← personas</Link>
+      <Link href="/opersonas" className="muted text-xs hover:underline">← opersonas</Link>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <AvatarThumb recipe={clone.avatarRecipe} name={clone.name} scale={2} />

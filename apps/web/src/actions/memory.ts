@@ -124,6 +124,6 @@ export async function deleteEpisodeAction(cloneId: string, episodeId: string): P
   const access = await getCloneAccess(ctx, cloneId);
   if (!access?.canWrite) return { ok: false };
   await db.delete(schema.episodes).where(and(eq(schema.episodes.id, episodeId), eq(schema.episodes.cloneId, access.clone.id)));
-  revalidatePath(`/clones/${access.clone.id}/memory`); revalidatePath('/me/memory');
+  revalidatePath(`/opersonas/${access.clone.id}/memory`); revalidatePath('/me/memory');
   return { ok: true };
 }

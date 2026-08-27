@@ -23,7 +23,7 @@ export function ImportFileButton() {
               const raw: unknown = JSON.parse(await f.text());
               const r = await importFromFileAction(raw);
               if (r.error) { setErr(r.error); return; }
-              router.push(`/clones/${r.cloneId}`);
+              router.push(`/opersonas/${r.cloneId}`);
             } catch (er) {
               setErr(er instanceof SyntaxError ? 'not a JSON file' : er instanceof Error ? er.message.replace(/^.*Error: /, '') : 'import failed');
             }

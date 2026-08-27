@@ -98,7 +98,7 @@ export function CommandCenterView({ members, bossCloneId, canStar }: {
             <span className="muted truncate text-sm">{boss.name.split(' ')[0]} runs the floor</span>
           </div>
         </div>
-        <Link href={`/clones/${boss.id}`} className="muted shrink-0 text-xs hover:underline">full persona →</Link>
+        <Link href={`/opersonas/${boss.id}`} className="muted shrink-0 text-xs hover:underline">full persona →</Link>
         {canStar && (
           <button type="button" className="btn-secondary btn-sm shrink-0" onClick={() => setChoosing((v) => !v)}>
             change ★

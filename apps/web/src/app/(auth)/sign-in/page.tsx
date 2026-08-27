@@ -22,6 +22,6 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   }
   // Only same-site paths (e.g. back to an invite link).
   const next = rawNext && /^\/(?!\/)/.test(rawNext) ? rawNext : undefined;
-  if (await getSessionCtx()) redirect(next ?? '/clones');
+  if (await getSessionCtx()) redirect(next ?? '/opersonas');
   return <SignInForm social={SOCIAL} next={next} canReset={MAILER_ON} />;
 }

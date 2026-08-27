@@ -37,13 +37,17 @@ const nextConfig: NextConfig = {
     ] }];
   },
   async redirects() {
-    return [{ source: '/office', destination: '/command-center', permanent: true }];
+    return [
+      { source: '/office', destination: '/command-center', permanent: true },
+      { source: '/clones', destination: '/opersonas', permanent: true },
+      { source: '/clones/:path*', destination: '/opersonas/:path*', permanent: true },
+    ];
   },
   async rewrites() {
     return [
-      { source: '/me', destination: '/clones/me/thinking' },
-      { source: '/me/docs', destination: '/clones/me/documents' },
-      { source: '/me/:path*', destination: '/clones/me/:path*' },
+      { source: '/me', destination: '/opersonas/me/thinking' },
+      { source: '/me/docs', destination: '/opersonas/me/documents' },
+      { source: '/me/:path*', destination: '/opersonas/me/:path*' },
     ];
   },
   // NEXT_DIST_DIR lets a one-off `next build` run while `next dev` owns `.next` (e.g. `NEXT_DIST_DIR=.next-build pnpm build`).

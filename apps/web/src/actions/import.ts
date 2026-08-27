@@ -94,7 +94,7 @@ export async function importFromSlugAction(slug: string): Promise<{ cloneId: str
   const cloneId = await materialize(ctx, pub.artifact, { publishedId: pub.id, slug: pub.slug });
   await db.update(schema.publishedPersonas).set({ importCount: sql`${schema.publishedPersonas.importCount} + 1` })
     .where(eq(schema.publishedPersonas.id, pub.id));
-  revalidatePath('/clones');
+  revalidatePath('/opersonas');
   return { cloneId };
 }
 
@@ -103,7 +103,7 @@ export async function importFromFileAction(raw: unknown): Promise<{ cloneId: str
   const parsed = parsePersonaArtifact(raw);
   if (!parsed.ok) return { error: parsed.error };
   const cloneId = await materialize(ctx, parsed.artifact, { publishedId: null, slug: parsed.artifact.author.slug ?? null });
-  revalidatePath('/clones');
+  revalidatePath('/opersonas');
   return { cloneId };
 }
 
@@ -135,7 +135,7 @@ export async function updateImportAction(cloneId: string): Promise<{ version: nu
     await tx.update(schema.clones).set({ avatarRecipe: a.persona.avatarRecipe ?? null, updatedAt: new Date() }).where(eq(schema.clones.id, cloneId));
     await tx.update(schema.importedPersonas).set({ sourceVersion: pub.version, artifact: a, updatedAt: new Date() }).where(eq(schema.importedPersonas.cloneId, cloneId));
   });
-  revalidatePath(`/clones/${cloneId}`);
+  revalidatePath(`/opersonas/${cloneId}`);
   return { version: pub.version };
 }
 
@@ -146,5 +146,5 @@ export async function removeImportAction(cloneId: string): Promise<void> {
     .where(and(eq(schema.clones.id, cloneId), eq(schema.clones.orgId, ctx.orgId), eq(schema.clones.kind, 'imported'))).limit(1);
   if (!clone || clone.ownerUserId !== ctx.userId) throw new Error('not your import');
   await db.update(schema.clones).set({ archivedAt: new Date(), updatedAt: new Date() }).where(eq(schema.clones.id, cloneId));
-  revalidatePath('/clones');
+  revalidatePath('/opersonas');
 }

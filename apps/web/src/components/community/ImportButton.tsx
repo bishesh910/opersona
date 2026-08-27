@@ -17,7 +17,7 @@ export function ImportButton({ slug }: { slug: string }) {
           try {
             setErr(null);
             const r = await importFromSlugAction(slug);
-            router.push(`/clones/${r.cloneId}/chat`);
+            router.push(`/opersonas/${r.cloneId}/chat`);
           } catch (e) {
             setErr(e instanceof Error ? e.message.replace(/^.*Error: /, '') : 'import failed');
           }

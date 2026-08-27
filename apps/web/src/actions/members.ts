@@ -63,6 +63,6 @@ export async function removeMemberAction(_p: MemberActionResult | null, form: Fo
     await db.delete(schema.clones).where(eq(schema.clones.id, c.id));
   }
   await db.delete(authSchema.user).where(eq(authSchema.user.id, uid)); // account/session/member/twoFactor/invitation cascade
-  revalidatePath('/settings'); revalidatePath('/clones');
+  revalidatePath('/settings'); revalidatePath('/opersonas');
   return { ok: true };
 }

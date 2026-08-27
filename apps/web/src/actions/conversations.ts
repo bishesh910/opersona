@@ -10,11 +10,11 @@ export async function createConversationAction(form: FormData) {
   const cloneId = String(form.get('cloneId') ?? '');
   const ctx = await requireOrg();
   const access = await getCloneAccess(ctx, cloneId);
-  if (!access?.canWrite) redirect(`/clones/${cloneId}/chat?error=Only+the+owner+can+chat`);
+  if (!access?.canWrite) redirect(`/opersonas/${cloneId}/chat?error=Only+the+owner+can+chat`);
   const title = String(form.get('title') ?? '').trim() || `Conversation ${new Date().toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}`;
   const mode = String(form.get('mode') ?? '') === 'clone' ? 'clone' as const : 'claude' as const;
   const [row] = await db.insert(schema.conversations).values({ orgId: ctx.orgId, cloneId, userId: ctx.userId, title, mode }).returning({ id: schema.conversations.id, slug: schema.conversations.slug });
-  redirect(access.isOwner ? `/c/${row!.slug}` : `/clones/${cloneId}/chat/${row!.id}`);
+  redirect(access.isOwner ? `/c/${row!.slug}` : `/opersonas/${cloneId}/chat/${row!.id}`);
 }
 
 export async function deleteConversationAction(form: FormData) {
@@ -22,12 +22,12 @@ export async function deleteConversationAction(form: FormData) {
   const conversationId = String(form.get('conversationId') ?? '');
   const ctx = await requireOrg();
   const access = await getCloneAccess(ctx, cloneId);
-  if (!access?.canWrite) redirect(`/clones/${cloneId}/chat?error=Not+allowed`);
+  if (!access?.canWrite) redirect(`/opersonas/${cloneId}/chat?error=Not+allowed`);
   await db.transaction(async (tx) => {
     await tx.delete(schema.turns).where(and(eq(schema.turns.conversationId, conversationId), eq(schema.turns.orgId, ctx.orgId)));
     await tx.delete(schema.conversations).where(and(eq(schema.conversations.id, conversationId), eq(schema.conversations.cloneId, cloneId), eq(schema.conversations.orgId, ctx.orgId)));
   });
-  redirect(access.isOwner ? '/me/chat' : `/clones/${cloneId}/chat`);
+  redirect(access.isOwner ? '/me/chat' : `/opersonas/${cloneId}/chat`);
 }
 
 /** Inline rename from the chat title. Owner only. Returns the saved title (or an error). */
@@ -67,7 +67,7 @@ export async function askPersonaAction(form: FormData) {
   const cloneId = String(form.get('cloneId') ?? '');
   const ctx = await requireOrg();
   const ask = await getAskAccess(ctx, cloneId);
-  if (!ask) redirect('/clones?error=Persona+not+found');
+  if (!ask) redirect('/opersonas?error=Persona+not+found');
   if (ask.isOwner) redirect('/chat?mode=clone'); // your own persona → the owner test surface
   const first = (ctx.user.name?.trim().split(/\s+/)[0]) || ctx.user.email.split('@')[0] || 'a colleague';
   const [row] = await db.insert(schema.conversations)

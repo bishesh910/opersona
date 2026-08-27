@@ -28,7 +28,7 @@ export async function createMyCloneAction() {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to create clone';
-    redirect(`/clones?error=${encodeURIComponent(msg)}`);
+    redirect(`/opersonas?error=${encodeURIComponent(msg)}`);
   }
   redirect('/me/brief');
 }

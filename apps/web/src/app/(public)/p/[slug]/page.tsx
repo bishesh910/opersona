@@ -75,7 +75,7 @@ export default async function PublicPersonaPage({ params }: { params: Promise<{ 
           {isAuthor ? (
             <Link href="/me/share" className="btn-secondary">This is yours — manage sharing</Link>
           ) : importedCloneId ? (
-            <Link href={`/clones/${importedCloneId}/chat`} className="btn-primary">In your workspace — chat</Link>
+            <Link href={`/opersonas/${importedCloneId}/chat`} className="btn-primary">In your workspace — chat</Link>
           ) : session ? (
             <ImportButton slug={pub.slug} />
           ) : (

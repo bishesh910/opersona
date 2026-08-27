@@ -31,7 +31,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
   return (
     <div className="flex h-[calc(100vh-14rem)] min-h-[28rem] flex-col gap-2">
-      <Link href={access.isOwner ? '/me/chat' : `/clones/${id}/chat`} className="muted text-xs hover:underline">← all conversations</Link>
+      <Link href={access.isOwner ? '/me/chat' : `/opersonas/${id}/chat`} className="muted text-xs hover:underline">← all conversations</Link>
       <ChatView
         keyMissing={(await orgHasChatKey(ctx.orgId)) ? null : 'mine'}
         seal={await orgSealFp(ctx.orgId)}

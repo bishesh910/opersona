@@ -41,7 +41,7 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">{solo ? 'My personas' : 'Personas'}</h1>
+        <h1 className="text-xl font-semibold">{solo ? 'My opersonas' : 'Opersonas'}</h1>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {admin && !solo && <InviteButton />}
           <Link href="/explore" className="btn-secondary">Explore</Link>
@@ -49,7 +49,7 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
           {mine && <Link href="/me/share" className="btn-primary">Share mine</Link>}
           {!mine && (
             <form action={createMyCloneAction}>
-              <button className="btn-primary">Create my persona</button>
+              <button className="btn-primary">Create my opersona</button>
             </form>
           )}
         </div>
@@ -57,7 +57,7 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
       {error && <p className="text-sm text-red-600">{error}</p>}
       {all.length === 0 ? (
         <div className="card muted text-sm">
-          No clones yet. {mine ? '' : 'Create yours to get started — it learns your job from your brief, your playbooks and your conversations.'}
+          No opersonas yet. {mine ? '' : 'Create yours to get started — it learns your job from your brief, your playbooks and your conversations.'}
         </div>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
@@ -78,7 +78,7 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
             return (
               <li key={c.id} className="card space-y-3">
                 {isMine || admin
-                  ? <Link href={isMine && c.kind === 'member' ? '/me' : `/clones/${c.id}`} className="-m-1 block rounded p-1 hover:bg-neutral-50 dark:hover:bg-neutral-900">{body}</Link>
+                  ? <Link href={isMine && c.kind === 'member' ? '/me' : `/opersonas/${c.id}`} className="-m-1 block rounded p-1 hover:bg-neutral-50 dark:hover:bg-neutral-900">{body}</Link>
                   : body}
                 {!isMine && (
                   <form action={askPersonaAction}>

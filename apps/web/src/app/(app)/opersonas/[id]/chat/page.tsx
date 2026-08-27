@@ -53,7 +53,7 @@ export default async function ChatListPage({ params, searchParams }: { params: P
         <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
           {convs.map((c) => (
             <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-              <Link href={access.isOwner ? `/c/${c.slug}` : `/clones/${id}/chat/${c.id}`} className="min-w-0 flex-1 hover:underline">
+              <Link href={access.isOwner ? `/c/${c.slug}` : `/opersonas/${id}/chat/${c.id}`} className="min-w-0 flex-1 hover:underline">
                 <div className="truncate text-sm font-medium">{c.title} {c.mode === 'clone' && <span className="chip ml-1">persona test</span>}</div>
                 <div className="muted text-xs" suppressHydrationWarning>{c.status} · {c.lastActivityAt.toLocaleString()}</div>
               </Link>

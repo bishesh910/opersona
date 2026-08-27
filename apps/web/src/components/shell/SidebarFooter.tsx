@@ -58,7 +58,7 @@ export function SidebarFooter({ name, email, avatarRecipe }: {
         </span>
       </Link>
       {/* the others → Opersonas */}
-      <Link href="/clones" title="Opersonas" aria-label="Opersonas" className={pad(path.startsWith('/clones'))}>
+      <Link href="/opersonas" title="Opersonas" aria-label="Opersonas" className={pad(path.startsWith('/opersonas'))}>
         {/* a little crowd: three heads in back, two in front, tightly packed */}
         <span className="relative block h-8 w-11">
           {crowd[0] && <HeadTile recipe={crowd[0]} name="?" size={18} className="absolute left-0 top-0" />}

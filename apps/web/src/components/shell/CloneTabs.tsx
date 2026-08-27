@@ -29,12 +29,12 @@ export function CloneTabs({ cloneId, isOwner = false, kind = 'member' }: { clone
     : isOwner ? TABS : TABS.filter((t) => PUBLIC_TABS.has(t.key));
   const hrefFor = (t: { key: string }) => {
     const short = t.key === 'documents' ? 'docs' : t.key;
-    return isOwner && kind === 'member' ? (t.key === 'thinking' ? '/me' : `/me/${short}`) : `/clones/${cloneId}/${t.key}`;
+    return isOwner && kind === 'member' ? (t.key === 'thinking' ? '/me' : `/me/${short}`) : `/opersonas/${cloneId}/${t.key}`;
   };
   const isActive = (t: { key: string }) => {
     const href = hrefFor(t);
     return t.key === 'thinking'
-      ? path === href || path === '/me/thinking' || path === `/clones/${cloneId}/thinking`
+      ? path === href || path === '/me/thinking' || path === `/opersonas/${cloneId}/thinking`
       : path === href || path.startsWith(href + '/') || (t.key === 'chat' && path.startsWith('/c/'));
   };
   const current = TABS.find(isActive)?.key ?? 'thinking';

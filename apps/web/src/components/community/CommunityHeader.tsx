@@ -15,7 +15,7 @@ export async function CommunityHeader() {
         <Link href="/explore" className="btn-secondary btn-sm">Explore</Link>
         {session ? (
           <>
-            <Link href="/me/share" className="btn-secondary btn-sm">Share my persona</Link>
+            <Link href="/me/share" className="btn-secondary btn-sm">Share my opersona</Link>
             <Link href="/chat" className="btn-primary btn-sm">My workspace →</Link>
           </>
         ) : (

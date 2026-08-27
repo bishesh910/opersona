@@ -18,7 +18,7 @@ export function ApprovalsList({ items }: { items: PendingApproval[] }) {
           <div className="muted flex items-center gap-2 text-xs">
             <span className="font-medium text-neutral-800 dark:text-neutral-200">{a.cloneName}</span>
             <span suppressHydrationWarning>{new Date(a.createdAt).toLocaleString()}</span>
-            {a.conversationId && <Link href={`/clones/${a.cloneId}/chat/${a.conversationId}`} className="underline">open conversation</Link>}
+            {a.conversationId && <Link href={`/opersonas/${a.cloneId}/chat/${a.conversationId}`} className="underline">open conversation</Link>}
           </div>
           <ApprovalCard
             item={{ id: a.id, tool: a.tool, input: a.input, question: a.question, options: a.options }}
