@@ -39,12 +39,12 @@ export interface CharacterBuilderProps {
   hasRail: boolean;
 }
 
-function StepDots({ current, onGo }: { current: number; onGo: (n: number) => void }) {
+function StepDots({ current, maxStep, onGo }: { current: number; maxStep: number; onGo: (n: number) => void }) {
   return (
     <ol className="flex flex-wrap items-center justify-center gap-x-1 gap-y-2">
       {STEPS.map((s, i) => {
         const state = s.n < current ? 'done' : s.n === current ? 'current' : 'todo';
-        const clickable = s.n < current; // walking back is always allowed
+        const clickable = s.n !== current && s.n <= maxStep; // hop freely within reached territory; new steps unlock via Continue
         const dot = (
           <>
             <span
@@ -66,7 +66,7 @@ function StepDots({ current, onGo }: { current: number; onGo: (n: number) => voi
           <li key={s.n} className="flex items-center gap-1">
             {i > 0 && <span aria-hidden className="mx-1 h-px w-5 bg-neutral-300 dark:bg-neutral-700 sm:w-8" />}
             {clickable ? (
-              <button type="button" className="flex items-center gap-1 rounded transition-opacity hover:opacity-70" onClick={() => onGo(s.n)} title={`Back to ${s.label}`}>
+              <button type="button" className="flex items-center gap-1 rounded transition-opacity hover:opacity-70" onClick={() => onGo(s.n)} title={`Go to ${s.label}`}>
                 {dot}
               </button>
             ) : (
@@ -84,6 +84,7 @@ function StepDots({ current, onGo }: { current: number; onGo: (n: number) => voi
  *  for everything after; the personal workspace already exists from signup. */
 export function CharacterBuilder(props: CharacterBuilderProps) {
   const [step, setStepState] = useState(props.initialStep);
+  const [maxStep, setMaxStep] = useState(props.initialStep);
   const [recipe, setRecipe] = useState<AvatarRecipe>(props.clone?.recipe ?? DEFAULT_RECIPE);
   // new joiners meet a random stranger, not a fixed default (post-mount: SSR-safe)
   useEffect(() => { if (!props.clone?.recipe) setRecipe(randomRecipe()); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
@@ -128,6 +129,7 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
 
   function go(n: number) {
     setStepState(n);
+    setMaxStep((m) => Math.max(m, n));
     // Keep ?step= in the URL so a refresh resumes here (the server honours it).
     window.history.replaceState(null, '', `/onboarding?step=${n}`);
     window.scrollTo({ top: 0 });
@@ -147,7 +149,7 @@ export function CharacterBuilder(props: CharacterBuilderProps) {
           <p className="muted text-xs uppercase tracking-widest">opersona.me</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Build your persona</h1>
         </div>
-        <StepDots current={step} onGo={go} />
+        <StepDots current={step} maxStep={maxStep} onGo={go} />
         <h2 className="text-lg font-medium">{heading}</h2>
 
         <div className="flex w-full flex-col items-center gap-6 md:flex-row md:items-start md:justify-center">
