@@ -198,6 +198,7 @@ function friendlyErr(m: string): string {
   if (m.startsWith('no_api_key:')) return 'No API key connected — add yours in Settings → Claude access to start chatting.';
   if (m.startsWith('bridge_offline:')) return 'Your bridge is paired but not running — run `npx opersona@latest` on your machine, then resend.';
   if (/bridge (disconnected|reconnected elsewhere)/.test(m)) return 'Your bridge went offline mid-reply — run `npx opersona@latest` again and resend this message.';
+  if (/model_not_found|not_found_error|no access to.*model|unknown model|does not exist.*model/i.test(m)) return 'Your Claude doesn\u2019t have access to the selected model — pick a different one in Settings \u2192 Models (Fable/Mythos-tier access varies by plan).';
   if (m.startsWith('budget_exceeded:')) return m.replace('budget_exceeded:', 'Monthly budget reached —') + '. Raise or clear it in Settings → Models.';
   return m;
 }

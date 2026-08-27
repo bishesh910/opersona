@@ -35,6 +35,25 @@ registerDownloads(routes);
 const parse = async <T extends z.ZodTypeAny>(c: { req: { json: () => Promise<unknown> } }, schema: T): Promise<z.infer<T>> => schema.parse(await c.req.json().catch(() => ({})));
 
 routes.get('/health', (c) => c.json({ ok: true, version: config.version, learningQueue: queueSize() }));
+/** Zero-token model access probe: GET /v1/models/{id} with the org's key.
+ *  { checkable:false } when the org runs on a bridge (no key to probe with). */
+routes.post('/models/check', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string(), models: z.array(z.string().max(60)).min(1).max(6) }));
+  const cfg = await orgModelConfig(body.orgId).catch(() => null);
+  if (!cfg || !cfg.apiKey) return c.json({ checkable: false, missing: [] });
+  const missing: string[] = [];
+  for (const m of [...new Set(body.models)]) {
+    try {
+      const r = await fetch(`https://api.anthropic.com/v1/models/${encodeURIComponent(m)}`, {
+        headers: { 'x-api-key': cfg.apiKey, 'anthropic-version': '2023-06-01' },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (r.status === 404) missing.push(m);
+    } catch { /* network hiccup: don't block saving */ }
+  }
+  return c.json({ checkable: true, missing });
+});
+
 routes.get('/bridge/status', async (c) => {
   const { bridgeStatus } = await import('../bridge/hub.js');
   return c.json(bridgeStatus(c.req.query('orgId') ?? ''));

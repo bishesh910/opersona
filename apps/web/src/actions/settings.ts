@@ -23,6 +23,16 @@ export async function saveSettingsAction(_prev: ActionResult | null, form: FormD
   try { Intl.DateTimeFormat(undefined, { timeZone: d.timezone }); } catch { return { ok: false, error: 'Unknown timezone' }; }
   const budget = d.monthlyBudgetUsd ? Number(d.monthlyBudgetUsd) : null;
   if (budget !== null && (!Number.isFinite(budget) || budget < 0)) return { ok: false, error: 'Budget must be a positive number' };
+  // When the workspace runs on an API key, refuse models the key provably lacks
+  // (zero-token probe). Bridge-rail workspaces can't be pre-checked — runtime
+  // errors there are mapped to a friendly pick-another-model message instead.
+  try {
+    const { engineFetch } = await import('@/lib/engine');
+    const chk = await engineFetch<{ checkable: boolean; missing: string[] }>('/models/check', { body: { orgId: ctx.orgId, models: [d.chatModel, d.extractModel, d.condenseModel] } });
+    if (chk.checkable && chk.missing.length) {
+      return { ok: false, error: `Your API key doesn't have access to: ${chk.missing.join(', ')}. Pick different model(s) — Fable/Mythos-tier access varies by account.` };
+    }
+  } catch { /* engine hiccup: don't block saving */ }
   const values = { chatModel: d.chatModel, extractModel: d.extractModel, condenseModel: d.condenseModel, chatEffort: d.chatEffort, timezone: d.timezone, monthlyBudgetUsd: budget };
   await db.insert(schema.orgSettings).values({ orgId: ctx.orgId, ...values })
     .onConflictDoUpdate({ target: schema.orgSettings.orgId, set: { ...values, updatedAt: new Date() } });

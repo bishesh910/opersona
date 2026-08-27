@@ -8,7 +8,7 @@ export interface SettingsValues { chatModel: string; extractModel: string; conde
 
 const EFFORTS = ['low', 'medium', 'high', 'max'];
 const MODELS = [
-  { id: 'claude-fable-5', label: 'Fable 5 — most capable' },
+  { id: 'claude-fable-5', label: 'Fable 5 — most capable (needs access on your plan/key)' },
   { id: 'claude-opus-5', label: 'Opus 5 — best' },
   { id: 'claude-sonnet-5', label: 'Sonnet 5 — fast' },
   { id: 'claude-haiku-4-5', label: 'Haiku 4.5 — cheapest' },

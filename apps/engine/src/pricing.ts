@@ -5,6 +5,7 @@
  * per-workspace monthly budget guard; update when Anthropic changes pricing.
  */
 const PRICES: Record<string, { in: number; out: number }> = {
+  'claude-fable-5': { in: 10, out: 50 },
   'claude-opus-5': { in: 5, out: 25 },
   'claude-opus-4-5': { in: 5, out: 25 },
   'claude-sonnet-5': { in: 3, out: 15 },
