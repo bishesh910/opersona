@@ -1,49 +1,40 @@
 /**
  * opersona desktop — the app that IS Claude Code, thinking like you.
- *
- * It fetches your persona from opersona.me (built there, on the web) and runs
- * the real `claude` CLI locally in a folder you pick, with your persona as the
- * appended system prompt. Full tools, your own subscription, nothing executes
- * on our servers — the site never sits in the loop.
+ * Runs the Agent SDK locally (your subscription) in a folder you pick, with your
+ * persona as the system prompt, and streams the turn to a native chat GUI.
  */
 import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } from 'electron';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PtyManager } from './pty.js';
+import { randomUUID } from 'node:crypto';
+import { AgentSession } from './agent.js';
 import { fetchPersona, siteUrl, fetchPixiePng } from './persona.js';
 import { ensureClaudeTrust } from './claudeConfig.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
-const ptys = new PtyManager();
 let win: BrowserWindow | null = null;
+let session: AgentSession | null = null;
+let acceptEdits = false;
+const pendingApprovals = new Map<string, (ok: boolean) => void>();
+
+function send(e: unknown): void { if (win && !win.isDestroyed()) win.webContents.send('agent:event', e); }
 
 function createWindow(): void {
   win = new BrowserWindow({
-    width: 1080,
-    height: 720,
-    minWidth: 720,
-    minHeight: 480,
-    show: false,
-    titleBarStyle: 'hiddenInset',
-    backgroundColor: '#0b0b0f',
+    width: 1160, height: 780, minWidth: 820, minHeight: 520, show: false,
+    titleBarStyle: 'hiddenInset', backgroundColor: '#0b0b0f',
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false,        // preload needs Node to require the bridge (no remote code runs)
-      contextIsolation: true,
-      nodeIntegration: false,
-      backgroundThrottling: false,
+      sandbox: false, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false,
     },
   });
-  win.once('ready-to-show', () => win?.show());
-  void applyPixieIcon();
+  win.once('ready-to-show', () => { win?.show(); void applyPixieIcon(); });
   win.webContents.setWindowOpenHandler(({ url }) => { void shell.openExternal(url); return { action: 'deny' }; });
   if (isDev) void win.loadURL(process.env.ELECTRON_RENDERER_URL!);
   else void win.loadFile(join(__dirname, '../renderer/index.html'));
 }
 
-/** Wear the user's pixie as the dock + window icon (their real face, fetched live).
- *  Falls back silently to the bundled icon when unpaired/offline. */
 async function applyPixieIcon(): Promise<void> {
   try {
     const png = await fetchPixiePng();
@@ -58,35 +49,41 @@ async function applyPixieIcon(): Promise<void> {
 // ── IPC ─────────────────────────────────────────────────────────────────────
 ipcMain.handle('persona:get', () => fetchPersona());
 ipcMain.handle('site:url', () => siteUrl());
-ipcMain.handle('pixie:get', async () => {
-  const png = await fetchPixiePng();
-  return png ? `data:image/png;base64,${png.toString('base64')}` : null;
-});
 ipcMain.handle('site:open', (_e, path: string) => shell.openExternal(siteUrl() + (typeof path === 'string' ? path : '')));
-
+ipcMain.handle('pixie:get', async () => { const p = await fetchPixiePng(); return p ? `data:image/png;base64,${p.toString('base64')}` : null; });
 ipcMain.handle('dialog:chooseFolder', async () => {
   const r = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
   return r.canceled || !r.filePaths[0] ? null : r.filePaths[0];
 });
 
-/** Build the `claude` argv and spawn it with the persona as the system prompt. */
-ipcMain.handle('claude:start', (e, opts: { id: string; cwd: string; prompt: string; model?: string; cols?: number; rows?: number }) => {
-  if (!opts?.id || !opts?.cwd || typeof opts.prompt !== 'string') return { ok: false, error: 'bad start options' };
-  ensureClaudeTrust(opts.cwd);
-  const args: string[] = ['--append-system-prompt', opts.prompt, '--add-dir', opts.cwd];
-  if (opts.model) args.push('--model', opts.model);
-  const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? e.sender;
-  return ptys.spawn({ id: opts.id, args, cwd: opts.cwd, cols: opts.cols, rows: opts.rows }, wc);
+ipcMain.on('agent:setAcceptEdits', (_e, v: boolean) => { acceptEdits = !!v; });
+
+ipcMain.handle('agent:start', (_e, opts: { cwd: string; prompt: string; model?: string }) => {
+  if (!opts?.cwd || typeof opts.prompt !== 'string') return { ok: false, error: 'bad options' };
+  try {
+    ensureClaudeTrust(opts.cwd);
+    session?.stop();
+    session = new AgentSession({
+      cwd: opts.cwd, systemPrompt: opts.prompt, model: opts.model,
+      emit: (ev) => send(ev),
+      acceptEdits: () => acceptEdits,
+      requestApproval: (name, input) => new Promise<boolean>((resolve) => {
+        const id = randomUUID();
+        pendingApprovals.set(id, resolve);
+        send({ t: 'approval', id, name, input });
+      }),
+    });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
 });
-ipcMain.on('pty:write', (_e, id: string, data: string) => ptys.write(id, data));
-ipcMain.on('pty:resize', (_e, id: string, cols: number, rows: number) => ptys.resize(id, cols, rows));
-ipcMain.on('pty:redraw', (_e, id: string) => ptys.redraw(id));
-ipcMain.on('pty:kill', (_e, id: string) => ptys.kill(id));
+ipcMain.on('agent:send', (_e, text: string) => { if (session && typeof text === 'string' && text.trim()) session.send(text); });
+ipcMain.on('agent:approve', (_e, id: string, ok: boolean) => { const r = pendingApprovals.get(id); if (r) { pendingApprovals.delete(id); r(!!ok); } });
+ipcMain.on('agent:stop', () => { session?.stop(); session = null; for (const r of pendingApprovals.values()) r(false); pendingApprovals.clear(); });
 
 // ── lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
-app.on('window-all-closed', () => { ptys.killAll(); if (process.platform !== 'darwin') app.quit(); });
-app.on('before-quit', () => ptys.killAll());
+app.on('window-all-closed', () => { session?.stop(); if (process.platform !== 'darwin') app.quit(); });
+app.on('before-quit', () => session?.stop());

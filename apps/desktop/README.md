@@ -8,8 +8,9 @@ servers — the site is never in the loop.
 This is the pivot: opersona.me builds and shares your persona; **this app runs
 it**. It fetches your persona prompt from `opersona.me/bridge/prompt` using the
 bridge token already on your machine (`~/.opersona-bridge/config.json`), then
-spawns `claude --append-system-prompt <persona> --add-dir <folder>` in a
-node-pty and renders it in xterm.
+runs Claude Code locally via the Agent SDK (your subscription) and renders the
+stream as a native chat GUI — message bubbles, tool cards, a composer — not a
+terminal.
 
 ## Run it (macOS)
 

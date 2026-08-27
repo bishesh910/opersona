@@ -6,7 +6,7 @@ directories:
 files:
   - out/**
 asarUnpack:
-  - "**/node_modules/node-pty/**"
+  - "**/node_modules/@anthropic-ai/claude-agent-sdk/**"
 npmRebuild: true
 mac:
   category: public.app-category.developer-tools
