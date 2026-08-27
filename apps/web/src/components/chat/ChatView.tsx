@@ -740,33 +740,61 @@ export function ChatView({
  *  (fingerprint-checked locally; the key itself never leaves the browser). */
 /** Bridge activate/deactivate — mirrors whether YOUR machine is powering this
  *  persona right now. Off → opersona://open launches the app and starts the
- *  daemon; on → opersona://stop parks it. Hidden until a machine is paired. */
+ *  daemon; on → opersona://stop parks it. Clicking re-polls immediately and
+ *  fast (1.5s) with a pulsing in-between state until the flip is confirmed.
+ *  Hidden until a machine is paired. */
 function BridgeToggle() {
   const [st, setSt] = useState<{ paired: boolean; connected: boolean } | null>(null);
+  const [pending, setPending] = useState<null | 'on' | 'off'>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const alive = useRef(true);
   const fastUntil = useRef(0);
-  useEffect(() => {
-    let alive = true;
-    let t: ReturnType<typeof setTimeout>;
-    const tick = async () => {
-      try {
-        const r = await fetch('/api/engine/bridge/status');
-        if (r.ok) { const j = (await r.json()) as { paired?: boolean; connected?: boolean }; if (alive) setSt({ paired: !!j.paired, connected: !!j.connected }); }
-      } catch { /* keep the last known state */ }
-      if (alive) t = setTimeout(tick, Date.now() < fastUntil.current ? 2000 : 30_000);
-    };
-    void tick();
-    return () => { alive = false; clearTimeout(t); };
+
+  const tick = useCallback(async () => {
+    try {
+      const r = await fetch('/api/engine/bridge/status');
+      if (r.ok) {
+        const j = (await r.json()) as { paired?: boolean; connected?: boolean };
+        if (!alive.current) return;
+        setSt({ paired: !!j.paired, connected: !!j.connected });
+        setPending((p) => ((p === 'on' && j.connected) || (p === 'off' && !j.connected) ? null : p));
+      }
+    } catch { /* keep the last known state */ }
+    if (alive.current) timer.current = setTimeout(() => void tick(), Date.now() < fastUntil.current ? 1500 : 30_000);
   }, []);
+  useEffect(() => {
+    alive.current = true;
+    void tick();
+    return () => { alive.current = false; clearTimeout(timer.current); };
+  }, [tick]);
+  // give up on "working…" after 45s (the app may not be installed on THIS machine)
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => setPending(null), 45_000);
+    return () => clearTimeout(t);
+  }, [pending]);
+
   if (!st?.paired) return null;
   const on = st.connected;
+  const flip = () => {
+    setPending(on ? 'off' : 'on');
+    fastUntil.current = Date.now() + 45_000;
+    clearTimeout(timer.current);                       // don't wait out the slow timer
+    timer.current = setTimeout(() => void tick(), 1200);
+    window.location.href = on ? 'opersona://stop' : 'opersona://open';
+  };
+  const title = pending
+    ? (pending === 'on' ? 'Starting the opersona app on your machine…' : 'Stopping the app…')
+    : on ? 'Active — your machine is powering this persona. Click to deactivate.'
+    : 'Inactive — click to start the opersona app on your machine.';
   return (
-    <button type="button" role="switch" aria-checked={on} data-bridge-toggle
-      aria-label={on ? 'Deactivate the opersona app on your machine' : 'Activate the opersona app on your machine'}
-      title={on ? 'Active — your machine is powering this persona. Click to deactivate.' : 'Inactive — click to start the opersona app on your machine.'}
-      className="ml-1 inline-flex h-7 items-center px-0.5"
-      onClick={() => { fastUntil.current = Date.now() + 25_000; window.location.href = on ? 'opersona://stop' : 'opersona://open'; }}>
-      <span className={'relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ' + (on ? 'bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-700')}>
-        <span className={'absolute h-[14px] w-[14px] rounded-full bg-white shadow transition-all ' + (on ? 'left-[16px]' : 'left-[2px]')} />
+    <button type="button" role="switch" aria-checked={on} aria-busy={!!pending} data-bridge-toggle
+      aria-label={title} title={title}
+      className="ml-1 inline-flex h-7 items-center px-0.5" onClick={flip}>
+      <span className={'relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ' +
+        (pending ? 'bg-amber-400' : on ? 'bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-700')}>
+        <span className={'absolute h-[14px] w-[14px] rounded-full bg-white shadow transition-all ' +
+          (pending ? 'left-[9px] animate-pulse' : on ? 'left-[16px]' : 'left-[2px]')} />
       </span>
     </button>
   );
