@@ -5,7 +5,7 @@
 // run with this machine's node.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -68,42 +68,55 @@ fn today() -> String {
     format!("{}", secs / 86_400)
 }
 
-/// Fetch the published bridge bundle into ~/.opersona-bridge/bridge.js (once).
-fn ensure_bridge_js() -> Result<PathBuf, String> {
-    let dest = cfg_dir().join("bridge.js");
-    if dest.exists() {
-        return Ok(dest);
-    }
-    std::fs::create_dir_all(cfg_dir()).map_err(|e| e.to_string())?;
-    let meta: serde_json::Value = ureq::get("https://registry.npmjs.org/opersona/latest")
-        .call()
-        .map_err(|e| format!("registry unreachable: {e}"))?
-        .into_json()
-        .map_err(|e| e.to_string())?;
-    let url = meta["dist"]["tarball"]
-        .as_str()
-        .ok_or("no tarball url")?
-        .to_string();
-    let mut raw: Vec<u8> = Vec::new();
-    ureq::get(&url)
-        .call()
-        .map_err(|e| format!("tarball fetch failed: {e}"))?
-        .into_reader()
-        .read_to_end(&mut raw)
-        .map_err(|e| e.to_string())?;
-    let tar = flate2::read::GzDecoder::new(raw.as_slice());
-    let mut ar = tar::Archive::new(tar);
-    for entry in ar.entries().map_err(|e| e.to_string())? {
-        let mut entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path().map_err(|e| e.to_string())?.into_owned();
-        if path.to_string_lossy() == "package/dist/index.js" {
-            let mut buf = Vec::new();
-            entry.read_to_end(&mut buf).map_err(|e| e.to_string())?;
-            std::fs::write(&dest, buf).map_err(|e| e.to_string())?;
-            return Ok(dest);
+/// Real install: `npm install opersona@latest` into ~/.opersona-bridge/app —
+/// the bundle needs its deps (ws, the Claude SDK) installed next to it, and
+/// this also keeps the tray's bridge always-latest. Runs once per tray launch.
+static INSTALL_DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn ensure_bridge_installed(node: &str) -> Result<PathBuf, String> {
+    let app_dir = cfg_dir().join("app");
+    let entry = app_dir.join("node_modules/opersona/dist/index.js");
+    let fresh_needed = !entry.exists();
+    if fresh_needed || !INSTALL_DONE.load(std::sync::atomic::Ordering::SeqCst) {
+        let node_dir = std::path::Path::new(node)
+            .parent()
+            .ok_or("bad node path")?
+            .to_path_buf();
+        let npm = node_dir.join("npm");
+        if npm.exists() {
+            std::fs::create_dir_all(&app_dir).map_err(|e| e.to_string())?;
+            let path_env = format!(
+                "{}:{}",
+                node_dir.display(),
+                std::env::var("PATH").unwrap_or_default()
+            );
+            tlog("npm install opersona@latest …");
+            let out = Command::new(&npm)
+                .arg("install")
+                .arg("--prefix")
+                .arg(&app_dir)
+                .args(["--no-fund", "--no-audit", "--loglevel=error", "opersona@latest"])
+                .env("PATH", path_env)
+                .output()
+                .map_err(|e| e.to_string())?;
+            if out.status.success() {
+                tlog("npm install ok");
+            } else {
+                tlog(&format!(
+                    "npm install failed: {}",
+                    String::from_utf8_lossy(&out.stderr).trim()
+                ));
+            }
+        } else if fresh_needed {
+            return Err(format!("npm not found next to node ({})", node_dir.display()));
         }
+        INSTALL_DONE.store(true, std::sync::atomic::Ordering::SeqCst);
     }
-    Err("bridge bundle not found in package".into())
+    if entry.exists() {
+        Ok(entry)
+    } else {
+        Err("install failed — see ~/.opersona-bridge/tray.log".into())
+    }
 }
 
 /// Claude Code users always have node; GUI apps just don't inherit shell PATH,
@@ -251,19 +264,23 @@ fn start_daemon(app: &AppHandle) {
                 break;
             }
         }
-        let script = match ensure_bridge_js() {
+        let Some(node) = find_node() else {
+            tlog("node not found — install Node 20+ (Claude Code needs it too)");
+            set_note(&app, Some("Node not found — install Node 20+ then Stop/Start".into()));
+            std::thread::sleep(std::time::Duration::from_secs(30));
+            continue;
+        };
+        let script = match ensure_bridge_installed(&node) {
             Ok(p) => p,
             Err(e) => {
-                eprintln!("bridge fetch failed: {e}");
+                tlog(&format!("bridge install failed: {e}"));
+                set_note(&app, Some(format!("Can't install the bridge: {e}")));
                 std::thread::sleep(std::time::Duration::from_secs(15));
                 continue;
             }
         };
-        let Some(node) = find_node() else {
-            eprintln!("node not found — install Node 20+ (Claude Code needs it too)");
-            std::thread::sleep(std::time::Duration::from_secs(30));
-            continue;
-        };
+        tlog(&format!("spawning {node} {}", script.display()));
+        set_note(&app, None);
         let child = Command::new(&node)
             .arg(&script)
             .stdout(Stdio::piped())
