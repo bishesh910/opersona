@@ -44,7 +44,9 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
         <h1 className="text-xl font-semibold">{solo ? 'My personas' : 'Personas'}</h1>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {admin && !solo && <InviteButton />}
+          <Link href="/explore" className="btn-secondary">Explore</Link>
           <ImportFileButton />
+          {mine && <Link href="/me/share" className="btn-primary">Share mine</Link>}
           {!mine && (
             <form action={createMyCloneAction}>
               <button className="btn-primary">Create my persona</button>

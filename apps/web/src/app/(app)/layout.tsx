@@ -49,6 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Link href="/chat" className="mb-6 block px-2 text-lg font-semibold tracking-tight">opersona.me</Link>
         <SideNav include={['/chat']} />
         <SideNav include={['/command-center']} />
+        <SideNav include={['/explore']} />
         <div className="my-2 border-t border-neutral-200 dark:border-neutral-800" />
         <TalkToPersona options={personaOptions} />
         <div className="my-3 border-t border-neutral-200 dark:border-neutral-800" />
@@ -80,6 +81,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <SideNav horizontal include={['/chat']} />
             <TalkToPersona variant="strip" options={personaOptions} />
             <RecentChats variant="strip" currentSlug="" items={recentChats.filter((c) => c.mine).map((c) => ({ slug: c.slug, title: c.title, when: c.when }))} />
+            <SideNav horizontal include={['/explore']} />
             <SideNav horizontal include={['/approvals']} />
           </nav>
         </div>

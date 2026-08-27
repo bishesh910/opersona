@@ -55,7 +55,11 @@ export function ShareCard({ cloneId, name, initial }: { cloneId: string; name: s
           <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-800 dark:bg-emerald-950/40">
             <p className="font-medium text-emerald-800 dark:text-emerald-300">Live — v{pub.version} · {pub.visibility === 'public' ? 'public' : 'restricted to people you grant'}{pub.importCount > 0 && <> · added by {pub.importCount}</>}</p>
             <p className="mt-1 break-all font-mono text-xs">{url}</p>
-            <button type="button" className="btn-secondary btn-sm mt-2" onClick={() => { void navigator.clipboard?.writeText(url); setNote('link copied'); }}>copy link</button>
+            <div className="mt-2 flex gap-2">
+              <button type="button" className="btn-secondary btn-sm" onClick={() => { void navigator.clipboard?.writeText(url); setNote('link copied'); }}>copy link</button>
+              <a className="btn-secondary btn-sm" href={`/p/${pub.slug}`}>view page</a>
+              {pub.visibility === 'public' && <a className="btn-secondary btn-sm" href="/explore">see it in Explore</a>}
+            </div>
           </div>
         )}
         {pub && pub.status !== 'active' && (

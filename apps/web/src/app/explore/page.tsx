@@ -3,6 +3,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { getSessionCtx } from '@/lib/session';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
+import { CommunityHeader } from '@/components/community/CommunityHeader';
 
 export const metadata = {
   title: 'Explore personas — opersona',
@@ -24,9 +25,9 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
     : rows).slice(0, 60);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-5 py-10">
+    <div className="mx-auto max-w-3xl space-y-6 px-5 py-8">
+      <CommunityHeader />
       <header className="space-y-2">
-        <p className="muted text-xs uppercase tracking-widest"><Link href="/" className="hover:underline">opersona.me</Link></p>
         <h1 className="text-2xl font-semibold tracking-tight">Explore personas</h1>
         <p className="muted text-sm">
           People publish how they think — their reasoning patterns, facts and playbooks — as personas you can add
