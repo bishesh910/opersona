@@ -22,7 +22,7 @@ import { runJob } from './jobs.js';
 import { startWatcher } from './watcher.js';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
-const VERSION = '0.1.2';
+const VERSION = '0.1.3';
 
 // Subcommands: `opersona install` / `opersona uninstall` (background service).
 const sub = process.argv[2];
@@ -177,7 +177,7 @@ function connect(): void {
     sendFrame({ t: 'hello', version: BRIDGE_PROTOCOL_VERSION, bridgeVersion: VERSION, host: hostname(), caps: { chat: true, jobs: true, watch: WATCH } });
     console.log('[bridge] connected — chats on this account now run on THIS machine (your Claude subscription).');
     if (WATCH && !watcher) {
-      watcher = startWatcher({ sendIngest: (f) => { if (ws?.readyState === WebSocket.OPEN) { ws.send(JSON.stringify(f)); return true; } return false; } }, { claudeDir: CLAUDE_DIR, codexDir: CODEX_DIR });
+      watcher = startWatcher({ sendIngest: (f) => { if (ws?.readyState === WebSocket.OPEN) { ws.send(JSON.stringify(f)); return true; } return false; } }, { claudeDir: CLAUDE_DIR, codexDir: CODEX_DIR, ident: TOKEN.slice(0, 12) });
       console.log('[watch] learning from this machine\'s Claude Code / Codex sessions (disable with --no-watch).');
     }
   });

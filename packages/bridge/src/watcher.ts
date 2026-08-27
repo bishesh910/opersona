@@ -22,13 +22,21 @@ const STATE_PATH = join(homedir(), '.opersona-bridge', 'watcher-state.json');
 const SELF_RE = /-opersona-bridge-|clones-[0-9a-f-]{36}-workspace|opersona-apps-engine-data/;
 
 interface Sent { bytes: number }
-type State = Record<string, Sent>;
+interface StateFile { ident: string; sent: Record<string, Sent> }
 
-function loadState(): State {
-  try { return JSON.parse(readFileSync(STATE_PATH, 'utf8')) as State; } catch { return {}; }
+/** The sent-ledger is scoped to the pairing identity: a new account/token means a
+ *  fresh ledger, so re-pairing always re-backfills (the server dedupes anyway). */
+function loadState(ident: string): Record<string, Sent> {
+  try {
+    const raw = JSON.parse(readFileSync(STATE_PATH, 'utf8')) as StateFile | Record<string, Sent>;
+    if (raw && typeof raw === 'object' && 'ident' in raw && 'sent' in raw) {
+      return (raw as StateFile).ident === ident ? (raw as StateFile).sent : {};
+    }
+    return {}; // legacy un-scoped ledger: discard, let the server dedupe
+  } catch { return {}; }
 }
-function saveState(s: State): void {
-  try { mkdirSync(join(homedir(), '.opersona-bridge'), { recursive: true }); writeFileSync(STATE_PATH, JSON.stringify(s)); } catch { /* best effort */ }
+function saveState(ident: string, sent: Record<string, Sent>): void {
+  try { mkdirSync(join(homedir(), '.opersona-bridge'), { recursive: true }); writeFileSync(STATE_PATH, JSON.stringify({ ident, sent } satisfies StateFile)); } catch { /* best effort */ }
 }
 
 interface Candidate { path: string; sessionId: string; project?: string; bytes: number }
@@ -75,10 +83,11 @@ function scanCodex(root: string): Candidate[] {
 
 export interface WatcherIO { sendIngest: (frame: { t: 'ingest'; id: string; sessionId: string; project?: string; source: 'bridge'; jsonl: string }) => boolean }
 
-export function startWatcher(io: WatcherIO, opts: { claudeDir?: string; codexDir?: string } = {}): { stop: () => void; tick: () => void } {
+export function startWatcher(io: WatcherIO, opts: { claudeDir?: string; codexDir?: string; ident?: string } = {}): { stop: () => void; tick: () => void } {
   const claudeRoot = opts.claudeDir ?? join(homedir(), '.claude', 'projects');
   const codexRoot = opts.codexDir ?? join(homedir(), '.codex', 'sessions');
-  const state = loadState();
+  const ident = opts.ident ?? 'default';
+  const state = loadState(ident);
   let hadWork = false;   // for the "backfill complete" line
   let totalSent = 0;
 
@@ -97,7 +106,7 @@ export function startWatcher(io: WatcherIO, opts: { claudeDir?: string; codexDir
       sentNow++;
       state[c.sessionId] = { bytes: c.bytes };
     }
-    saveState(state);
+    saveState(ident, state);
     if (sentNow > 0) {
       hadWork = true; totalSent += sentNow;
       const remaining = candidates.length - sentNow;

@@ -120,6 +120,10 @@ export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readO
         <p className="muted text-sm">
           Most real work happens in a coding agent. Your persona can learn from those sessions the same way it learns from chats — your prompts, your pushbacks, what you accept.
         </p>
+        <p className="text-sm">
+          <span className="chip border-green-400 text-green-700 dark:border-green-700 dark:text-green-400">automatic with the bridge</span>{' '}
+          <span className="muted">Running the opersona app (or <code>npx opersona</code>) on a machine already does all of this — every finished Claude Code / Codex session is picked up on its own, history included. The token hook and uploads below are for machines <em>without</em> the bridge.</span>
+        </p>
       </div>
       {msg && <p className={'text-sm ' + (msg.kind === 'ok' ? 'text-green-700 dark:text-green-400' : 'text-red-600')}>{msg.text}</p>}
 
