@@ -30,7 +30,7 @@ const server = serve({ fetch: app.fetch, port: config.port, hostname: process.en
 });
 
 // ── opersona bridge: authenticated WebSocket from user machines (Caddy proxies /bridge/ws) ──
-const wss = new WebSocketServer({ noServer: true, maxPayload: 8_000_000 });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 40_000_000 }); // transcripts up to ~30MB ride this socket
 (server as HttpServer).on('upgrade', (req, socket, head) => {
   const url = new URL(req.url ?? '/', 'http://engine');
   if (url.pathname !== '/bridge/ws') { socket.destroy(); return; }

@@ -14,8 +14,10 @@
 import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
-import { BRIDGE_PROTOCOL_VERSION, type EngineToBridge, type BridgeStart } from '@opersona/shared';
+import { BRIDGE_PROTOCOL_VERSION, type EngineToBridge, type BridgeStart, type BridgeJob } from '@opersona/shared';
 import { BridgeSession } from './session.js';
+import { runJob } from './jobs.js';
+import { startWatcher } from './watcher.js';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
 const VERSION = '0.1.0';
@@ -31,6 +33,9 @@ if (!TOKEN.startsWith('obr_')) {
   process.exit(1);
 }
 const WS_URL = URL_.replace(/^http/, 'ws') + '/bridge/ws';
+const WATCH = !process.argv.includes('--no-watch');
+const CLAUDE_DIR = arg('claude-dir');   // test override for ~/.claude/projects
+const CODEX_DIR = arg('codex-dir');
 
 const sessions = new Map<string, BridgeSession>();
 interface Pending { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }
@@ -39,6 +44,7 @@ const pending = new Map<string, Pending>();
 let ws: WebSocket | null = null;
 let backoffMs = 1000;
 let closingForGood = false;
+let watcher: { stop: () => void; tick: () => void } | null = null;
 
 function sendFrame(frame: unknown): void {
   if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(frame));
@@ -68,9 +74,18 @@ function startSession(startFrame: BridgeStart): void {
   void session.run().finally(() => console.log(`[bridge] session ${sid.slice(0, 8)} ended`));
 }
 
+function runJobFrame(job: BridgeJob): void {
+  void runJob(job).then((r) => sendFrame({ t: 'jobResult', id: job.id, ok: r.ok, output: r.output, text: r.text, error: r.error, usage: r.usage }));
+}
+
 function onFrame(frame: EngineToBridge): void {
   switch (frame.t) {
     case 'start': startSession(frame); break;
+    case 'job': runJobFrame(frame); break;
+    case 'ingestResult':
+      if (frame.status === 'done') console.log(`[watch] learned from session ${frame.id.slice(0, 8)}… (${frame.observations ?? 0} observations)`);
+      else if (frame.status !== 'skipped') console.log(`[watch] session ${frame.id.slice(0, 8)}…: ${frame.status}${frame.note ? ` — ${frame.note}` : ''}`);
+      break;
     case 'msg': sessions.get(frame.sid)?.push(frame.message as SDKUserMessage); break;
     case 'cancel': { const s = sessions.get(frame.sid); sessions.delete(frame.sid); s?.cancel(); break; }
     case 'toolResult': {
@@ -93,8 +108,12 @@ function connect(): void {
   ws = sock;
   sock.on('open', () => {
     backoffMs = 1000;
-    sendFrame({ t: 'hello', version: BRIDGE_PROTOCOL_VERSION, bridgeVersion: VERSION, host: hostname(), caps: { chat: true } });
+    sendFrame({ t: 'hello', version: BRIDGE_PROTOCOL_VERSION, bridgeVersion: VERSION, host: hostname(), caps: { chat: true, jobs: true, watch: WATCH } });
     console.log('[bridge] connected — chats on this account now run on THIS machine (your Claude subscription).');
+    if (WATCH && !watcher) {
+      watcher = startWatcher({ sendIngest: (f) => { if (ws?.readyState === WebSocket.OPEN) { ws.send(JSON.stringify(f)); return true; } return false; } }, { claudeDir: CLAUDE_DIR, codexDir: CODEX_DIR });
+      console.log('[watch] learning from this machine\'s Claude Code / Codex sessions (disable with --no-watch).');
+    }
   });
   sock.on('message', (raw) => {
     try { onFrame(JSON.parse(String(raw)) as EngineToBridge); } catch (e) { console.error('[bridge] bad frame', e); }

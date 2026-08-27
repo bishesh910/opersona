@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 
 export type IngestTokenRow = { id: string; name: string; createdAt: string; lastUsedAt: string | null };
 export type ClaudeCodeSessionRow = {
-  sessionId: string; source: 'local' | 'hook' | 'upload'; project: string | null; humanTurns: number; observations: number;
+  sessionId: string; source: 'local' | 'hook' | 'upload' | 'bridge' | 'claude-chat'; project: string | null; humanTurns: number; observations: number;
   status: 'queued' | 'done' | 'skipped' | 'failed'; note: string | null; createdAt: string;
 };
 type UploadResult = { name: string; status: 'done' | 'skipped' | 'failed'; observations?: number; note?: string };

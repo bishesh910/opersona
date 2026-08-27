@@ -32,7 +32,20 @@ export interface BridgeCancel { t: 'cancel'; sid: string }
 export interface BridgeToolResult { t: 'toolResult'; id: string; result?: unknown; error?: string }
 export interface BridgeApprovalResult { t: 'approvalResult'; id: string; behavior: 'allow' | 'deny'; message?: string; updatedInput?: unknown }
 export interface BridgePing { t: 'ping' }
-export type EngineToBridge = BridgeStart | BridgeUserMsg | BridgeCancel | BridgeToolResult | BridgeApprovalResult | BridgePing;
+/** One-shot inference job (learning/titling/condense) run on the user's subscription. */
+export interface BridgeJob {
+  t: 'job';
+  id: string;
+  kind: 'structured' | 'text';
+  model: string;
+  effort?: string;
+  system: string;
+  user: string;
+  /** JSON Schema (draft 2020-12, no $schema tag) for kind='structured'. */
+  schema?: Record<string, unknown>;
+}
+export interface BridgeIngestResult { t: 'ingestResult'; id: string; status: string; observations?: number; note?: string }
+export type EngineToBridge = BridgeStart | BridgeUserMsg | BridgeCancel | BridgeToolResult | BridgeApprovalResult | BridgePing | BridgeJob | BridgeIngestResult;
 
 // ── bridge → engine ─────────────────────────────────────────────────────────
 export const helloFrame = z.object({
@@ -48,5 +61,16 @@ export const endFrame = z.object({ t: z.literal('end'), sid: z.string(), error: 
 export const toolCallFrame = z.object({ t: z.literal('tool'), sid: z.string(), id: z.string(), name: z.string().max(80), args: z.unknown() });
 export const approvalFrame = z.object({ t: z.literal('approval'), sid: z.string(), id: z.string(), tool: z.string().max(80), input: z.unknown() });
 export const pongFrame = z.object({ t: z.literal('pong') });
-export const bridgeFrame = z.discriminatedUnion('t', [helloFrame, evFrame, endFrame, toolCallFrame, approvalFrame, pongFrame]);
+export const jobResultFrame = z.object({
+  t: z.literal('jobResult'), id: z.string(), ok: z.boolean(),
+  output: z.unknown().optional(), text: z.string().optional(), error: z.string().optional(),
+  usage: z.object({ input: z.number(), output: z.number(), cacheRead: z.number().optional() }).optional(),
+});
+/** A finished coding-session transcript from the watcher (Claude Code / Codex CLI). */
+export const ingestFrame = z.object({
+  t: z.literal('ingest'), id: z.string(),
+  sessionId: z.string().max(200), project: z.string().max(500).optional(),
+  source: z.literal('bridge'), jsonl: z.string().max(30_000_000),
+});
+export const bridgeFrame = z.discriminatedUnion('t', [helloFrame, evFrame, endFrame, toolCallFrame, approvalFrame, pongFrame, jobResultFrame, ingestFrame]);
 export type BridgeToEngine = z.infer<typeof bridgeFrame>;

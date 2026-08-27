@@ -137,6 +137,21 @@ routes.get('/clones/:id/prompt', async (c) => {
   return c.json(await activePrompt(orgId, clone.id));
 });
 
+/** claude.ai connector: learn from a conversation the user explicitly saved. */
+routes.post('/clones/:id/learn-transcript', async (c) => {
+  const body = await parse(c, z.object({
+    orgId: z.string(),
+    sessionId: z.string().min(8).max(200),
+    title: z.string().max(200).optional(),
+    turns: z.array(z.object({ role: z.enum(['human', 'assistant']), text: z.string().max(50_000) })).min(2).max(200),
+  }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { learnFromPlainTranscript } = await import('../learning/claudeCode.js');
+  const r = await learnFromPlainTranscript({ orgId: body.orgId, cloneId: clone.id, sessionId: body.sessionId, title: body.title, transcript: body.turns });
+  return c.json(r);
+});
+
 /** Owner-grade memory recall for the claude.ai MCP connector (server-to-server only). */
 routes.post('/clones/:id/recall', async (c) => {
   const body = await parse(c, z.object({ orgId: z.string(), query: z.string().min(1).max(500), k: z.number().int().min(1).max(20).optional() }));

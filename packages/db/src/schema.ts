@@ -507,7 +507,7 @@ export const claudeCodeSessions = pgTable('claude_code_sessions', {
   cloneId: uuid('clone_id').notNull(),
   sessionId: text('session_id').notNull(),
   orgId: text('org_id').notNull(),
-  source: text('source').$type<'local' | 'hook' | 'upload'>().notNull(),
+  source: text('source').$type<'local' | 'hook' | 'upload' | 'bridge' | 'claude-chat'>().notNull(),
   project: text('project'),
   bytes: integer('bytes').notNull().default(0),
   humanTurns: integer('human_turns').notNull().default(0),

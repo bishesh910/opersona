@@ -53,6 +53,7 @@ const SYSTEM = `You convert one selfie into parameters for a tiny 36x56-pixel ca
 type Extracted = z.infer<typeof Extraction>;
 
 export async function recipeFromSelfie(args: { orgId: string; apiKey: string; model: string; imageBase64: string; mime: string }): Promise<{ recipe: AvatarRecipe; confidence: Record<string, number> }> {
+  if (!args.apiKey) throw new Error('Selfie extraction needs an API key for now — or build your Pixie by hand (it takes a minute).');
   // Normalise: strip EXIF, cap at 512px, re-encode as JPEG — the model never sees the original bytes.
   const input = Buffer.from(args.imageBase64, 'base64');
   let jpeg: Buffer;

@@ -263,7 +263,10 @@ async function handle(req: NextRequest, { params }: Ctx): Promise<Response> {
   try {
     up = await fetch(upstream, { method: req.method, headers, body, signal: req.signal, cache: 'no-store', redirect: 'manual' });
   } catch (e) {
-    if (insertedTurnId) await db.delete(schema.turns).where(eq(schema.turns.id, insertedTurnId)).catch(() => {});
+    // A client abort (tab closed mid-send) is not an engine refusal: the engine has the
+    // request and will likely finish the turn — keep the user turn so history stays whole.
+    const aborted = e instanceof Error && e.name === 'AbortError';
+    if (insertedTurnId && !aborted) await db.delete(schema.turns).where(eq(schema.turns.id, insertedTurnId)).catch(() => {});
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: `engine unreachable: ${msg}` }, { status: 502 });
   }

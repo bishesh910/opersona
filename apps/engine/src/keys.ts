@@ -34,7 +34,24 @@ export async function orgModelConfig(orgId: string): Promise<OrgModelConfig> {
   }
   const usingPlatformKey = !apiKey && !!config.platformApiKey;
   if (usingPlatformKey) apiKey = config.platformApiKey;
-  if (!apiKey) throw new Error('no_api_key: connect your Claude in Settings — run the opersona bridge (your subscription) or add an API key');
+  if (!apiKey) {
+    // Bridge rail: the user's machine runs inference on their subscription.
+    // apiKey stays '' — llm.ts dispatches such calls as bridge jobs; no cloud
+    // budget applies (nothing is spent here).
+    const { bridgeFor } = await import('./bridge/hub.js');
+    if (bridgeFor(orgId)) {
+      const [r2] = await db.select().from(orgSettings).where(eq(orgSettings.orgId, orgId)).limit(1);
+      return {
+        apiKey: '',
+        chatModel: r2?.chatModel ?? 'claude-opus-5',
+        extractModel: r2?.extractModel ?? 'claude-sonnet-5',
+        condenseModel: r2?.condenseModel ?? 'claude-haiku-4-5',
+        chatEffort: r2?.chatEffort ?? 'high',
+        bossCloneId: r2?.bossCloneId ?? null,
+      };
+    }
+    throw new Error('no_api_key: connect your Claude in Settings — run the opersona bridge (your subscription) or add an API key');
+  }
 
   // Monthly spend cap: the workspace's own budget, or the platform default when
   // it is running on the operator's key (never applied to BYO keys unset).

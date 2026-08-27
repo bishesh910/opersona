@@ -150,9 +150,41 @@ export function tailTranscript(jsonl: string): string {
 
 export type IngestResult = { status: 'done' | 'skipped' | 'failed'; sessionId: string | null; observations: number; note: string };
 
+/** Learn from a PLAIN turn list (the claude.ai `learn_from_this_chat` connector tool):
+ *  same dedupe/extract/fingerprint/snapshot tail as coding-session ingest, but the
+ *  turns arrive already structured — no JSONL parsing. Idempotent per content hash. */
+export async function learnFromPlainTranscript(args: { orgId: string; cloneId: string; sessionId: string; title?: string; transcript: TranscriptTurn[] }): Promise<IngestResult> {
+  const sessionId = args.sessionId;
+  const [seen] = await db.select({ status: claudeCodeSessions.status }).from(claudeCodeSessions)
+    .where(and(eq(claudeCodeSessions.cloneId, args.cloneId), eq(claudeCodeSessions.sessionId, sessionId))).limit(1);
+  if (seen && seen.status !== 'failed') return { status: 'skipped', sessionId, observations: 0, note: 'this conversation was already learned' };
+
+  const humanTurns = args.transcript.filter((t) => t.role === 'human').length;
+  const humanChars = args.transcript.filter((t) => t.role === 'human').reduce((n, t) => n + t.text.length, 0);
+  const bytes = args.transcript.reduce((n, t) => n + t.text.length, 0);
+  const base = { orgId: args.orgId, cloneId: args.cloneId, sessionId, source: 'claude-chat' as const, project: args.title ?? 'claude.ai chat', bytes, humanTurns };
+  if (humanTurns < 2 || humanChars < 200) {
+    await db.insert(claudeCodeSessions).values({ ...base, status: 'skipped', note: 'too little human input to learn from', extractedAt: new Date() }).onConflictDoNothing();
+    return { status: 'skipped', sessionId, observations: 0, note: 'too little human input to learn from' };
+  }
+  await db.insert(claudeCodeSessions).values({ ...base, status: 'queued' }).onConflictDoUpdate({ target: [claudeCodeSessions.cloneId, claudeCodeSessions.sessionId], set: { status: 'queued', bytes, humanTurns } });
+  try {
+    const out = await extractFromTranscript({ orgId: args.orgId, cloneId: args.cloneId, transcript: args.transcript, sourceKind: 'import', sourceRef: `claude-chat:${sessionId}` });
+    await db.update(claudeCodeSessions).set({ status: 'done', observations: out.observations.length, note: out.note, extractedAt: new Date() })
+      .where(and(eq(claudeCodeSessions.cloneId, args.cloneId), eq(claudeCodeSessions.sessionId, sessionId)));
+    await recomputeFingerprint(args.orgId, args.cloneId);
+    await publishSnapshot(args.orgId, args.cloneId);
+    return { status: 'done', sessionId, observations: out.observations.length, note: out.note };
+  } catch (e) {
+    const note = e instanceof Error ? e.message : String(e);
+    await db.update(claudeCodeSessions).set({ status: 'failed', note }).where(and(eq(claudeCodeSessions.cloneId, args.cloneId), eq(claudeCodeSessions.sessionId, sessionId)));
+    return { status: 'failed', sessionId, observations: 0, note };
+  }
+}
+
 /** Learn from one coding-session transcript, Claude Code or Codex (idempotent per clone+session).
  *  Format is auto-detected per file unless passed explicitly. */
-export async function ingestClaudeCodeSession(args: { orgId: string; cloneId: string; jsonl: string; source: 'local' | 'hook' | 'upload'; sessionIdHint?: string; project?: string; format?: SessionFormat }): Promise<IngestResult> {
+export async function ingestClaudeCodeSession(args: { orgId: string; cloneId: string; jsonl: string; source: 'local' | 'hook' | 'upload' | 'bridge' | 'claude-chat'; sessionIdHint?: string; project?: string; format?: SessionFormat }): Promise<IngestResult> {
   const format = args.format ?? detectSessionFormat(args.jsonl);
   const sourcePrefix = format === 'codex' ? 'codex' : 'claude-code';
   const capped = tailTranscript(args.jsonl);

@@ -58,6 +58,7 @@ export async function askColleagueOnce(args: {
   });
 
   const cfg = await orgModelConfig(args.orgId);
+  if (!cfg.apiKey) throw new Error('Consulting another persona needs an API key for now (bridge support for consults is coming) — Settings → Claude access.');
   const ws = ensureWorkspace(args.orgId, target.id);
   const workdir = conversationWorkdir(args.orgId, target.id, conv!.id);
   const { prompt, promptHash } = await activePrompt(args.orgId, target.id, target.kind === 'hired' ? 'hired' : visitor ? 'visitor' : 'owner');

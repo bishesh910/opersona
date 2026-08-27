@@ -5,6 +5,7 @@
  * subscription. Every tool resolves the user's personal workspace first and
  * never reaches outside it.
  */
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { db, schema, authSchema } from '@opersona/db';
@@ -97,6 +98,32 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
         confidence: 0.7, evidence: [], lastReinforcedAt: new Date(),
       });
       return text(`Saved as a candidate memory. ${clone.name} reviews it at opersona.me → persona → Mind.`);
+    },
+  );
+
+  server.tool(
+    'learn_from_this_chat',
+    "Teach the user's persona from THIS conversation. Call only when the user explicitly asks to save/remember/learn from the chat. Pass the conversation so far as ordered turns (their words verbatim where possible — the persona learns from HOW they think, so their phrasing matters more than yours). The persona's memory updates within a minute; duplicates are ignored.",
+    {
+      title: z.string().max(200).optional().describe('short name for this conversation'),
+      turns: z.array(z.object({ role: z.enum(['human', 'assistant']), text: z.string().max(50_000) })).min(2).max(200)
+        .describe("the conversation so far, in order; 'human' = the user"),
+    },
+    async ({ title, turns }) => {
+      const me = await resolveWorkspace(userId);
+      if (!me) return errText('Account not found.');
+      const clone = await myPersona(me);
+      if (!clone) return errText(NO_PERSONA);
+      const sessionId = 'cc-' + createHash('sha256').update(turns.map((t) => t.role + ':' + t.text).join('\n')).digest('hex').slice(0, 40);
+      try {
+        const r = await engineFetch<{ status: string; observations: number; note: string }>(
+          `/clones/${clone.id}/learn-transcript`, { body: { orgId: me.orgId, sessionId, title, turns } });
+        if (r.status === 'done') return text(`Learned from this conversation — ${r.observations} new observation${r.observations === 1 ? '' : 's'} about how ${clone.name} thinks. Review them at opersona.me → persona → Thinking.`);
+        if (r.status === 'skipped') return text(`Nothing new to learn: ${r.note}.`);
+        return errText(`Could not learn from this chat: ${r.note}`);
+      } catch (e) {
+        return errText(`Learning is unreachable right now (${e instanceof Error ? e.message : 'engine error'}).`);
+      }
     },
   );
 

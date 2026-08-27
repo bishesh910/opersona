@@ -14,6 +14,10 @@ import { bridgeFrame, type BridgeToEngine, type EngineToBridge, type SDKishMessa
 import { executePersonaTool, type ToolContext } from '../persona/mcp.js';
 import { requestApproval } from '../sessions/approvals.js';
 
+export interface BridgeJobResult { ok: boolean; output?: unknown; text?: string; error?: string; usage?: { input: number; output: number; cacheRead?: number } }
+interface PendingJob { resolve: (r: BridgeJobResult) => void; timer: NodeJS.Timeout }
+const pendingJobs = new Map<string, PendingJob>();
+
 interface BridgeSessionSink {
   ctx: ToolContext;
   onMessage: (m: SDKishMessage) => void;
@@ -109,6 +113,27 @@ async function handleFrame(conn: BridgeConn, raw: Buffer): Promise<void> {
       }
       break;
     }
+    case 'jobResult': {
+      const p = pendingJobs.get(frame.id);
+      if (p) { pendingJobs.delete(frame.id); clearTimeout(p.timer); p.resolve({ ok: frame.ok, output: frame.output, text: frame.text, error: frame.error, usage: frame.usage }); }
+      break;
+    }
+    case 'ingest': {
+      // A finished coding session from the watcher: learn it into this user's own persona.
+      try {
+        const { clones } = await import('@opersona/db');
+        const { isNull: isNull2 } = await import('drizzle-orm');
+        const [clone] = await db.select({ id: clones.id }).from(clones)
+          .where(and(eq(clones.orgId, conn.orgId), eq(clones.ownerUserId, conn.userId), eq(clones.kind, 'member'), isNull2(clones.archivedAt))).limit(1);
+        if (!clone) { send(conn, { t: 'ingestResult', id: frame.id, status: 'failed', note: 'no persona yet — finish onboarding first' }); return; }
+        const { ingestClaudeCodeSession } = await import('../learning/claudeCode.js');
+        const r = await ingestClaudeCodeSession({ orgId: conn.orgId, cloneId: clone.id, jsonl: frame.jsonl, source: 'bridge', sessionIdHint: frame.sessionId, project: frame.project });
+        send(conn, { t: 'ingestResult', id: frame.id, status: r.status, observations: r.observations, note: r.note });
+      } catch (e) {
+        send(conn, { t: 'ingestResult', id: frame.id, status: 'failed', note: e instanceof Error ? e.message : String(e) });
+      }
+      break;
+    }
     case 'approval': {
       const sink = conn.sessions.get(frame.sid);
       if (!sink) { send(conn, { t: 'approvalResult', id: frame.id, behavior: 'deny', message: 'unknown session' }); return; }
@@ -178,6 +203,16 @@ export function openBridgeSession(conn: BridgeConn, params: {
     push: (m) => send(conn, { t: 'msg', sid, message: m }),
     interrupt: () => { send(conn, { t: 'cancel', sid }); conn.sessions.delete(sid); sink.onEnd(); },
   };
+}
+
+/** Run one inference job on the user's bridge (their subscription). 10-minute ceiling. */
+export function runBridgeJob(conn: BridgeConn, job: { kind: 'structured' | 'text'; model: string; effort?: string; system: string; user: string; schema?: Record<string, unknown> }): Promise<BridgeJobResult> {
+  const id = randomUUID();
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { pendingJobs.delete(id); resolve({ ok: false, error: 'bridge job timed out' }); }, 10 * 60_000);
+    pendingJobs.set(id, { resolve, timer });
+    send(conn, { t: 'job', id, ...job });
+  });
 }
 
 /** Heartbeat: ping every 30s; a socket that misses two beats is closed. */
