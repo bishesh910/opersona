@@ -34,6 +34,19 @@ struct UiItems {
 
 /// Set once an update is downloaded+installed; the "update" menu click then restarts.
 static UPDATE_READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Latest fetched pixie head (raw PNG) and what's currently painted on the tray
+/// (connected flag + avatar fingerprint) so we only repaint on real changes.
+static AVATAR_PNG: Mutex<Option<Vec<u8>>> = Mutex::new(None);
+static PAINTED: Mutex<(bool, u64)> = Mutex::new((false, 0));
+
+fn fnv1a(data: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in data {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}
 /// Lets our ExitRequested guard wave a deliberate restart through.
 static RESTARTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -193,6 +206,7 @@ fn set_status(app: &AppHandle, text: String, learned: String, toggle: String) {
 }
 
 fn refresh_menu(app: &AppHandle) {
+    apply_tray_icon(app);
     let state = app.state::<AppState>();
     let (running, connected, learned, note) = {
         let d = state.daemon.lock().unwrap();
@@ -516,6 +530,54 @@ fn open_site() {
     let _ = open::that(format!("{SITE}/settings"));
 }
 
+/// Paint the tray icon: the pixie head with a small status dot — green when the
+/// bridge is connected, grey otherwise (mirrors the web header's presence dot).
+/// Cheap no-op unless (connected, avatar) actually changed.
+fn apply_tray_icon(app: &AppHandle) {
+    let connected = {
+        let state = app.state::<AppState>();
+        let d = state.daemon.lock().unwrap();
+        d.connected && d.want_running
+    };
+    let png = match AVATAR_PNG.lock().unwrap().clone() { Some(p) => p, None => return };
+    let sig = fnv1a(&png);
+    {
+        let mut painted = PAINTED.lock().unwrap();
+        if *painted == (connected, sig) {
+            return;
+        }
+        *painted = (connected, sig);
+    }
+    let app2 = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        let Ok(img) = tauri::image::Image::from_bytes(&png) else { return };
+        let (w, h) = (img.width() as i32, img.height() as i32);
+        let mut rgba = img.rgba().to_vec();
+        let (cr, cg, cb) = if connected { (34u8, 197u8, 94u8) } else { (156u8, 163u8, 175u8) };
+        let r = (h as f32) * 0.13;
+        let (cx, cy) = (w as f32 - r - 3.0, h as f32 - r - 3.0);
+        for y in 0..h {
+            for x in 0..w {
+                let dist = (((x as f32 - cx).powi(2) + (y as f32 - cy).powi(2)) as f32).sqrt();
+                if dist <= r + 1.5 {
+                    let i = ((y * w + x) * 4) as usize;
+                    // soft edge: full inside, fades over the last 1.5px
+                    let a = if dist <= r { 1.0 } else { 1.0 - (dist - r) / 1.5 };
+                    let blend = |dst: u8, src: u8| -> u8 { (dst as f32 * (1.0 - a) + src as f32 * a) as u8 };
+                    rgba[i] = blend(rgba[i], cr);
+                    rgba[i + 1] = blend(rgba[i + 1], cg);
+                    rgba[i + 2] = blend(rgba[i + 2], cb);
+                    rgba[i + 3] = blend(rgba[i + 3], 255);
+                }
+            }
+        }
+        if let Some(tray) = app2.tray_by_id("main") {
+            let _ = tray.set_icon_as_template(false);
+            let _ = tray.set_icon(Some(tauri::image::Image::new_owned(rgba, w as u32, h as u32)));
+        }
+    });
+}
+
 /// Auto-update: check the manifest, download + install silently, then offer a
 /// one-click restart from the menu (the new version also just takes effect on
 /// the next natural launch). Runs at startup and every 6 hours.
@@ -571,19 +633,9 @@ fn refresh_tray_icon(app: &AppHandle) {
                     tlog("pixie icon: empty response");
                     return;
                 }
-                let app2 = app.clone();
-                let _ = app.run_on_main_thread(move || {
-                    if let Some(tray) = app2.tray_by_id("main") {
-                        match tauri::image::Image::from_bytes(&buf) {
-                            Ok(img) => {
-                                let _ = tray.set_icon_as_template(false);
-                                let _ = tray.set_icon(Some(img));
-                                tlog("tray icon: wearing your pixie");
-                            }
-                            Err(e) => tlog(&format!("pixie icon decode failed: {e}")),
-                        }
-                    }
-                });
+                *AVATAR_PNG.lock().unwrap() = Some(buf);
+                tlog("tray icon: wearing your pixie");
+                apply_tray_icon(&app);
             }
             Err(e) => tlog(&format!("pixie icon fetch failed (keeping default): {e}")),
         }
@@ -672,7 +724,14 @@ fn main() {
             let icon = app.default_window_icon().cloned();
             let mut tray = TrayIconBuilder::with_id("main")
                 .menu(&menu)
-                .show_menu_on_left_click(true)
+                .show_menu_on_left_click(false) // left = open the site; right = this menu
+                .on_tray_icon_event(|tray, event| {
+                    use tauri::tray::{MouseButton, MouseButtonState, TrayIconEvent};
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        let _ = tray.app_handle();
+                        let _ = open::that(SITE);
+                    }
+                })
                 .tooltip("opersona");
             if let Some(ic) = icon {
                 tray = tray.icon(ic);
