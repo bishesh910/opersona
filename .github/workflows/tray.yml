@@ -1,0 +1,33 @@
+name: tray
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['apps/tray/**', '.github/workflows/tray.yml']
+
+jobs:
+  build-macos:
+    runs-on: [self-hosted, macOS, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Rust toolchain
+        run: |
+          if ! command -v "$HOME/.cargo/bin/cargo" >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          fi
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Generate icons
+        working-directory: apps/tray
+        run: npx --yes @tauri-apps/cli@^2 icon icon-src.png -o src-tauri/icons
+      - name: Build app + dmg
+        working-directory: apps/tray
+        run: npx --yes @tauri-apps/cli@^2 build
+      - name: Upload dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: opersona-tray-macos
+          path: apps/tray/src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error

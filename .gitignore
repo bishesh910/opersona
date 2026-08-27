@@ -10,3 +10,6 @@ data/
 .DS_Store
 coverage/
 e2e/.scratch/
+apps/tray/src-tauri/target/
+apps/tray/src-tauri/icons/
+apps/tray/src-tauri/gen/
