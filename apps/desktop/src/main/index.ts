@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { AgentSession } from './agent.js';
 import { fetchPersona, siteUrl, fetchPixiePng } from './persona.js';
 import { ensureClaudeTrust } from './claudeConfig.js';
+import { startUpdateChecks } from './updater.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
@@ -30,6 +31,7 @@ function createWindow(): void {
     },
   });
   win.once('ready-to-show', () => { win?.show(); void applyPixieIcon(); });
+  startUpdateChecks((info) => win?.webContents.send('update:available', info));
   win.webContents.setWindowOpenHandler(({ url }) => { void shell.openExternal(url); return { action: 'deny' }; });
   if (isDev) void win.loadURL(process.env.ELECTRON_RENDERER_URL!);
   else void win.loadFile(join(__dirname, '../renderer/index.html'));
@@ -50,6 +52,7 @@ async function applyPixieIcon(): Promise<void> {
 ipcMain.handle('persona:get', () => fetchPersona());
 ipcMain.handle('site:url', () => siteUrl());
 ipcMain.handle('site:open', (_e, path: string) => shell.openExternal(siteUrl() + (typeof path === 'string' ? path : '')));
+ipcMain.handle('update:download', () => shell.openExternal(siteUrl() + '/download'));
 ipcMain.handle('pixie:get', async () => { const p = await fetchPixiePng(); return p ? `data:image/png;base64,${p.toString('base64')}` : null; });
 ipcMain.handle('dialog:chooseFolder', async () => {
   const r = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });

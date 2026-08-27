@@ -30,6 +30,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [update, setUpdate] = useState<string | null>(null);
 
   const loadPersona = useCallback(async () => {
     setLoadErr(null);
@@ -40,6 +41,7 @@ export default function App() {
   useEffect(() => { void loadPersona(); }, [loadPersona]);
   useEffect(() => { void window.opersona.getPixie().then(setPixie).catch(() => {}); }, []);
   useEffect(() => { window.opersona.setAcceptEdits(acceptEdits); }, [acceptEdits]);
+  useEffect(() => window.opersona.onUpdate((i) => setUpdate(i.version)), []);
 
   // agent event stream → messages
   useEffect(() => {
@@ -133,6 +135,13 @@ export default function App() {
       {/* ── main ── */}
       <main style={S.main}>
         <div style={S.drag} />
+        {update && (
+          <div style={S.updateBar}>
+            <span>opersona {update} is available.</span>
+            <button style={S.updateBtn} onClick={() => window.opersona.downloadUpdate()}>Download ↗</button>
+            <button style={S.updateX} onClick={() => setUpdate(null)}>✕</button>
+          </div>
+        )}
         <div ref={scrollRef} style={S.stream}>
           {msgs.length === 0 ? (
             <div style={S.home}>
@@ -263,4 +272,7 @@ const S: Record<string, React.CSSProperties> = {
   primary: { background: AMBER, color: '#1a1206', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' },
   ghost: { background: 'transparent', color: '#b8b8c0', border: '1px solid #2a2a34', borderRadius: 8, padding: '7px 12px', fontSize: 13, cursor: 'pointer' },
   code: { fontFamily: 'ui-monospace, monospace', fontSize: 12, background: '#15151c', borderRadius: 5, padding: '1px 6px' },
+  updateBar: { position: 'absolute', top: 34, left: '50%', transform: 'translateX(-50%)', zIndex: 5, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)', color: '#f3e6c8', borderRadius: 10, padding: '6px 8px 6px 14px', fontSize: 12, backdropFilter: 'blur(6px)' },
+  updateBtn: { background: AMBER, color: '#1a1206', border: 'none', borderRadius: 7, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
+  updateX: { background: 'none', border: 'none', color: '#8a8a95', cursor: 'pointer', fontSize: 12 },
 };

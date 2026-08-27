@@ -1,6 +1,6 @@
 {
   "name": "@opersona/desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "opersona \u2014 Claude Code that thinks like you. A macOS app that runs the real claude CLI locally with your persona as its system prompt.",
   "private": true,
   "type": "module",

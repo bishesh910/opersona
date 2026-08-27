@@ -10,6 +10,12 @@ const api = {
   siteUrl: (): Promise<string> => ipcRenderer.invoke('site:url'),
   getPixie: (): Promise<string | null> => ipcRenderer.invoke('pixie:get'),
   openSite: (path = ''): Promise<void> => ipcRenderer.invoke('site:open', path),
+  downloadUpdate: (): Promise<void> => ipcRenderer.invoke('update:download'),
+  onUpdate: (cb: (info: { version: string }) => void): (() => void) => {
+    const h = (_e: unknown, info: { version: string }): void => cb(info);
+    ipcRenderer.on('update:available', h);
+    return () => ipcRenderer.removeListener('update:available', h);
+  },
   chooseFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:chooseFolder'),
 
   startSession: (opts: { cwd: string; prompt: string; model?: string }): Promise<StartResult> => ipcRenderer.invoke('agent:start', opts),
