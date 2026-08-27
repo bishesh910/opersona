@@ -158,6 +158,16 @@ export async function sendMessage(args: { conversationId: string; orgId: string;
   await db.update(conversations).set({ status: 'live', lastActivityAt: new Date() }).where(eq(conversations.id, args.conversationId));
 }
 
+/** Boot the session before the first message: the bridge spawns Claude Code on the
+ *  user's machine and loads the persona while they are still typing. Costs nothing —
+ *  no API call happens until a user turn arrives. No-op when already live. */
+export async function prewarm(args: { conversationId: string; orgId: string; userId: string; cloneId: string }): Promise<boolean> {
+  let s = live.get(args.conversationId);
+  if (!s) s = await start(args);
+  touch(s);
+  return true;
+}
+
 export async function endSession(conversationId: string): Promise<void> {
   const s = live.get(conversationId);
   if (!s) return;

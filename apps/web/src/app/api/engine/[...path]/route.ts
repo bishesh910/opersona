@@ -79,6 +79,11 @@ async function authorize(ctx: OrgCtx, method: string, path: string[]): Promise<A
     const contentOk = mine || !!access?.isOwner;
     if (leaf === 'events' && method === 'GET') return contentOk ? { ok: true, cloneId: conv.cloneId, conversationId: conv.id } : deny(403, 'private conversation');
     if (leaf === 'files' && method === 'GET') return contentOk ? { ok: true, cloneId: conv.cloneId, conversationId: conv.id } : deny(403, 'private conversation');
+    // Prewarm: boot the session early (no content, no stored turn). Creator only.
+    if (leaf === 'prewarm' && method === 'POST') {
+      if (!mine) return deny(403, 'not your conversation');
+      return { ok: true, cloneId: conv.cloneId, conversationId: conv.id };
+    }
     if ((leaf === 'messages' || leaf === 'end') && method === 'POST') {
       // Only the conversation's creator writes into it: the owner in their own chats, a visitor
       // in theirs. The owner reviews visitor conversations read-only; org admins stay read-only.

@@ -268,6 +268,9 @@ export function ChatView({
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [replying, setReplying] = useState(initialLive);
+  /** Session actually booted (prewarm confirmed or any engine event arrived) — decides
+   *  whether the pre-stream indicator honestly says "waking up" or "thinking". */
+  const [sessionUp, setSessionUp] = useState(initialLive);
   const [connected, setConnected] = useState<'connecting' | 'open' | 'closed'>('connecting');
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -288,8 +291,21 @@ export function ChatView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Prewarm: boot the session (bridge spawn + persona load) while the person is
+  // still typing, so the first send answers instead of booting.
+  useEffect(() => {
+    if (readOnly) return;
+    let alive = true;
+    void fetch(`/api/engine/conversations/${conversationId}/prewarm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cloneId }) })
+      .then(async (r) => { if (alive && r.ok && ((await r.json()) as { warmed?: boolean }).warmed) setSessionUp(true); })
+      .catch(() => { /* cold start on send, no harm */ });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
   const apply = useCallback((ev: EngineEvent) => {
     sawEventRef.current = true;
+    setSessionUp(true);
     if (ev.type === 'result' || ev.type === 'error') setReplying(false);
     setItems((prev) => {
       const next = [...prev];
@@ -692,7 +708,9 @@ export function ChatView({
             </div>
           )}
           {replying && !items.some((i) => i.kind === 'assistant' && i.streaming) && (
-            <div className="mt-1 text-[11px] italic text-neutral-400 dark:text-neutral-500" data-thinking>Thinking…</div>
+            <div className="mt-1 text-[11px] italic text-neutral-400 dark:text-neutral-500" data-thinking>
+              {sessionUp ? 'Thinking…' : mode === 'clone' ? 'Waking your persona…' : 'Warming up…'}
+            </div>
           )}
           <div ref={bottomRef} />
         </div>

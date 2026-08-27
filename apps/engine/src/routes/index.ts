@@ -66,6 +66,22 @@ routes.get('/bridge/status', async (c) => {
 });
 
 // ─── chat ───────────────────────────────────────────────────────────────────
+/** Fire-and-forget session prewarm from the chat page. Always 200 — a cold rail
+ *  (bridge offline / no key) just means the first send pays the boot instead. */
+routes.post('/conversations/:id/prewarm', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), cloneId: z.string().uuid() }));
+  const id = c.req.param('id');
+  const [conv] = await db.select().from(conversations).where(and(eq(conversations.id, id), eq(conversations.orgId, body.orgId), eq(conversations.cloneId, body.cloneId))).limit(1);
+  if (!conv) return c.json({ error: 'conversation not found' }, 404);
+  const { prewarm } = await import('../sessions/manager.js');
+  try {
+    await prewarm({ conversationId: id, ...body });
+    return c.json({ warmed: true });
+  } catch (e) {
+    return c.json({ warmed: false, note: e instanceof Error ? e.message.slice(0, 200) : 'cold' });
+  }
+});
+
 routes.post('/conversations/:id/messages', async (c) => {
   const body = await parse(c, z.object({
     orgId: z.string(), userId: z.string(), cloneId: z.string().uuid(), text: z.string().max(50_000),
