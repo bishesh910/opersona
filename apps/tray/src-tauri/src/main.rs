@@ -404,6 +404,7 @@ fn apply_token(app: &AppHandle, token: &str) -> Result<(), String> {
         let _ = w.hide();
     }
     start_daemon(app);
+    refresh_tray_icon(app);
     Ok(())
 }
 
@@ -476,6 +477,46 @@ fn handle_deep_link(app: &AppHandle, url: &str) {
 #[tauri::command]
 fn open_site() {
     let _ = open::that(format!("{SITE}/settings"));
+}
+
+/// Wear the user's pixie as the tray icon — the same head crop the web app
+/// uses for its favicon and sidebar. Fetched with this machine's own bridge
+/// token; falls back to the bundled icon when unpaired or offline.
+fn refresh_tray_icon(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let cfg = read_config();
+        let Some(token) = cfg["token"].as_str().map(String::from) else { return };
+        let url = format!("{SITE}/bridge/avatar?s=4");
+        match ureq::get(&url)
+            .set("Authorization", &format!("Bearer {token}"))
+            .timeout(std::time::Duration::from_secs(15))
+            .call()
+        {
+            Ok(resp) => {
+                use std::io::Read;
+                let mut buf = Vec::new();
+                if resp.into_reader().take(1_000_000).read_to_end(&mut buf).is_err() || buf.is_empty() {
+                    tlog("pixie icon: empty response");
+                    return;
+                }
+                let app2 = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    if let Some(tray) = app2.tray_by_id("main") {
+                        match tauri::image::Image::from_bytes(&buf) {
+                            Ok(img) => {
+                                let _ = tray.set_icon_as_template(false);
+                                let _ = tray.set_icon(Some(img));
+                                tlog("tray icon: wearing your pixie");
+                            }
+                            Err(e) => tlog(&format!("pixie icon decode failed: {e}")),
+                        }
+                    }
+                });
+            }
+            Err(e) => tlog(&format!("pixie icon fetch failed (keeping default): {e}")),
+        }
+    });
 }
 
 fn main() {
@@ -598,6 +639,14 @@ fn main() {
                 let _ = w.show();
             }
             refresh_menu(app.handle());
+            {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || loop {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    refresh_tray_icon(&handle);
+                    std::thread::sleep(std::time::Duration::from_secs(6 * 60 * 60));
+                });
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

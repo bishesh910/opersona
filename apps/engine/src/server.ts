@@ -8,12 +8,14 @@ import { ZodError } from 'zod';
 import { config } from './config.js';
 import { internalAuth } from './auth.js';
 import { routes } from './routes/index.js';
+import { bridgePublic } from './routes/bridgePublic.js';
 import { ingest } from './routes/ingest.js';
 import { shutdown, liveCount } from './sessions/manager.js';
 import { resumePending } from './learning/queue.js';
 
 const app = new Hono();
 app.route('/ingest', ingest);   // token-authenticated, no internal token
+app.route('/bridge', bridgePublic); // obr_-token-authenticated (tray avatar), no internal token
 app.use('*', internalAuth);
 app.route('/', routes);
 app.onError((err, c) => {

@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { eq, asc } from 'drizzle-orm';
 import { db, authSchema } from '@opersona/db';
-import { auth, REQUIRE_2FA } from './auth';
+import { auth, REQUIRE_2FA, isPlatformAdmin } from './auth';
 import { ensurePersonalWorkspace } from './workspace';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
@@ -14,6 +14,8 @@ export interface SessionCtx {
   user: { id: string; name: string; email: string };
   activeOrganizationId: string | null;
   twoFactorEnabled: boolean;
+  /** Admission control: platform admin approved this account (admins are always approved). */
+  approved: boolean;
 }
 
 export interface OrgCtx extends SessionCtx {
@@ -32,6 +34,7 @@ export async function getSessionCtx(): Promise<SessionCtx | null> {
     user: { id: s.user.id, name: s.user.name, email: s.user.email },
     activeOrganizationId: active,
     twoFactorEnabled: (s.user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled === true,
+    approved: !!(s.user as { approvedAt?: Date | string | null }).approvedAt || isPlatformAdmin(s.user.email),
   };
 }
 
@@ -41,10 +44,11 @@ export async function require2FA(s: SessionCtx): Promise<void> {
   if (REQUIRE_2FA && !s.twoFactorEnabled) redirect('/setup-2fa');
 }
 
-/** Redirects to /sign-in when unauthenticated. */
+/** Redirects to /sign-in when unauthenticated, /pending until a platform admin approves. */
 export async function requireSession(): Promise<SessionCtx> {
   const s = await getSessionCtx();
   if (!s) redirect('/sign-in');
+  if (!s.approved) redirect('/pending');
   return s;
 }
 

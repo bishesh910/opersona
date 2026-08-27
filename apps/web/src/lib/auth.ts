@@ -59,6 +59,8 @@ export const auth = betterAuth({
   trustedOrigins: trusted,
   secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, { provider: 'pg', schema: authSchema }),
+  // approvedAt rides the session user object so the admission gate needs no extra query.
+  user: { additionalFields: { approvedAt: { type: 'date', required: false, input: false } } },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 10,
@@ -102,6 +104,15 @@ export const auth = betterAuth({
         // covers email signup AND social providers. Never fails the signup: getOrgCtx()
         // self-heals any account this hook missed.
         after: async (user) => {
+          // Admission: platform admins and invited members (pre-vetted by the inviter)
+          // are approved instantly; open-signup strangers wait for a platform admin.
+          try {
+            if (isPlatformAdmin(user.email) || !SIGNUP_OPEN) {
+              await db.update(authSchema.user).set({ approvedAt: new Date() }).where(eq(authSchema.user.id, user.id));
+            }
+          } catch (e) {
+            console.error('[auth] auto-approve failed (fix at /admin/approvals)', e);
+          }
           try {
             const { ensurePersonalWorkspace } = await import('./workspace');
             await ensurePersonalWorkspace(user);

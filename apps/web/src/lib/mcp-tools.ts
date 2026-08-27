@@ -17,6 +17,9 @@ import { getPublishedBySlug, canViewPublished, isSlug } from '@/lib/community';
 interface Me { userId: string; orgId: string }
 
 async function resolveWorkspace(userId: string): Promise<Me | null> {
+  // Admission control: tools stay closed until a platform admin approves the account.
+  const [u0] = await db.select({ approvedAt: authSchema.user.approvedAt }).from(authSchema.user).where(eq(authSchema.user.id, userId)).limit(1);
+  if (!u0?.approvedAt) return null;
   const rows = await db.select({ orgId: authSchema.member.organizationId }).from(authSchema.member)
     .where(eq(authSchema.member.userId, userId)).orderBy(asc(authSchema.member.createdAt)).limit(1);
   if (rows[0]) return { userId, orgId: rows[0].orgId };

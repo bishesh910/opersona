@@ -176,6 +176,7 @@ async function handle(req: NextRequest, { params }: Ctx): Promise<Response> {
   const { path } = await params;
   const s = await getSessionCtx();
   if (!s) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  if (!s.approved) return NextResponse.json({ error: 'account pending approval' }, { status: 403 });
   const ctx = await getOrgCtx(s);
   if (!ctx) return NextResponse.json({ error: 'no organization' }, { status: 403 });
 

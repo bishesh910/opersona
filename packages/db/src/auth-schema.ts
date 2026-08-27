@@ -23,6 +23,8 @@ export const user = pgTable("user", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   twoFactorEnabled: boolean("two_factor_enabled"),
+  // Admission control (0019): null = waiting for a platform admin to let them in.
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
 });
 
 // better-auth twoFactor plugin store (additive — TOTP secret + backup codes per user).
