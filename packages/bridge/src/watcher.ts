@@ -17,6 +17,17 @@ const IDLE_MS = 10 * 60_000;          // a session is "finished" after 10 quiet 
 const SCAN_EVERY_MS = 5 * 60_000;
 const MAX_BYTES = 30_000_000;
 const STATE_PATH = join(homedir(), '.opersona-bridge', 'watcher-state.json');
+const OWN_SESSIONS_PATH = join(homedir(), '.opersona-bridge', 'own-sessions.json');
+
+/** Session ids spawned BY the bridge's own chat sessions (incl. power sessions that
+ *  run in the user's real repo dir, so directory-name exclusion can't catch them).
+ *  Uploading these would leak sealed chat transcripts as plaintext ingest. */
+function ownSessionIds(): Set<string> {
+  try {
+    const raw = JSON.parse(readFileSync(OWN_SESSIONS_PATH, 'utf8')) as Record<string, number>;
+    return new Set(Object.keys(raw));
+  } catch { return new Set(); }
+}
 
 /** Sessions produced by the bridge itself, or by opersona's server — never the human. */
 const SELF_RE = /-opersona-bridge-|clones-[0-9a-f-]{36}-workspace|opersona-apps-engine-data/;
@@ -102,7 +113,9 @@ export function startWatcher(io: WatcherIO, opts: { claudeDir?: string; codexDir
   let firstTick = true;
   const tick = (): void => {
     const stats: ScanStats = { projects: 0, files: 0, recent: 0, small: 0, big: 0, self: 0, eligible: 0, dirMissing: false };
+    const own = ownSessionIds();
     const candidates = [...scanClaudeCode(claudeRoot, stats), ...(existsSync(codexRoot) ? scanCodex(codexRoot, stats) : [])]
+      .filter((c) => { if (own.has(c.sessionId)) { stats.self++; return false; } return true; })   // never upload our own chat transcripts
       // a session is re-sent only when it has grown noticeably since last send
       .filter((c) => { const seen = state[c.sessionId]; return !seen || (c.bytes > seen.bytes * 1.15 && c.bytes - seen.bytes > 100_000); })
       .sort((a, b) => b.bytes - a.bytes);

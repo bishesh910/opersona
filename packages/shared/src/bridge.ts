@@ -12,7 +12,7 @@
  */
 import { z } from 'zod';
 
-export const BRIDGE_PROTOCOL_VERSION = 1;
+export const BRIDGE_PROTOCOL_VERSION = 2;
 
 // ── engine → bridge ─────────────────────────────────────────────────────────
 export interface BridgeStart {
@@ -24,8 +24,14 @@ export interface BridgeStart {
   effort?: string;
   resume?: string;                   // sdk session id to resume
   tools: string[];                   // persona tool names to expose (already audience/boss-filtered)
-  builtinTools: string[];            // SDK built-ins the bridge may offer (read-only set in v1)
+  builtinTools: string[];            // SDK built-ins the bridge may offer
   maxTurns: number;
+  /** REQUEST for a workspace-scoped power session. The bridge is the sole authority:
+   *  it re-reads its LOCAL grants and only honors this if `cwd` is inside a granted
+   *  folder; otherwise it fails closed to a read-only sandbox session. The server can
+   *  never grant power — only ask for it. */
+  cwd?: string;
+  power?: boolean;
 }
 export interface BridgeUserMsg { t: 'msg'; sid: string; message: unknown }   // SDKUserMessage passthrough
 export interface BridgeCancel { t: 'cancel'; sid: string }
@@ -61,12 +67,25 @@ export const helloFrame = z.object({
   host: z.string().max(120),
   claude: z.string().max(60).optional(),   // claude code version if detectable
   caps: z.object({ chat: z.boolean() }).loose(),
+  /** Folders the user granted LOCALLY (absolute paths + bash policy). Advertised so
+   *  the web can offer a picker; the paths are metadata the server sees (documented).
+   *  Presence of caps.workspaces gates power — old bridges omit it and stay read-only. */
+  workspaces: z.array(z.object({ path: z.string().max(1024), label: z.string().max(120), bash: z.enum(['ask']) })).max(50).optional(),
 });
 export const evFrame = z.object({ t: z.literal('ev'), sid: z.string(), message: z.unknown() });         // one SDKMessage
 export const endFrame = z.object({ t: z.literal('end'), sid: z.string(), error: z.string().optional() }); // stream closed
 export const toolCallFrame = z.object({ t: z.literal('tool'), sid: z.string(), id: z.string(), name: z.string().max(80), args: z.unknown() });
 export const approvalFrame = z.object({ t: z.literal('approval'), sid: z.string(), id: z.string(), tool: z.string().max(80), input: z.unknown() });
 export const pongFrame = z.object({ t: z.literal('pong') });
+/** Bridge → engine acknowledgement of a session open, reporting the mode the bridge
+ *  ACTUALLY granted (never what the server asked for). The engine picks the system
+ *  prompt + UI badge from this, and shows a downgrade banner when asked≠granted. */
+export const openedFrame = z.object({
+  t: z.literal('opened'), sid: z.string(),
+  mode: z.enum(['power', 'sandbox']),
+  cwd: z.string().max(1024).optional(),
+  reason: z.string().max(200).optional(),   // why downgraded, if it was
+});
 export const jobResultFrame = z.object({
   t: z.literal('jobResult'), id: z.string(), ok: z.boolean(),
   output: z.unknown().optional(), text: z.string().optional(), error: z.string().optional(),
@@ -78,5 +97,5 @@ export const ingestFrame = z.object({
   sessionId: z.string().max(200), project: z.string().max(500).optional(),
   source: z.literal('bridge'), jsonl: z.string().max(30_000_000),
 });
-export const bridgeFrame = z.discriminatedUnion('t', [helloFrame, evFrame, endFrame, toolCallFrame, approvalFrame, pongFrame, jobResultFrame, ingestFrame]);
+export const bridgeFrame = z.discriminatedUnion('t', [helloFrame, evFrame, endFrame, toolCallFrame, approvalFrame, pongFrame, openedFrame, jobResultFrame, ingestFrame]);
 export type BridgeToEngine = z.infer<typeof bridgeFrame>;

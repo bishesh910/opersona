@@ -55,6 +55,7 @@ interface Live {
   abort: AbortController; idle?: NodeJS.Timeout;
   sdkSessionId?: string; promptHash: string; model: string; textBuf: string; toolUses: { id: string; name: string; input: unknown; ok?: boolean; preview?: string }[];
   workdir: string; filesBefore: Map<string, FileStat>;
+  power?: boolean; workspace?: string | null;
   done: Promise<void>;
 }
 

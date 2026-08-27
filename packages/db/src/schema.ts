@@ -332,6 +332,11 @@ export const conversations = pgTable('conversations', {
   status: text('status').$type<'live' | 'idle' | 'closed'>().notNull().default('idle'),
   /** Per-conversation working directory for code execution + file outputs (null = legacy per-clone workspace). */
   cwd: text('cwd'),
+  /** POWER: absolute path of the granted folder this conversation runs in (null = sandbox).
+   *  Bound at creation, immutable after the first message. */
+  workspace: text('workspace'),
+  /** The cwd the current sdk_session_id was minted in — resume only when it matches. */
+  resumeCwd: text('resume_cwd'),
   extractedAt: timestamp('extracted_at', { withTimezone: true }),
   lastActivityAt: timestamp('last_activity_at', { withTimezone: true }).defaultNow().notNull(),
   createdAt: now(),

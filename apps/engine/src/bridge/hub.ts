@@ -22,8 +22,10 @@ interface BridgeSessionSink {
   ctx: ToolContext;
   onMessage: (m: SDKishMessage) => void;
   onEnd: (error?: string) => void;
+  onOpened?: (mode: 'power' | 'sandbox', cwd?: string, reason?: string) => void;
 }
 
+export interface BridgeWorkspace { path: string; label: string; bash: 'ask' }
 export interface BridgeConn {
   orgId: string;
   userId: string;
@@ -34,14 +36,18 @@ export interface BridgeConn {
   ws: WebSocket;
   sessions: Map<string, BridgeSessionSink>;
   alive: boolean;
+  /** true when the bridge advertised caps.workspaces (>=0.3.0) — gates power. */
+  supportsPower: boolean;
+  /** folders the user granted locally, advertised in hello. */
+  workspaces: BridgeWorkspace[];
 }
 
 const conns = new Map<string, BridgeConn>();
 
 export const bridgeFor = (orgId: string): BridgeConn | undefined => conns.get(orgId);
-export const bridgeStatus = (orgId: string): { connected: boolean; host?: string; claude?: string; since?: string } => {
+export const bridgeStatus = (orgId: string): { connected: boolean; host?: string; claude?: string; since?: string; workspaces?: BridgeWorkspace[]; supportsPower?: boolean } => {
   const c = conns.get(orgId);
-  return c ? { connected: true, host: c.host, claude: c.claude, since: c.since.toISOString() } : { connected: false };
+  return c ? { connected: true, host: c.host, claude: c.claude, since: c.since.toISOString(), workspaces: c.workspaces, supportsPower: c.supportsPower } : { connected: false };
 };
 
 export function send(conn: BridgeConn, frame: EngineToBridge): void {
@@ -60,7 +66,7 @@ export async function authBridgeToken(token: string): Promise<{ orgId: string; u
 
 /** Wire up one authenticated socket. */
 export function register(ws: WebSocket, auth: { orgId: string; userId: string; tokenId: string }): void {
-  const conn: BridgeConn = { ...auth, host: 'unknown', since: new Date(), ws, sessions: new Map(), alive: true };
+  const conn: BridgeConn = { ...auth, host: 'unknown', since: new Date(), ws, sessions: new Map(), alive: true, supportsPower: false, workspaces: [] };
   const prev = conns.get(auth.orgId);
   if (prev) { try { prev.ws.close(4001, 'replaced by a newer bridge connection'); } catch { /* gone */ } failAll(prev, 'bridge reconnected elsewhere'); }
   conns.set(auth.orgId, conn);
@@ -88,11 +94,18 @@ async function handleFrame(conn: BridgeConn, raw: Buffer): Promise<void> {
     case 'hello':
       conn.host = frame.host;
       conn.claude = frame.claude;
-      console.log('[bridge] hello org=%s host=%s bridge=v%s caps=%j', conn.orgId, frame.host, frame.bridgeVersion, frame.caps);
+      conn.supportsPower = frame.caps.workspaces === true;
+      conn.workspaces = (frame.workspaces ?? []).map((w) => ({ path: w.path, label: w.label, bash: 'ask' as const }));
+      console.log('[bridge] hello org=%s host=%s bridge=v%s caps=%j workspaces=%d', conn.orgId, frame.host, frame.bridgeVersion, frame.caps, conn.workspaces.length);
       break;
     case 'pong':
       conn.alive = true;
       break;
+    case 'opened': {
+      const sink = conn.sessions.get(frame.sid);
+      sink?.onOpened?.(frame.mode, frame.cwd, frame.reason);
+      break;
+    }
     case 'ev': {
       const sink = conn.sessions.get(frame.sid);
       sink?.onMessage(frame.message as SDKishMessage);
@@ -162,6 +175,9 @@ export function openBridgeSession(conn: BridgeConn, params: {
   tools: string[];
   builtinTools: string[];
   maxTurns: number;
+  cwd?: string;
+  power?: boolean;
+  onOpened?: (mode: 'power' | 'sandbox', cwd?: string, reason?: string) => void;
 }): { sid: string; messages: AsyncIterable<SDKishMessage>; push: (m: unknown) => void; interrupt: () => void } {
   const sid = randomUUID();
   const queue: SDKishMessage[] = [];
@@ -170,6 +186,7 @@ export function openBridgeSession(conn: BridgeConn, params: {
 
   const sink: BridgeSessionSink = {
     ctx: params.ctx,
+    onOpened: params.onOpened,
     onMessage: (m) => { const w = waiters.shift(); if (w) w.resolve({ value: m, done: false }); else queue.push(m); },
     onEnd: (error) => {
       if (ended) return;
@@ -186,6 +203,7 @@ export function openBridgeSession(conn: BridgeConn, params: {
     t: 'start', sid, conversationId: params.conversationId, systemPrompt: params.systemPrompt,
     model: params.model, effort: params.effort, resume: params.resume,
     tools: params.tools, builtinTools: params.builtinTools, maxTurns: params.maxTurns,
+    ...(params.cwd ? { cwd: params.cwd } : {}), ...(params.power ? { power: true } : {}),
   });
 
   const messages: AsyncIterable<SDKishMessage> = {

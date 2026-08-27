@@ -12,15 +12,20 @@
  */
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve, isAbsolute } from 'node:path';
+import { join, resolve, isAbsolute, basename } from 'node:path';
 import { query, tool, createSdkMcpServer, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { PERSONA_SERVER, PERSONA_TOOL_SPECS, sealEncrypt, type BridgeStart } from '@opersona/shared';
+import { containedPath, pathArgsFor, type Workspace } from './workspace.js';
 
 export interface SessionIO {
   sendEv: (m: SDKMessage) => void;
   sendEnd: (error?: string) => void;
+  sendOpened: (mode: 'power' | 'sandbox', cwd?: string, reason?: string) => void;
   rpcTool: (name: string, args: unknown) => Promise<unknown>;
   rpcApproval: (toolName: string, input: unknown) => Promise<{ behavior: 'allow' | 'deny'; message?: string; updatedInput?: unknown }>;
+  /** called with every SDK session_id this session spawns, so the watcher can skip
+   *  its own power-session transcripts (they land in the user's real repo dir). */
+  noteSdkSession: (id: string) => void;
 }
 
 class InputQueue implements AsyncIterable<SDKUserMessage> {
@@ -41,17 +46,11 @@ class InputQueue implements AsyncIterable<SDKUserMessage> {
 }
 
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep']);
+const POWER_BUILTINS = new Set(['Bash', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Read', 'Glob', 'Grep', 'WebSearch', 'TodoWrite']);
+const MUTATING = new Set(['Bash', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 
-function insideWorkdir(toolName: string, input: Record<string, unknown>, root: string): boolean {
-  const inside = (p: string) => { if (p.startsWith('~')) return false; const abs = resolve(root, p); return abs === root || abs.startsWith(root + '/'); };
-  const val = (k: string) => (typeof input[k] === 'string' ? (input[k] as string) : null);
-  if (toolName === 'Read') { const f = val('file_path'); return !!f && inside(f); }
-  const base = val('path');
-  if (base && !inside(base)) return false;
-  const pattern = val('pattern');
-  if (pattern && (isAbsolute(pattern) || pattern.startsWith('~') || pattern.includes('..'))) return false;
-  return true;
-}
+/** Only [A-Za-z0-9_-]; anything else (/, .., ~) is refused so the workdir can't escape. */
+function safeSegment(id: string): boolean { return /^[A-Za-z0-9_-]{1,80}$/.test(id); }
 
 /** Session env: this shell's environment minus any API key — Claude Code must
  *  use its own login. (CLAUDE_* stays: that IS the login.) */
@@ -70,15 +69,38 @@ export class BridgeSession {
   private abort = new AbortController();
   private sawAnyMessage = false;
   private textBuf = '';
+  private powerMode = false;
+  private root = '';
 
-  constructor(private start: BridgeStart, private io: SessionIO, private sealKey?: string) {}
+  constructor(private start: BridgeStart, private io: SessionIO, private workspaces: Workspace[], private sealKey?: string) {}
 
   push(m: SDKUserMessage): void { this.input.push(m); }
   cancel(): void { this.input.close(); this.abort.abort(); }
 
   async run(): Promise<void> {
-    const workdir = join(homedir(), '.opersona-bridge', 'work', this.start.conversationId);
-    mkdirSync(workdir, { recursive: true });
+    // POWER DECISION — made HERE, from local grants, never trusting the server's `power`.
+    const askedCwd = this.start.power && this.start.cwd ? this.start.cwd : undefined;
+    const grant = askedCwd ? this.workspaces.find((w) => {
+      const c = containedPath(w.path, askedCwd);   // asked cwd must BE a granted root (or inside one)
+      return c !== null;
+    }) : undefined;
+    // Only honor power if the asked cwd canonicalizes to inside an actual grant.
+    const powerRoot = grant ? containedPath(grant.path, askedCwd!) : null;
+    const power = !!powerRoot;
+    const reason = this.start.power && !power ? 'that folder is not granted on this machine' : undefined;
+
+    let workdir: string;
+    if (power) {
+      workdir = powerRoot!;
+    } else {
+      // sandbox: per-conversation scratch dir. Sanitize the id so it can't escape.
+      const id = safeSegment(this.start.conversationId) ? this.start.conversationId : 'scratch';
+      workdir = join(homedir(), '.opersona-bridge', 'work', id);
+      mkdirSync(workdir, { recursive: true });
+    }
+    this.io.sendOpened(power ? 'power' : 'sandbox', power ? workdir : undefined, reason);
+    this.powerMode = power;
+    this.root = workdir;
     try {
       await this.attempt(workdir, this.start.resume);
     } catch (e) {
@@ -106,25 +128,52 @@ export class BridgeSession {
       });
 
     const canUseTool: Options['canUseTool'] = async (toolName, toolInput) => {
+      const input = (toolInput ?? {}) as Record<string, unknown>;
+      // Persona tools (DB, RPC'd to the cloud) and server-side WebSearch are always fine.
       if (toolName.startsWith(`mcp__${PERSONA_SERVER}__`) || toolName === 'WebSearch') return { behavior: 'allow', updatedInput: toolInput };
-      if (READ_TOOLS.has(toolName)) {
-        return insideWorkdir(toolName, toolInput as Record<string, unknown>, workdir)
-          ? { behavior: 'allow', updatedInput: toolInput }
-          : { behavior: 'deny', message: "outside this chat's workspace" };
+
+      // File-jail: EVERY path arg must canonicalize inside this session's root. This runs
+      // in BOTH modes (sandbox root = scratch dir, power root = the granted folder).
+      const paths = pathArgsFor(toolName, input);
+      const isFileTool = READ_TOOLS.has(toolName) || MUTATING.has(toolName) && toolName !== 'Bash';
+      if (isFileTool) {
+        if (!paths.length) return { behavior: 'deny', message: "can't verify the target path" };
+        for (const p of paths) {
+          if (containedPath(this.root, p.value) === null) {
+            return { behavior: 'deny', message: `${p.value}: outside this chat's workspace (or a protected path)` };
+          }
+        }
+        const pattern = typeof input.pattern === 'string' ? input.pattern : null;
+        if (pattern && (isAbsolute(pattern) || pattern.startsWith('~') || pattern.includes('..'))) {
+          return { behavior: 'deny', message: 'pattern must stay within the workspace' };
+        }
       }
-      // Everything else — including any code execution — needs the owner's explicit
-      // approval through the opersona web UI. Local machines are never driven silently.
+
+      // Read/Glob/Grep: allowed once the jail passes (no per-call human prompt).
+      if (READ_TOOLS.has(toolName)) return { behavior: 'allow', updatedInput: toolInput };
+
+      // Mutations (Bash/Write/Edit/…): only in POWER mode, and every one needs a live
+      // human approval. In sandbox mode there is no code execution at all (fail closed).
+      if (MUTATING.has(toolName) || toolName === 'TodoWrite') {
+        if (!this.powerMode) return { behavior: 'deny', message: 'this chat is sandboxed — open it in a granted folder to run commands or edit files' };
+        if (toolName === 'TodoWrite') return { behavior: 'allow', updatedInput: toolInput };  // no filesystem/network effect
+        const r = await this.io.rpcApproval(toolName, toolInput);
+        // SECURITY: run EXACTLY what was approved. A compromised server cannot swap the
+        // approved `ls` for a `curl … | sh` via updatedInput — we ignore it for builtins.
+        return r.behavior === 'allow' ? { behavior: 'allow', updatedInput: toolInput } : { behavior: 'deny', message: r.message ?? 'denied by owner' };
+      }
+
+      // Any other/unknown builtin the SDK might surface: approval-gated in power, denied in sandbox.
+      if (!this.powerMode) return { behavior: 'deny', message: 'not available in a sandboxed chat' };
       const r = await this.io.rpcApproval(toolName, toolInput);
-      return r.behavior === 'allow'
-        ? { behavior: 'allow', updatedInput: (r.updatedInput as Record<string, unknown> | undefined) ?? toolInput }
-        : { behavior: 'deny', message: r.message ?? 'denied by owner' };
+      return r.behavior === 'allow' ? { behavior: 'allow', updatedInput: toolInput } : { behavior: 'deny', message: r.message ?? 'denied by owner' };
     };
 
     const options: Options = {
       model: this.start.model,
       ...(this.start.effort ? { effort: this.start.effort as Options['effort'] } : {}),
       systemPrompt: this.start.systemPrompt,
-      cwd: workdir,
+      cwd: this.root || workdir,
       env: bridgeEnv(),
       settingSources: [],            // never mix this machine's CLAUDE.md into a persona chat
       tools: this.start.builtinTools as Options['tools'],
@@ -141,6 +190,8 @@ export class BridgeSession {
     const q = query({ prompt: this.input, options });
     for await (const m of q as AsyncIterable<SDKMessage>) {
       this.sawAnyMessage = true;
+      const anyM = m as { session_id?: string };
+      if (anyM.session_id) this.io.noteSdkSession(anyM.session_id);
       // Sealed conversations: THIS machine holds the key, so the assistant turn is
       // encrypted here before storage — the server persists only the ciphertext it
       // receives on the result event (live deltas remain transit-only plaintext).

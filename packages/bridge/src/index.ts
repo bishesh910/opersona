@@ -18,11 +18,12 @@ import { createInterface } from 'node:readline/promises';
 import WebSocket from 'ws';
 import { BRIDGE_PROTOCOL_VERSION, type EngineToBridge, type BridgeStart, type BridgeJob } from '@opersona/shared';
 import { BridgeSession } from './session.js';
+import { grantRefusal, type Workspace } from './workspace.js';
 import { runJob } from './jobs.js';
 import { startWatcher } from './watcher.js';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 
 // Subcommands: `opersona install` / `opersona uninstall` (background service).
 const sub = process.argv[2];
@@ -34,6 +35,39 @@ if (sub === 'install' || sub === 'uninstall') {
 if (sub === 'version' || sub === '--version' || sub === '-v') { console.log(VERSION); process.exit(0); }
 const CONFIG_DIR = join(homedir(), '.opersona-bridge');
 const CONFIG_PATH = join(CONFIG_DIR, 'config.json');
+const OWN_SESSIONS_PATH = join(CONFIG_DIR, 'own-sessions.json');
+
+// ── local workspace grants (the machine-side authority for power sessions) ──
+function readCfg(): Config { try { return JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) as Config; } catch { return {}; } }
+function writeCfg(c: Config): void { mkdirSync(CONFIG_DIR, { recursive: true }); writeFileSync(CONFIG_PATH, JSON.stringify(c, null, 2), { mode: 0o600 }); }
+
+if (sub === 'grant' || sub === 'revoke' || sub === 'workspaces') {
+  const { resolve: pres, basename: pbase } = await import('node:path');
+  const { realpathSync } = await import('node:fs');
+  const cfg = readCfg();
+  cfg.workspaces ??= [];
+  if (sub === 'workspaces') {
+    if (!cfg.workspaces.length) console.log('No folders granted. Grant one:  npx opersona grant <folder>');
+    else for (const w of cfg.workspaces) console.log(`  ${w.path}  (${w.label})`);
+    process.exit(0);
+  }
+  const target = process.argv[3];
+  if (!target) { console.error(`usage: npx opersona ${sub} <folder>`); process.exit(1); }
+  let abs: string; try { abs = realpathSync(pres(target)); } catch { console.error(`no such folder: ${target}`); process.exit(1); }
+  if (sub === 'revoke') {
+    const before = cfg.workspaces.length;
+    cfg.workspaces = cfg.workspaces.filter((w) => w.path !== abs);
+    writeCfg(cfg);
+    console.log(cfg.workspaces.length < before ? `revoked ${abs}` : `not granted: ${abs}`);
+    process.exit(0);
+  }
+  const refusal = grantRefusal(abs);
+  if (refusal) { console.error(`refused: ${refusal}`); process.exit(1); }
+  if (!cfg.workspaces.some((w) => w.path === abs)) cfg.workspaces.push({ path: abs, label: pbase(abs), bash: 'ask' });
+  writeCfg(cfg);
+  console.log(`granted ${abs}\nRestart the opersona app (or bridge) so it takes effect. In a chat, pick this folder to run code + edit files there — every command still asks you first.`);
+  process.exit(0);
+}
 
 /** Nag when npm has a newer version — npx's cache happily serves stale ones forever. */
 function newerThan(a: string, b: string): boolean {
@@ -60,7 +94,7 @@ function arg(name: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-interface Config { url?: string; token?: string; sealKey?: string }
+interface Config { url?: string; token?: string; sealKey?: string; workspaces?: Workspace[] }
 function loadConfig(): Config {
   try { return JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) as Config; } catch { return {}; }
 }
@@ -125,17 +159,34 @@ function rpc(frame: { t: 'tool' | 'approval'; sid: string; id: string } & Record
   });
 }
 
+function noteOwnSession(id: string): void {
+  try {
+    let m: Record<string, number> = {};
+    try { m = JSON.parse(readFileSync(OWN_SESSIONS_PATH, 'utf8')) as Record<string, number>; } catch { /* fresh */ }
+    if (m[id]) return;
+    m[id] = Date.now();
+    // prune ids older than 30 days so the file can't grow forever
+    const cutoff = Date.now() - 30 * 86400_000;
+    for (const [k, t] of Object.entries(m)) if (t < cutoff) delete m[k];
+    mkdirSync(CONFIG_DIR, { recursive: true });
+    writeFileSync(OWN_SESSIONS_PATH, JSON.stringify(m), { mode: 0o600 });
+  } catch { /* best effort — worst case a transcript is eligible for learning */ }
+}
+
 function startSession(startFrame: BridgeStart): void {
   const sid = startFrame.sid;
+  const grants = (loadConfig().workspaces ?? []).filter((w) => !grantRefusal(w.path));
   const session = new BridgeSession(startFrame, {
     sendEv: (m) => sendFrame({ t: 'ev', sid, message: m }),
     sendEnd: (error) => { sessions.delete(sid); sendFrame({ t: 'end', sid, ...(error ? { error } : {}) }); },
+    sendOpened: (mode, cwd, reason) => sendFrame({ t: 'opened', sid, mode, ...(cwd ? { cwd } : {}), ...(reason ? { reason } : {}) }),
+    noteSdkSession: noteOwnSession,
     rpcTool: (name, args) => rpc({ t: 'tool', sid, id: randomUUID(), name, args }, 120_000),
     rpcApproval: async (toolName, input) => {
       const r = await rpc({ t: 'approval', sid, id: randomUUID(), tool: toolName, input }, 12 * 60_000);
       return r as { behavior: 'allow' | 'deny'; message?: string; updatedInput?: unknown };
     },
-  }, SEAL_KEY);
+  }, grants, SEAL_KEY);
   sessions.set(sid, session);
   console.log(`[bridge] session ${sid.slice(0, 8)} started (${startFrame.model})`);
   void session.run().finally(() => console.log(`[bridge] session ${sid.slice(0, 8)} ended`));
@@ -175,7 +226,10 @@ function connect(): void {
   ws = sock;
   sock.on('open', () => {
     backoffMs = 1000;
-    sendFrame({ t: 'hello', version: BRIDGE_PROTOCOL_VERSION, bridgeVersion: VERSION, host: hostname(), caps: { chat: true, jobs: true, watch: WATCH, seal: !!SEAL_KEY } });
+    const grants = (loadConfig().workspaces ?? []).filter((w) => !grantRefusal(w.path));
+    sendFrame({ t: 'hello', version: BRIDGE_PROTOCOL_VERSION, bridgeVersion: VERSION, host: hostname(),
+      caps: { chat: true, jobs: true, watch: WATCH, seal: !!SEAL_KEY, workspaces: true },
+      workspaces: grants.map((w) => ({ path: w.path, label: w.label, bash: 'ask' as const })) });
     console.log('[bridge] connected — chats on this account now run on THIS machine (your Claude subscription).');
     if (WATCH && !watcher) {
       watcher = startWatcher({ sendIngest: (f) => { if (ws?.readyState === WebSocket.OPEN) { ws.send(JSON.stringify(f)); return true; } return false; } }, { claudeDir: CLAUDE_DIR, codexDir: CODEX_DIR, ident: TOKEN.slice(0, 12) });
