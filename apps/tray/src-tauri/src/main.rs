@@ -517,10 +517,13 @@ fn check_for_updates(app: &AppHandle) {
                     Ok(()) => {
                         UPDATE_READY.store(true, std::sync::atomic::Ordering::SeqCst);
                         tlog(&format!("v{ver} installed — active after restart"));
-                        let state = app.state::<AppState>();
-                        if let Some(ui) = &*state.ui.lock().unwrap() {
-                            let _ = ui.update.set_text(format!("⬆ v{ver} ready — restart to finish"));
-                            let _ = ui.update.set_enabled(true);
+                        {
+                            let state = app.state::<AppState>();
+                            let guard = state.ui.lock().unwrap();
+                            if let Some(ui) = guard.as_ref() {
+                                let _ = ui.update.set_text(format!("⬆ v{ver} ready — restart to finish"));
+                                let _ = ui.update.set_enabled(true);
+                            }
                         }
                     }
                     Err(e) => tlog(&format!("update install failed: {e}")),
