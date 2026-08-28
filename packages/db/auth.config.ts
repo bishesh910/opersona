@@ -7,7 +7,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
-const db = drizzle(new pg.Pool({ connectionString: 'postgres://clone:CHANGE_ME@localhost:5432/opersona' }));
+const db = drizzle(new pg.Pool({ connectionString: process.env.DATABASE_URL ?? 'postgres://clone:CHANGE_ME@localhost:5432/opersona' }));
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg' }),
   emailAndPassword: { enabled: true },

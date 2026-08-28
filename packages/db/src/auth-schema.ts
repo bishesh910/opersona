@@ -64,7 +64,7 @@ export const account = pgTable(
   {
     id: text("id").primaryKey(),
     /** better-auth ≥1.7: account identity is scoped by issuer (synthetic for credential accounts). */
-    issuer: text("issuer").notNull(),
+    issuer: text("issuer").notNull().default("local:credential"),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
     userId: text("user_id")
@@ -230,7 +230,7 @@ export const jwks = pgTable("jwks", {
 
 export const oauthClient = pgTable("oauthClient", {
   id: text("id").primaryKey(),
-  clientId: text("client_id").notNull().unique(),
+  clientId: text("client_id").notNull().unique("oauthClient_client_id_key"),
   clientSecret: text("client_secret"),
   clientDiscoveryId: text("client_discovery_id"),
   disabled: boolean("disabled"),
@@ -269,7 +269,7 @@ export const oauthClient = pgTable("oauthClient", {
 
 export const oauthResource = pgTable("oauthResource", {
   id: text("id").primaryKey(),
-  identifier: text("identifier").notNull().unique(),
+  identifier: text("identifier").notNull().unique("oauthResource_identifier_key"),
   name: text("name").notNull(),
   accessTokenTtl: integer("access_token_ttl"),
   refreshTokenTtl: integer("refresh_token_ttl"),
@@ -297,7 +297,7 @@ export const oauthRefreshToken = pgTable(
   "oauthRefreshToken",
   {
     id: text("id").primaryKey(),
-    token: text("token").unique(),
+    token: text("token").unique("oauthRefreshToken_token_key"),
     clientId: text("client_id").notNull().references(() => oauthClient.clientId),
     sessionId: text("session_id").references(() => session.id, { onDelete: "set null" }),
     userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
@@ -322,7 +322,7 @@ export const oauthAccessToken = pgTable(
   "oauthAccessToken",
   {
     id: text("id").primaryKey(),
-    token: text("token").unique(),
+    token: text("token").unique("oauthAccessToken_token_key"),
     clientId: text("client_id").notNull().references(() => oauthClient.clientId),
     sessionId: text("session_id").references(() => session.id, { onDelete: "set null" }),
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),

@@ -8,7 +8,7 @@
  */
 import { sql } from 'drizzle-orm';
 import {
-  pgTable, text, timestamp, boolean, integer, real, jsonb, uuid, primaryKey, index, uniqueIndex, customType,
+  pgTable, text, timestamp, boolean, integer, real, jsonb, uuid, primaryKey, index, uniqueIndex, unique, customType,
 } from 'drizzle-orm/pg-core';
 import type { AvatarRecipe, PersonaArtifact } from '@opersona/shared';
 
@@ -532,8 +532,9 @@ export const bridgeTokens = pgTable('bridge_tokens', {
   orgId: text('org_id').notNull(),
   userId: text('user_id').notNull(),
   name: text('name').notNull().default('my machine'),
-  tokenHash: text('token_hash').notNull().unique(),
-  createdAt: now(),
+  // Constraint name + plain timestamp match the DDL production was built with (pre-baseline).
+  tokenHash: text('token_hash').notNull().unique('bridge_tokens_token_hash_key'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
   lastSeenAt: timestamp('last_seen_at'),
   revokedAt: timestamp('revoked_at'),
 }, (t) => [index('bridge_tokens_org_idx').on(t.orgId)]);
@@ -578,9 +579,9 @@ export const authFailures = pgTable('auth_failures', {
 export const publishedPersonas = pgTable('published_personas', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: text('org_id').notNull(),
-  cloneId: uuid('clone_id').notNull().unique(),
+  cloneId: uuid('clone_id').notNull().unique('published_personas_clone_uq'),
   ownerUserId: text('owner_user_id').notNull(),
-  slug: text('slug').notNull().unique(),
+  slug: text('slug').notNull().unique('published_personas_slug_uq'),
   artifact: jsonb('artifact').$type<PersonaArtifact>().notNull(),
   /** Which sections the owner included at publish time (facts/playbooks/personality toggles). */
   sections: jsonb('sections').$type<Record<string, boolean>>().notNull().default({}),
@@ -602,7 +603,7 @@ export const personaGrants = pgTable('persona_grants', {
   granteeEmail: text('grantee_email').notNull(),
   granteeUserId: text('grantee_user_id'),
   createdAt: now(),
-}, (t) => [uniqueIndex('persona_grants_uq').on(t.publishedId, t.granteeEmail), index('persona_grants_pub_idx').on(t.publishedId)]);
+}, (t) => [unique('persona_grants_uq').on(t.publishedId, t.granteeEmail), index('persona_grants_pub_idx').on(t.publishedId)]);
 
 export const personaReports = pgTable('persona_reports', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -619,7 +620,7 @@ export const personaReports = pgTable('persona_reports', {
 export const importedPersonas = pgTable('imported_personas', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: text('org_id').notNull(),
-  cloneId: uuid('clone_id').notNull().unique(),
+  cloneId: uuid('clone_id').notNull().unique('imported_personas_clone_uq'),
   importedBy: text('imported_by').notNull(),
   sourcePublishedId: uuid('source_published_id'),
   sourceSlug: text('source_slug'),
