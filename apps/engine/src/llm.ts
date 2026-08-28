@@ -7,12 +7,19 @@
  * Cost logging: API calls carry costUsd; bridge jobs log tokens with costUsd
  * null so budgets never count subscription usage.
  */
+import { createHash } from 'node:crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { db, sessionCosts } from '@opersona/db';
 import { costOf } from './pricing.js';
 import { bridgeFor, runBridgeJob } from './bridge/hub.js';
+
+/** Warm-session key for bridge jobs: calls sharing model+effort+system(+schema)
+ *  can run as turns of ONE live session on the user's machine, skipping the
+ *  per-job CLI boot after the first (measured: ~5s cold → ~1.7s warm). */
+const jobSessionKey = (a: { model: string; effort?: string; system: string }, schema?: Record<string, unknown>): string =>
+  createHash('sha256').update([a.model, a.effort ?? '', a.system, schema ? JSON.stringify(schema) : ''].join('\x1f')).digest('hex').slice(0, 24);
 
 export interface StructuredCallArgs<S extends z.ZodTypeAny> {
   orgId: string; cloneId: string; kind: string;
@@ -50,7 +57,7 @@ async function logCost(a: { orgId: string; cloneId: string; kind: string; model:
 /** One plain text completion (used by titling, self-tests…). */
 export async function textCall(a: { orgId: string; cloneId: string; kind: string; apiKey: string; model: string; system: string; user: string; effort?: 'low' | 'medium' | 'high' }): Promise<string> {
   if (!a.apiKey) {
-    const r = await runBridgeJob(bridgeOrThrow(a.orgId), { kind: 'text', model: a.model, effort: a.effort, system: a.system, user: a.user });
+    const r = await runBridgeJob(bridgeOrThrow(a.orgId), { kind: 'text', model: a.model, effort: a.effort, system: a.system, user: a.user, sessionKey: jobSessionKey(a) });
     await logCost(a, r.usage, null);
     if (!r.ok || typeof r.text !== 'string') throw new Error(`text call failed on bridge: ${r.error ?? 'no output'}`);
     return r.text;
@@ -64,7 +71,8 @@ export async function textCall(a: { orgId: string; cloneId: string; kind: string
 export async function structuredCall<S extends z.ZodTypeAny>(a: StructuredCallArgs<S>): Promise<z.infer<S>> {
   if (a.sealed?.length && a.apiKey) throw new Error('sealed content can only be processed on the bridge rail');
   if (!a.apiKey) {
-    const r = await runBridgeJob(bridgeOrThrow(a.orgId), { kind: 'structured', model: a.model, effort: a.effort, system: a.system, user: a.user, schema: jsonSchemaOf(a.schema), image: a.image, sealed: a.sealed });
+    const schema = jsonSchemaOf(a.schema);
+    const r = await runBridgeJob(bridgeOrThrow(a.orgId), { kind: 'structured', model: a.model, effort: a.effort, system: a.system, user: a.user, schema, image: a.image, sealed: a.sealed, sessionKey: jobSessionKey(a, schema) });
     await logCost(a, r.usage, null);
     if (!r.ok) throw new Error(`structured call failed on bridge: ${r.error ?? 'no output'}`);
     return a.schema.parse(r.output);

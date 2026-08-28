@@ -49,6 +49,11 @@ export interface BridgeJob {
   user: string;
   /** JSON Schema (draft 2020-12, no $schema tag) for kind='structured'. */
   schema?: Record<string, unknown>;
+  /** Warm-session reuse hint: jobs sharing a key (same model+system+schema)
+   *  may run as turns of ONE live session on the bridge, skipping the CLI boot
+   *  (~3-15s) after the first. Sent only to bridges advertising
+   *  caps.jobSessions; old bridges ignore the field entirely. */
+  sessionKey?: string;
   /** Optional image for vision jobs (selfie → pixie). */
   image?: { base64: string; mime: string };
   /** Sealed-content substitution: `user` may contain <<SEALED:i>> markers; the

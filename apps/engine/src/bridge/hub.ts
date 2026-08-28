@@ -38,6 +38,8 @@ export interface BridgeConn {
   alive: boolean;
   /** true when the bridge advertised caps.workspaces (>=0.3.0) — gates power. */
   supportsPower: boolean;
+  /** true when the bridge advertised caps.jobSessions (>=0.4.0) — warm job reuse. */
+  supportsJobSessions: boolean;
   /** folders the user granted locally, advertised in hello. */
   workspaces: BridgeWorkspace[];
 }
@@ -66,7 +68,7 @@ export async function authBridgeToken(token: string): Promise<{ orgId: string; u
 
 /** Wire up one authenticated socket. */
 export function register(ws: WebSocket, auth: { orgId: string; userId: string; tokenId: string }): void {
-  const conn: BridgeConn = { ...auth, host: 'unknown', since: new Date(), ws, sessions: new Map(), alive: true, supportsPower: false, workspaces: [] };
+  const conn: BridgeConn = { ...auth, host: 'unknown', since: new Date(), ws, sessions: new Map(), alive: true, supportsPower: false, supportsJobSessions: false, workspaces: [] };
   const prev = conns.get(auth.orgId);
   if (prev) { try { prev.ws.close(4001, 'replaced by a newer bridge connection'); } catch { /* gone */ } failAll(prev, 'bridge reconnected elsewhere'); }
   conns.set(auth.orgId, conn);
@@ -95,6 +97,7 @@ async function handleFrame(conn: BridgeConn, raw: Buffer): Promise<void> {
       conn.host = frame.host;
       conn.claude = frame.claude;
       conn.supportsPower = frame.caps.workspaces === true;
+      conn.supportsJobSessions = (frame.caps as Record<string, unknown>).jobSessions === true;
       conn.workspaces = (frame.workspaces ?? []).map((w) => ({ path: w.path, label: w.label, bash: 'ask' as const }));
       console.log('[bridge] hello org=%s host=%s bridge=v%s caps=%j workspaces=%d', conn.orgId, frame.host, frame.bridgeVersion, frame.caps, conn.workspaces.length);
       break;
@@ -229,8 +232,10 @@ export function openBridgeSession(conn: BridgeConn, params: {
 }
 
 /** Run one inference job on the user's bridge (their subscription). 10-minute ceiling. */
-export function runBridgeJob(conn: BridgeConn, job: { kind: 'structured' | 'text'; model: string; effort?: string; system: string; user: string; schema?: Record<string, unknown>; image?: { base64: string; mime: string }; sealed?: string[] }): Promise<BridgeJobResult> {
+export function runBridgeJob(conn: BridgeConn, job: { kind: 'structured' | 'text'; model: string; effort?: string; system: string; user: string; schema?: Record<string, unknown>; image?: { base64: string; mime: string }; sealed?: string[]; sessionKey?: string }): Promise<BridgeJobResult> {
   const id = randomUUID();
+  // Warm-session reuse is a >=0.4.0 bridge capability — older bridges never see the key.
+  if (!conn.supportsJobSessions) delete job.sessionKey;
   return new Promise((resolve) => {
     const timer = setTimeout(() => { pendingJobs.delete(id); resolve({ ok: false, error: 'bridge job timed out' }); }, 10 * 60_000);
     pendingJobs.set(id, { resolve, timer });

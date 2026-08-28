@@ -23,7 +23,7 @@ import { runJob } from './jobs.js';
 import { startWatcher } from './watcher.js';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 
 // Subcommands: `opersona install` / `opersona uninstall` (background service).
 const sub = process.argv[2];
@@ -228,7 +228,7 @@ function connect(): void {
     backoffMs = 1000;
     const grants = (loadConfig().workspaces ?? []).filter((w) => !grantRefusal(w.path));
     sendFrame({ t: 'hello', version: BRIDGE_PROTOCOL_VERSION, bridgeVersion: VERSION, host: hostname(),
-      caps: { chat: true, jobs: true, watch: WATCH, seal: !!SEAL_KEY, workspaces: true },
+      caps: { chat: true, jobs: true, watch: WATCH, seal: !!SEAL_KEY, workspaces: true, jobSessions: true },
       workspaces: grants.map((w) => ({ path: w.path, label: w.label, bash: 'ask' as const })) });
     console.log('[bridge] connected — chats on this account now run on THIS machine (your Claude subscription).');
     if (WATCH && !watcher) {
