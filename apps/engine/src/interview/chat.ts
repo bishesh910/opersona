@@ -22,7 +22,10 @@ import { knownDigest, storeCoverage } from './state.js';
 import { nextQuestionFor, type Progress, type ServedQuestion } from './service.js';
 
 export const MAX_USER_MESSAGES_PER_THREAD = 5;
-export const CHAT_TIMEOUT_MS = 8_000;
+/** Bridge jobs (the user's own machine thinking) routinely need 10-20s — a chat
+ *  can breathe behind typing dots; a cold fallback after a heartfelt message
+ *  cannot. */
+export const CHAT_TIMEOUT_MS = 25_000;
 
 export const ChatTurn = z.object({
   reply: z.string().min(1).max(320).describe('your next message — 1-3 short sentences, one probe at most'),
@@ -36,6 +39,13 @@ How to text:
 - 1-3 short sentences. Sound like a curious friend, not an interviewer, never a therapist. Mirror their energy and length — if they write two words, don't write four lines.
 - ONE probe at a time, and only when it earns its place: the why, what they weighed, what they were afraid of, whether they'd do it again, whether there's an exception, whether it changes when someone close is involved.
 - React like you heard them ("Two weeks' notice, wow") before you probe. Never analyse them to their face; never use words like trait, pattern, data, model.
+
+When it gets heavy — and this matters more than any other rule:
+- If they share something raw, scary, or unresolved (stuck, afraid, struggling right now), be a person FIRST: name the weight simply and sincerely ("that's a lot to carry", "no wonder you feel stuck") before anything else. Never brush past it, never sound clinical.
+- A live dilemma is the most valuable thread there is. STAY on it. Never change the subject away from something raw, and never wrap_up while they are mid-struggle or right after they asked you something.
+- If they ask YOU what to do, don't dodge and don't pretend: you're still learning how they think, so you can't call it for them yet — say that warmly, then turn it into the useful thing: ask what each option would actually mean for them, what they're most afraid of losing, what the person they trust most would say. Answering their question with honest curiosity IS the help you can give.
+
+Also:
 - KNOWN THINGS is context so you don't re-ask what you know. If something they say sits oddly against it, you may ask ONE curious question about what makes the situations different — never a gotcha.
 - wrap_up when the thread has a concrete story plus the reason underneath (usually 2-4 of their messages), or they give short done-signals. On wrap_up the reply is a short warm close for THIS topic only ("Got it — that says a lot.") — the system brings the next question, not you.
 - Never invent things about them. Never promise anything. Their words are the point; yours are just the nudge.`;
@@ -44,7 +54,7 @@ const greet = (name: string) =>
   `Hey — it's your persona. The more of you I actually know, the better I get at being you. Mind if I ask you things here now and then? Short answers are fine — this is a chat, not a form.`;
 
 export interface ChatMessage { id: string; role: 'interviewer' | 'user'; text: string; questionId: string; createdAt: string }
-export interface ChatState { question: ServedQuestion | null; messages: ChatMessage[]; progress: Progress; typingFallback?: boolean }
+export interface ChatState { question: ServedQuestion | null; messages: ChatMessage[]; progress: Progress }
 
 const toMsg = (m: typeof interviewMessages.$inferSelect): ChatMessage =>
   ({ id: m.id, role: m.role, text: m.text, questionId: m.questionId, createdAt: m.createdAt.toISOString() });
@@ -113,32 +123,30 @@ export async function sendInterviewChat(a: { orgId: string; cloneId: string; tex
   const userCount = thread.filter((m) => m.role === 'user').length;
 
   let turn: ChatTurnT | null = null;
-  let fallback = false;
   if (userCount < MAX_USER_MESSAGES_PER_THREAD) {
     try {
       turn = await interviewerTurn(a.orgId, a.cloneId, question, thread);
     } catch (e) {
-      if (e instanceof Error && e.message.startsWith('no_api_key')) {
-        // No rail at all: don't pretend to converse — say so, keep the thread
-        // open, and the person's message is waiting when they connect.
-        await say(a.orgId, a.cloneId, question.id,
-          'I heard you — but my brain isn’t connected yet, so I can’t really talk back. Pair the bridge or add an API key in Settings → Models, then message me again and we’ll pick this right up.');
-        const next = await nextQuestionFor(a.orgId, a.cloneId); // still 'asked' → resumes this question
-        return { question: next.question, messages: await recentMessages(a.cloneId), progress: next.progress };
-      }
-      turn = null;
+      const noRail = e instanceof Error && e.message.startsWith('no_api_key');
+      // Whatever broke, NEVER cold-wrap a thread someone just poured into.
+      // Stay present, say what's true, keep the thread open — their words are
+      // safe and the conversation resumes exactly here.
+      await say(a.orgId, a.cloneId, question.id, noRail
+        ? 'I heard you — but my brain isn’t connected yet, so I can’t really talk back. Pair the bridge or add an API key in Settings → Models, then message me again and we’ll pick this right up.'
+        : 'Sorry — I lost my train of thought for a second (connection hiccup on my side, not you). I did read what you said. Give me a moment and message me again — even just "go on" — and we’ll pick up right here.');
+      const next = await nextQuestionFor(a.orgId, a.cloneId); // still 'asked' → resumes this question
+      return { question: next.question, messages: await recentMessages(a.cloneId), progress: next.progress };
     }
   }
   if (!turn) {
-    // Cap reached or the model was slow/flaky: close warmly and keep moving.
-    fallback = userCount < MAX_USER_MESSAGES_PER_THREAD;
-    turn = { reply: 'Got it — noted.', action: 'wrap_up' };
+    // Thread cap only: they've given a lot — close with gratitude, never with a shrug.
+    turn = { reply: 'Okay — that’s a lot of real stuff, thank you. Let me sit with this one.', action: 'wrap_up' };
   }
 
   if (turn.action === 'continue') {
     await say(a.orgId, a.cloneId, question.id, turn.reply);
     const next = await nextQuestionFor(a.orgId, a.cloneId); // question is still 'asked' → resume returns it
-    return { question: next.question, messages: await recentMessages(a.cloneId), progress: next.progress, ...(fallback ? { typingFallback: true } : {}) };
+    return { question: next.question, messages: await recentMessages(a.cloneId), progress: next.progress };
   }
 
   await say(a.orgId, a.cloneId, question.id, turn.reply);

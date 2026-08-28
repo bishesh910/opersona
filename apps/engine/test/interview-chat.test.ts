@@ -98,15 +98,28 @@ describe('chat interview', () => {
     expect(opener[0]!.role).toBe('interviewer');
   });
 
-  it('a dead rail wraps warmly instead of stalling', async () => {
+  it('a flaky rail stays present and keeps the thread open — never a cold wrap', async () => {
     if (!enabled) return;
     railMock('throw');
     const before = await interviewChatState(ORG, CLONE);
-    const s = await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'Honestly not sure what to say.' });
+    const s = await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'Honestly this is a hard one for me right now.' });
+    expect(s.question!.id).toBe(before.question!.id); // same thread, still open
+    const last = s.messages[s.messages.length - 1]!;
+    expect(last.role).toBe('interviewer');
+    expect(last.text).toContain('I did read what you said');
+    // Nothing was wrapped: no answer row materialized for this thread yet.
+    const [ans] = await db.select().from(interviewAnswers)
+      .where(and(eq(interviewAnswers.cloneId, CLONE), eq(interviewAnswers.questionId, before.question!.id))).limit(1);
+    expect(ans).toBeUndefined();
+    // Recovery: the rail comes back, a wrap works, the thread closes with BOTH messages captured.
+    railMock({ reply: 'That sounds heavy. Thank you for trusting me with it.', action: 'wrap_up' });
+    const s2 = await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'Yeah. Anyway, that is where I am.' });
     await flushQueue();
-    expect(s.question!.id).not.toBe(before.question!.id); // moved on anyway
-    const texts = s.messages.map((m) => m.text);
-    expect(texts).toContain('Got it — noted.');
+    expect(s2.question!.id).not.toBe(before.question!.id);
+    const [wrapped] = await db.select().from(interviewAnswers)
+      .where(and(eq(interviewAnswers.cloneId, CLONE), eq(interviewAnswers.questionId, before.question!.id))).limit(1);
+    expect(wrapped!.text).toContain('hard one for me right now');
+    expect(wrapped!.text).toContain('where I am');
   });
 
   it('NO rail at all says so honestly and keeps the thread open', async () => {

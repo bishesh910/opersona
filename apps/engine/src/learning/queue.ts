@@ -95,8 +95,10 @@ export async function resumePending(): Promise<void> {
   for (const c of convs) enqueue({ kind: 'extract', orgId: c.orgId, cloneId: c.cloneId, conversationId: c.id });
   const imps = await db.select({ id: importJobs.id }).from(importJobs).where(inArray(importJobs.status, ['queued', 'running']));
   for (const i of imps) enqueue({ kind: 'import', importId: i.id });
+  // 'failed' is retried too: a transient rail outage (bridge offline for a
+  // minute) must not permanently orphan an answer — one fresh attempt per boot.
   const answers = await db.select({ id: interviewAnswers.id, orgId: interviewAnswers.orgId, cloneId: interviewAnswers.cloneId })
-    .from(interviewAnswers).where(and(eq(interviewAnswers.extractionStatus, 'pending'), eq(interviewAnswers.skipped, false)));
+    .from(interviewAnswers).where(and(inArray(interviewAnswers.extractionStatus, ['pending', 'failed']), eq(interviewAnswers.skipped, false)));
   for (const a of answers) enqueue({ kind: 'interview_extract', orgId: a.orgId, cloneId: a.cloneId, answerId: a.id });
   if (convs.length || imps.length || answers.length) console.log(`[learning] resumed ${convs.length} extraction(s), ${imps.length} import(s), ${answers.length} interview answer(s)`);
 }

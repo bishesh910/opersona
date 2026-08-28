@@ -7,7 +7,7 @@
  *   - evidence is never lost: observations are re-keyed, aggregates recomputed
  * Runs nightly (03:00–04:00 server time) and on demand ("Tidy up" button).
  */
-import { readdirSync, statSync, unlinkSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from '../config.js';
 import { z } from 'zod';
@@ -86,6 +86,7 @@ let lastRun = '';
 export function sweepUploads(): void {
   try {
     const orgsDir = join(config.dataDir, 'orgs');
+    if (!existsSync(orgsDir)) return; // fresh instance / post-reset: nothing to sweep
     for (const org of readdirSync(orgsDir)) {
       const up = join(orgsDir, org, 'uploads');
       let files: string[] = [];
