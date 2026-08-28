@@ -12,7 +12,7 @@
  * acknowledgment and moves on.
  */
 import { z } from 'zod';
-import { and, asc, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ne, sql } from 'drizzle-orm';
 import { db, interviewMessages, interviewQuestions, interviewAnswers, clones, personaBriefs } from '@opersona/db';
 import { redactSecrets } from '@opersona/shared';
 import { structuredCall } from '../llm.js';
@@ -47,6 +47,7 @@ When it gets heavy — and this matters more than any other rule:
 - If they ask YOU what to do, don't dodge and don't pretend: you're still learning how they think, so you can't call it for them yet — say that warmly, then turn it into the useful thing: ask what each option would actually mean for them, what they're most afraid of losing, what the person they trust most would say. Answering their question with honest curiosity IS the help you can give.
 
 Also:
+- You BOTH remember this whole chat — earlier topics included. When they say "like I told you earlier", connect to it naturally from EARLIER IN THIS CHAT; never ask them to repeat something they already told you.
 - KNOWN THINGS is context so you don't re-ask what you know. If something they say sits oddly against it, you may ask ONE curious question about what makes the situations different — never a gotcha.
 - wrap_up when the thread has a concrete story plus the reason underneath (usually 2-4 of their messages), or they give short done-signals. On wrap_up the reply is a short warm close for THIS topic only ("Got it — that says a lot.") — the system brings the next question, not you.
 - Never invent things about them. Never promise anything. Their words are the point; yours are just the nudge.`;
@@ -224,11 +225,17 @@ async function interviewerTurn(
   const [clone] = await db.select({ name: clones.name }).from(clones).where(eq(clones.id, cloneIdArg)).limit(1);
   const name = brief?.name || clone?.name || 'them';
   const digest = await knownDigest(cloneIdArg, 1500);
+  // The interviewer remembers the WHOLE chat, not just this thread — "like I
+  // told you earlier" must land (live bug: it asked the person to repeat).
+  const older = await db.select().from(interviewMessages)
+    .where(and(eq(interviewMessages.cloneId, cloneIdArg), ne(interviewMessages.questionId, question.id)))
+    .orderBy(desc(interviewMessages.createdAt)).limit(16);
+  const earlier = older.reverse().map((m) => `${m.role === 'user' ? name.toUpperCase() : 'YOU'}: ${m.text.slice(0, 400)}`).join('\n').slice(-2500);
   const rendered = thread.map((m) => `${m.role === 'user' ? name.toUpperCase() : 'YOU'}: ${m.text.slice(0, 1500)}`).join('\n');
   const call = structuredCall({
     orgId, cloneId: cloneIdArg, kind: 'interview-chat', apiKey: cfg.apiKey, model: cfg.condenseModel, effort: 'low',
     schema: ChatTurn, system: CHAT_SYSTEM(name),
-    user: `KNOWN THINGS (context only):\n${digest}\n\nCURRENT QUESTION (asked by you):\n${question.text}\n\nTHE CHAT SO FAR:\n${rendered}\n\nTheir last message is at the bottom. Continue or wrap up.`,
+    user: `KNOWN THINGS (context only):\n${digest}\n${earlier ? `\nEARLIER IN THIS CHAT (previous topics — you both remember these):\n${earlier}\n` : ''}\nCURRENT QUESTION (asked by you):\n${question.text}\n\nTHE CHAT SO FAR (this topic):\n${rendered}\n\nTheir last message is at the bottom. Continue or wrap up.`,
   });
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), CHAT_TIMEOUT_MS).unref?.());
   const out = await Promise.race([call, timeout]);

@@ -161,6 +161,21 @@ describe('chat interview', () => {
     expect(wrapped!.text).toContain('where I am');
   });
 
+  it('the interviewer sees earlier threads — "like I told you before" can land', async () => {
+    if (!enabled) return;
+    let seenPrompt = '';
+    vi.mocked(structuredCall).mockImplementation(async (args: { kind?: string; user?: string }) => {
+      if (args.kind === 'interview-chat') { seenPrompt = args.user ?? ''; return { reply: 'Right — the move you mentioned.', action: 'continue' }; }
+      return EMPTY_EXTRACTION;
+    });
+    // Earlier threads in this suite contain 'two weeks notice' — reference it from the current one.
+    await interviewChatState(ORG, CLONE);
+    await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'like the move I told you about earlier' });
+    await settle();
+    expect(seenPrompt).toContain('EARLIER IN THIS CHAT');
+    expect(seenPrompt).toContain('two weeks notice');
+  });
+
   it('NO rail at all says so honestly and keeps the thread open', async () => {
     if (!enabled) return;
     vi.mocked(structuredCall).mockImplementation(async (args: { kind?: string }) => {
