@@ -5,6 +5,8 @@ import { requireOrg } from '@/lib/session';
 import { getCloneAccess } from '@/lib/clones';
 import { engineFetch } from '@/lib/engine';
 import { SelfTestPanel } from '@/components/thinking/SelfTestPanel';
+import { ScenarioTestPanel } from '@/components/thinking/ScenarioTestPanel';
+import { SimilarityCard, type SimilarityData } from '@/components/thinking/SimilarityCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,13 +33,31 @@ export default async function SurveyPage({ params }: { params: Promise<{ id: str
   const acc = await engineFetch<{ me: number; notMe: number; pct: number | null }>(`/clones/${id}/accuracy`, { query: { orgId: ctx.orgId } })
     .catch(() => ({ me: 0, notMe: 0, pct: null as number | null }));
 
+  // Blind scenarios: the OPEN query selects ONLY blind-safe columns — the sealed
+  // prediction never enters this page's payload (same discipline as the engine).
+  const openScenarios = await db.select({
+    id: schema.predictionScenarios.id, category: schema.predictionScenarios.category,
+    format: schema.predictionScenarios.format, choices: schema.predictionScenarios.choices,
+    scenario: schema.predictionScenarios.scenario, question: schema.predictionScenarios.question,
+  }).from(schema.predictionScenarios)
+    .where(and(eq(schema.predictionScenarios.cloneId, id), eq(schema.predictionScenarios.status, 'open')))
+    .orderBy(schema.predictionScenarios.createdAt);
+  const sim = await engineFetch<SimilarityData>(`/clones/${id}/similarity`, { query: { orgId: ctx.orgId } })
+    .catch(() => null);
+
   return (
-    <SelfTestPanel
-      cloneId={id}
-      readOnly={!access.canWrite}
-      accuracyPct={acc.pct}
-      history={ratedTests.map((t) => t.verdict!).reverse()}
-      unrated={unratedTests.map((t) => ({ id: t.id, domain: t.domain, question: t.question, answer: t.answer }))}
-    />
+    <div className="space-y-8">
+      <ScenarioTestPanel cloneId={id} readOnly={!access.canWrite} open={openScenarios} />
+      {sim && <SimilarityCard data={sim} />}
+      <div className="border-t border-neutral-200 pt-6 dark:border-neutral-800">
+        <SelfTestPanel
+          cloneId={id}
+          readOnly={!access.canWrite}
+          accuracyPct={acc.pct}
+          history={ratedTests.map((t) => t.verdict!).reverse()}
+          unrated={unratedTests.map((t) => ({ id: t.id, domain: t.domain, question: t.question, answer: t.answer }))}
+        />
+      </div>
+    </div>
   );
 }

@@ -80,6 +80,11 @@ export async function authorize(ctx: OrgCtx, method: string, path: string[]): Pr
     if (leaf === 'export-vault' && method === 'GET') return access.isOwner ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can export the vault');
     // Self-test accuracy is part of the persona's public stats — readable by anyone with access.
     if (leaf === 'accuracy' && method === 'GET') return { ok: true, cloneId: id };
+    // Behavioural similarity (blind scenarios) — same visibility as accuracy.
+    if (leaf === 'similarity' && method === 'GET') return { ok: true, cloneId: id };
+    // Blind prediction tests are the owner testing THEIR model: generation and the open list are owner-only.
+    if (leaf === 'scenarios' && method === 'POST') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can run prediction tests');
+    if (leaf === 'scenarios' && method === 'GET') return access.isOwner ? { ok: true, cloneId: id } : deny(403, 'owner-only');
     if (leaf === 'snapshot' && method === 'POST') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'read-only');
     // Onboarding interview → AI-drafted brief (cheap model). Owner only.
     if (leaf === 'compose-brief' && method === 'POST') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'read-only');
@@ -94,6 +99,14 @@ export async function authorize(ctx: OrgCtx, method: string, path: string[]): Pr
     const access = await getCloneAccess(ctx, id);
     if (!access) return deny(404, 'clone not found');
     return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can rate self-tests');
+  }
+
+  // Blind scenario actions: clones/:id/scenarios/:sid/{answer|skip|correct}. Owner only.
+  if (root === 'clones' && id && UUID.test(id) && path.length === 5 && method === 'POST'
+    && path[2] === 'scenarios' && path[3] && UUID.test(path[3]) && ['answer', 'skip', 'correct'].includes(path[4] ?? '')) {
+    const access = await getCloneAccess(ctx, id);
+    if (!access) return deny(404, 'clone not found');
+    return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can answer prediction tests');
   }
 
   // Learn from Claude Code: clones/:id/claude-code/{tokens,upload} and tokens/:tokenId/revoke are owner-only;

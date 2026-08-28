@@ -7,12 +7,14 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-export function StatStrip({ confirmed, emerging, chats, imported, claudeCode, accuracy, feedbackCount, accuracyPct, interviewAnswers }: {
+export function StatStrip({ confirmed, emerging, chats, imported, claudeCode, accuracy, feedbackCount, accuracyPct, interviewAnswers, similarityPct }: {
   confirmed: number; emerging: number; chats: number; imported: number; claudeCode: number; accuracy: number | null; feedbackCount: number;
   /** 0–100 from the engine accuracy endpoint (chat feedback + self-tests), null when nothing rated. */
   accuracyPct: number | null;
   /** Interview answers given so far (undefined hides the tile for non-owner views). */
   interviewAnswers?: number;
+  /** 0–100 behavioural similarity over blind scenarios; null = under the sample gate; undefined hides the tile. */
+  similarityPct?: number | null;
 }) {
   return (
     <div className="-mx-3 flex flex-nowrap gap-2 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 lg:grid-cols-8">
@@ -32,6 +34,13 @@ export function StatStrip({ confirmed, emerging, chats, imported, claudeCode, ac
         value={accuracyPct == null ? '—' : `${accuracyPct}%`}
         hint="Share of everything you rated — chat replies and self-tests — that sounded like you"
       />
+      {similarityPct !== undefined && (
+        <Stat
+          label="behavioural similarity"
+          value={similarityPct == null ? '—' : `${similarityPct}%`}
+          hint={similarityPct == null ? 'Not enough data yet — answer blind scenarios on the Test me tab' : 'LLM-judged match over blind prediction scenarios (internal model metric)'}
+        />
+      )}
     </div>
   );
 }

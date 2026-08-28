@@ -1,0 +1,35 @@
+CREATE TABLE "prediction_scenarios" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"org_id" text NOT NULL,
+	"clone_id" uuid NOT NULL,
+	"batch_id" uuid NOT NULL,
+	"category" text NOT NULL,
+	"format" text DEFAULT 'open' NOT NULL,
+	"choices" text[] DEFAULT '{}'::text[] NOT NULL,
+	"scenario" text NOT NULL,
+	"question" text NOT NULL,
+	"target_note" text,
+	"target_refs" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"snapshot_version" integer,
+	"model" text,
+	"ai_prediction" jsonb,
+	"predicted_at" timestamp with time zone,
+	"status" text DEFAULT 'open' NOT NULL,
+	"human_answer" text,
+	"human_factors" text,
+	"answered_at" timestamp with time zone,
+	"judge" jsonb,
+	"score_decision" real,
+	"score_reasoning" real,
+	"score_preference" real,
+	"score_communication" real,
+	"score_calibration" real,
+	"score_overall" real,
+	"judge_model" text,
+	"judged_at" timestamp with time zone,
+	"correction_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX "pred_scenarios_clone_status_idx" ON "prediction_scenarios" USING btree ("clone_id","status");--> statement-breakpoint
+CREATE INDEX "pred_scenarios_clone_idx" ON "prediction_scenarios" USING btree ("clone_id","created_at");

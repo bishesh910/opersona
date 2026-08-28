@@ -810,3 +810,51 @@ export const knowledgeEmbeddings = pgTable('knowledge_embeddings', {
   vec: jsonb('vec').$type<number[]>().notNull(),
   createdAt: now(),
 }, (t) => [primaryKey({ columns: [t.itemKind, t.itemId] }), index('knowledge_embeddings_clone_idx').on(t.cloneId)]);
+
+// ─── blind prediction tests (P4) ────────────────────────────────────────────
+// The self-honesty loop: the model predicts BLIND (at scenario creation, sealed
+// until the person commits their own answer — predicted_at < answered_at is a
+// stored invariant), then an LLM judge scores the match across dimensions.
+// Operational like self_tests, NOT spine(): a test artifact, not a learned layer.
+
+export interface ScenarioPrediction { decision: string; factors: string[]; communication: string; confidence: number }
+export interface ScenarioJudgeOut { rationale: Record<string, string>; key_differences: string[]; summary: string }
+
+export const predictionScenarios = pgTable('prediction_scenarios', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: text('org_id').notNull(),
+  cloneId: uuid('clone_id').notNull(),
+  batchId: uuid('batch_id').notNull(),
+  category: text('category').notNull(),
+  format: text('format').$type<'open' | 'choice'>().notNull().default('open'),
+  choices: text('choices').array().notNull().default(sql`'{}'::text[]`),
+  scenario: text('scenario').notNull(),
+  question: text('question').notNull(),
+  /** Why this scenario was generated (which weak/uncertain areas it targets). */
+  targetNote: text('target_note'),
+  targetRefs: jsonb('target_refs').$type<{ kind: string; ref: string; hint?: string }[]>().notNull().default([]),
+  snapshotVersion: integer('snapshot_version'),
+  model: text('model'),
+  // Sealed until answered — never selected into any open-scenario payload.
+  aiPrediction: jsonb('ai_prediction').$type<ScenarioPrediction>(),
+  predictedAt: timestamp('predicted_at', { withTimezone: true }),
+  // State machine: open → answered → scored | failed ; open → skipped.
+  status: text('status').$type<'open' | 'answered' | 'scored' | 'skipped' | 'failed'>().notNull().default('open'),
+  humanAnswer: text('human_answer'),
+  humanFactors: text('human_factors'),
+  answeredAt: timestamp('answered_at', { withTimezone: true }),
+  judge: jsonb('judge').$type<ScenarioJudgeOut>(),
+  scoreDecision: real('score_decision'),
+  scoreReasoning: real('score_reasoning'),
+  scorePreference: real('score_preference'),
+  scoreCommunication: real('score_communication'),
+  scoreCalibration: real('score_calibration'),
+  scoreOverall: real('score_overall'),
+  judgeModel: text('judge_model'),
+  judgedAt: timestamp('judged_at', { withTimezone: true }),
+  correctionId: uuid('correction_id'),
+  createdAt: now(),
+}, (t) => [
+  index('pred_scenarios_clone_status_idx').on(t.cloneId, t.status),
+  index('pred_scenarios_clone_idx').on(t.cloneId, t.createdAt),
+]);

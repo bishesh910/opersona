@@ -89,6 +89,8 @@ export default async function ThinkingPage({ params }: { params: Promise<{ id: s
   // Overall accuracy (chat feedback + self-tests) from the engine; the page still renders if the engine is down.
   const acc = await engineFetch<{ me: number; notMe: number; pct: number | null }>(`/clones/${id}/accuracy`, { query: { orgId: ctx.orgId } })
     .catch(() => ({ me: 0, notMe: 0, pct: null as number | null }));
+  const sim = await engineFetch<{ scored: number; overall: number | null }>(`/clones/${id}/similarity`, { query: { orgId: ctx.orgId } })
+    .catch(() => null);
 
   // "This week" digest — plain SQL, no LLM.
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -155,6 +157,7 @@ export default async function ThinkingPage({ params }: { params: Promise<{ id: s
         feedbackCount={me + notMe}
         accuracyPct={acc.pct}
         interviewAnswers={access.isOwner ? interviewAnswered : undefined}
+        similarityPct={sim && sim.scored > 0 ? (sim.overall == null ? null : Math.round(sim.overall * 100)) : undefined}
       />
       <p className="muted text-xs">
         This week: learned from {sessionsWeek} {sessionsWeek === 1 ? 'session' : 'sessions'} · {newObs} new {newObs === 1 ? 'observation' : 'observations'} · {newConfirmed} {newConfirmed === 1 ? 'pattern' : 'patterns'} confirmed.

@@ -14,6 +14,9 @@ const RULES = {
   ccUpload: { limit: 20, windowMs: 3_600_000, label: 'up to 20 transcript uploads per hour' },
   compose: { limit: 10, windowMs: 3_600_000, label: 'up to 10 story drafts per hour' },
   interview: { limit: 90, windowMs: 3_600_000, label: 'up to 90 interview answers per hour' },
+  scenarioGen: { limit: 4, windowMs: 3_600_000, label: 'up to 4 scenario batches per hour' },
+  scenarioAnswer: { limit: 30, windowMs: 3_600_000, label: 'up to 30 scenario answers per hour' },
+  scenarioCorrect: { limit: 20, windowMs: 3_600_000, label: 'up to 20 corrections per hour' },
 } satisfies Record<string, Rule>;
 
 const hits = new Map<string, number[]>();
@@ -50,5 +53,8 @@ export function engineLimitFor(method: string, path: string[]): { bucket: string
   if (path[0] === 'clones' && path[2] === 'claude-code' && path[3] === 'upload') return { bucket: 'ccUpload', rule: RULES.ccUpload };
   if (path[0] === 'clones' && path[2] === 'compose-brief') return { bucket: 'compose', rule: RULES.compose };
   if (path[0] === 'clones' && path[2] === 'interview' && (path[3] === 'answer' || path[3] === 'next')) return { bucket: 'interview', rule: RULES.interview };
+  if (path[0] === 'clones' && path[2] === 'scenarios' && path.length === 3) return { bucket: 'scenarioGen', rule: RULES.scenarioGen };
+  if (path[0] === 'clones' && path[2] === 'scenarios' && path[4] === 'answer') return { bucket: 'scenarioAnswer', rule: RULES.scenarioAnswer };
+  if (path[0] === 'clones' && path[2] === 'scenarios' && path[4] === 'correct') return { bucket: 'scenarioCorrect', rule: RULES.scenarioCorrect };
   return null;
 }

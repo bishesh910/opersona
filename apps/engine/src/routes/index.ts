@@ -33,6 +33,8 @@ import Anthropic from '@anthropic-ai/sdk';
 
 export const routes = new Hono();
 registerDownloads(routes);
+import { scenarioRoutes } from './scenarios.js';
+routes.route('/', scenarioRoutes);
 
 const parse = async <T extends z.ZodTypeAny>(c: { req: { json: () => Promise<unknown> } }, schema: T): Promise<z.infer<T>> => schema.parse(await c.req.json().catch(() => ({})));
 
