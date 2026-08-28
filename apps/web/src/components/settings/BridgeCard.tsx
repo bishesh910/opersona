@@ -50,7 +50,11 @@ export function BridgeCard() {
     } finally { setBusy(false); }
   }
 
-  const cmd = fresh ? `npx opersona@latest --token ${fresh}${sealForLink ? ` --seal-key ${sealForLink}` : ''}` : '';
+  // ONE command does everything: pairs, installs as a background service (launchd /
+  // systemd user unit), starts it, and reports whether it actually connected.
+  const flags = fresh ? `--token ${fresh}${sealForLink ? ` --seal-key ${sealForLink}` : ''}` : '';
+  const cmd = fresh ? `npx opersona@latest install ${flags}` : '';
+  const fgCmd = fresh ? `npx opersona@latest ${flags}` : '';
 
   return (
     <section className="card space-y-3" data-bridge-card>
@@ -78,20 +82,21 @@ export function BridgeCard() {
             <CopyButton text={fresh} />
           </div>
           <div className="space-y-1.5">
-            <p className="text-xs font-medium">Run this on any machine where Claude Code is signed in:</p>
+            <p className="text-xs font-medium">Run this once on any machine where Claude Code is signed in — it&rsquo;s the whole setup:</p>
             <div className="flex items-center gap-2">
               <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900" data-bridge-cmd>{cmd}</code>
               <CopyButton text={cmd} />
             </div>
-            <p className="muted text-xs">Needs Node and the <code>claude</code> CLI signed in. The status above flips to <span className="font-medium">● online</span> within seconds.</p>
-            <div className="space-y-1.5 pt-1">
-              <p className="text-xs font-medium">Then set it free of the terminal — install it as a background service:</p>
-              <div className="flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">npx opersona@latest install</code>
-                <CopyButton text="npx opersona@latest install" />
-              </div>
-              <p className="muted text-xs">Runs invisibly from then on — starts at login, restarts if it crashes, no window to keep open. Remove any time with <code>npx opersona uninstall</code>.</p>
-            </div>
+            <p className="muted text-xs">
+              Pairs, installs itself as an invisible background service, and starts it: no terminal to keep open,
+              runs at every login, restarts if it crashes. Needs Node and the <code>claude</code> CLI signed in.
+              The status above flips to <span className="font-medium">● online</span> within seconds.
+              Remove any time with <code>npx opersona uninstall</code>.
+            </p>
+            <p className="muted text-xs">
+              Prefer to watch it run first? Same flags without <code>install</code> run it in the foreground:{' '}
+              <code className="break-all">{fgCmd}</code> <CopyButton text={fgCmd} />
+            </p>
           {recovery && (
             <div className="space-y-1.5 rounded-lg border border-emerald-300 bg-emerald-50 p-2.5 dark:border-emerald-800 dark:bg-emerald-950/40" data-seal-recovery>
               <p className="text-xs font-medium">🔑 Your conversations are now SEALED — save this key like a password.</p>

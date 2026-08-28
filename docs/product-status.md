@@ -13,7 +13,12 @@ cold-booting Claude per reply). The landing and all logged-out public pages
 wear the auth pages' Night Shift look, with the pixie crowd dimmed to a
 skyline. The `/explore` gallery is members-only now (individual `/p/<slug>`
 pages stay public — those links are handed out by their authors). Self-serve
-factory reset script for clean-slate testing.
+factory reset script for clean-slate testing. Bridge `0.4.1` makes
+`npx opersona@latest install --token obr_…` the WHOLE setup — it pairs,
+installs the background service from a real npm installation in
+`~/.opersona-bridge/app` (0.4.0 copied a lone bundle whose `ws`/Agent-SDK
+imports could never resolve, so the service crash-looped), starts it, and
+reports whether it actually connected.
 
 ## Where we are
 

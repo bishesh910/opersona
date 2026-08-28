@@ -3,12 +3,25 @@
 Run your [opersona](https://opersona.me) on the Claude subscription you already have.
 
 ```bash
-npx opersona@latest
+npx opersona@latest install --token obr_…
 ```
 
-That's the whole setup. On first run it asks for a pairing token (opersona.me →
-Settings → Models → *Chat on your own subscription* → **Pair a machine**) and
-remembers it. From then on, while this is running:
+That's the whole setup — one command (opersona.me → Settings → Models → *Chat
+on your own subscription* → **Pair a machine** shows it with your token filled
+in). It pairs this machine, installs the bridge as an invisible background
+service (launchd on macOS, a systemd user unit on Linux), starts it, and tells
+you whether it actually connected. No terminal to keep open; it runs at every
+login and restarts itself. `npx opersona uninstall` removes it (your pairing
+is kept).
+
+Prefer to watch it run? The same flags without `install` run it in the
+foreground with logs:
+
+```bash
+npx opersona@latest --token obr_…
+```
+
+While the bridge is up:
 
 - **Chats on opersona.me think on THIS machine** — through your own Claude Code
   login, on your own plan. No API key, ever.
@@ -25,20 +38,21 @@ remembers it. From then on, while this is running:
   opersona with its own token, and nothing Anthropic-related crosses the wire.
 - One outbound WebSocket; nothing listens on your machine.
 
-## Mac app
-
-There's also a menu-bar app (download it from your opersona Settings → Pair a
-machine). It's unsigned for now, so macOS calls it "damaged" — it isn't; run
-`xattr -cr /Applications/opersona.app` once and it opens normally forever.
-
 ## Requirements
 
 Node 20+, and [Claude Code](https://claude.com/claude-code) signed in (`claude` once).
 
-## Flags
+## Commands & flags
 
 ```
---token obr_…      pair (saved to ~/.opersona-bridge/config.json)
+install            pair + run as a background service (accepts the flags below)
+uninstall          remove the background service (pairing/config kept)
+grant <folder>     let chats run code + edit files in ONE folder (every command still asks)
+revoke <folder>    take that back
+workspaces         list granted folders
+
+--token obr_…      pair (saved to ~/.opersona-bridge/config.json, 0600)
+--seal-key …       decrypt/encrypt sealed chats on this machine (never sent to the server)
 --url https://…    self-hosted opersona instance
---no-watch         don't learn from this machine's coding sessions
+--no-watch         don't learn from this machine's coding sessions (persists with install)
 ```

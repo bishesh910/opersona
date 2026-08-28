@@ -32,7 +32,7 @@ Five short steps, no AI settings to configure:
 
 | Step | What happens |
 | --- | --- |
-| **Connect** | Pick a rail: pair the `npx opersona` bridge (your own Claude subscription — `npx opersona install` runs it terminal-free at every login) or an API key. Skippable. |
+| **Connect** | Pick a rail: the bridge (your own Claude subscription — one command, `npx opersona@latest install --token obr_…`, pairs it AND runs it terminal-free at every login) or an API key. Skippable. |
 | **Pixie** | An avatar — from a selfie (never stored), a dice roll, or by hand. |
 | **Story** | Four one-line questions → an AI-drafted first-person brief you edit. |
 | **Mind** | A 12-question personality quick take (or the full 24). Flavour, never authority. |

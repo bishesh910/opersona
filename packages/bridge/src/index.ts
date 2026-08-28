@@ -23,13 +23,13 @@ import { runJob } from './jobs.js';
 import { startWatcher } from './watcher.js';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
-const VERSION = '0.4.0';
+const VERSION = '0.4.2';
 
 // Subcommands: `opersona install` / `opersona uninstall` (background service).
 const sub = process.argv[2];
 if (sub === 'install' || sub === 'uninstall') {
   const { install, uninstall } = await import('./service.js');
-  (sub === 'install' ? install : uninstall)();
+  await (sub === 'install' ? install(VERSION) : uninstall());
   process.exit(process.exitCode ?? 0);
 }
 if (sub === 'version' || sub === '--version' || sub === '-v') { console.log(VERSION); process.exit(0); }
@@ -81,7 +81,7 @@ async function checkForUpdate(): Promise<void> {
     if (!res.ok) return;
     const latest = ((await res.json()) as { version?: string }).version ?? '';
     if (latest && newerThan(latest, VERSION)) {
-      const svc = existsSync(join(CONFIG_DIR, 'bridge.js'));
+      const svc = existsSync(join(CONFIG_DIR, 'app')) || existsSync(join(CONFIG_DIR, 'bridge.js'));
       console.log(`[update] opersona ${latest} is available (you are on ${VERSION}) — update with:  npx opersona@latest${svc ? ' install' : ''}`);
     }
   } catch { /* offline is fine */ }
@@ -94,7 +94,7 @@ function arg(name: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-interface Config { url?: string; token?: string; sealKey?: string; workspaces?: Workspace[] }
+interface Config { url?: string; token?: string; sealKey?: string; watch?: boolean; workspaces?: Workspace[] }
 function loadConfig(): Config {
   try { return JSON.parse(readFileSync(CONFIG_PATH, 'utf8')) as Config; } catch { return {}; }
 }
@@ -126,7 +126,10 @@ if (!TOKEN.startsWith('obr_')) {
   if (!answer.startsWith('obr_')) { console.error('That does not look like a bridge token — it starts with obr_. Nothing saved.'); process.exit(1); }
   TOKEN = answer;
 }
-if (TOKEN !== saved.token || URL_ !== saved.url) saveConfig({ url: URL_, token: TOKEN, sealKey: SEAL_KEY });
+// Merge into the saved config — never clobber workspaces/watch, never drop a seal key.
+if (TOKEN !== saved.token || URL_ !== saved.url || (SEAL_KEY !== undefined && SEAL_KEY !== saved.sealKey)) {
+  saveConfig({ ...saved, url: URL_, token: TOKEN, sealKey: SEAL_KEY ?? saved.sealKey });
+}
 
 if (!existsSync(join(homedir(), '.claude'))) {
   console.warn('[note] Claude Code does not look signed in on this machine (~/.claude missing).');
@@ -134,7 +137,8 @@ if (!existsSync(join(homedir(), '.claude'))) {
 }
 
 const WS_URL = URL_.replace(/^http/, 'ws') + '/bridge/ws';
-const WATCH = !process.argv.includes('--no-watch');
+// `install --no-watch` persists watch:false so the argless background service honors it too.
+const WATCH = process.argv.includes('--no-watch') ? false : saved.watch !== false;
 const CLAUDE_DIR = arg('claude-dir');   // test override for ~/.claude/projects
 const CODEX_DIR = arg('codex-dir');
 
