@@ -81,6 +81,8 @@ Key design choices, documented in [`docs/`](docs/):
 
 | Doc | What's inside |
 | --- | --- |
+| [user-flow.md](docs/user-flow.md) | The end-to-end journey — landing → onboarding → interview → model review → blind tests → corrections → share/export/delete |
+| [product-status.md](docs/product-status.md) | Where the product stands vs the spec: shipped, verified, gaps, next |
 | [architecture.md](docs/architecture.md) | The two-service layout, session lifecycle, prompt assembly, cost logging |
 | [learning.md](docs/learning.md) | Reasoning fingerprint, episodes, imports, self-tests, pattern hygiene |
 | [chat-and-sandbox.md](docs/chat-and-sandbox.md) | Chat features, attachments, the code-execution jail, file downloads |
