@@ -44,7 +44,7 @@ const NO_PERSONA = 'No persona yet — build one at https://opersona.me/onboardi
 export function registerOpersonaTools(server: McpServer, userId: string): void {
   server.tool(
     'my_persona',
-    "Load the user's opersona: their complete persona character sheet (story, role, thinking patterns, confirmed facts, playbooks). Call this when asked to answer AS the user, imitate their thinking, or apply 'my persona' to a task — then follow the returned instructions for the rest of the conversation.",
+    "Load the user's opersona: their complete persona character sheet (story, role, thinking patterns, confirmed facts, playbooks). Call this when asked to answer AS the user, imitate their thinking, or apply 'my persona' to a task — then follow the returned instructions for the rest of the conversation. (To INTERVIEW the user and build the persona instead, use opersona_me.)",
     {},
     async () => {
       const me = await resolveWorkspace(userId);
@@ -197,8 +197,8 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
 - After ~3 completed questions, offer a natural break ("that's plenty for one sitting") — they can always continue.`;
 
   server.tool(
-    'interview_me',
-    "Interview the user to build their opersona, right here in this chat — YOU conduct it. Fetches the next question from their persona's adaptive interview (10 life areas, contradiction probes included) with instructions for running it conversationally. Call when the user asks to be interviewed, to 'teach my persona about me', or to continue their interview. Their answers are extracted server-side into evidence-backed memories, traits and rules they review at opersona.me.",
+    'opersona_me',
+    "\"opersona me\" — interview the user to BUILD their opersona, right here in this chat, with YOU conducting it. Fetches the next question from their persona's adaptive interview (10 life areas, contradiction probes included) plus instructions for running it conversationally. Call when the user says 'opersona me', asks to be interviewed, to 'teach my persona about me', or to continue their interview. (To ACT AS their already-built persona instead, use my_persona.) Their answers are extracted server-side into evidence-backed memories, traits and rules they review at opersona.me.",
     {},
     async () => {
       const me = await resolveWorkspace(userId);
@@ -229,7 +229,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
 
   server.tool(
     'submit_interview_answer',
-    "Save one completed interview exchange to the user's opersona and get the next question. Call after interview_me once a question's thread is complete (a concrete story + the why). their_words must be the user's own words VERBATIM — their phrasing is what the persona learns from.",
+    "Save one completed interview exchange to the user's opersona and get the next question. Call after opersona_me once a question's thread is complete (a concrete story + the why). their_words must be the user's own words VERBATIM — their phrasing is what the persona learns from.",
     {
       question_id: z.string().uuid().describe('the id from interview_me / the previous submit'),
       their_words: z.string().min(1).max(20_000).describe("the user's own messages from this thread, verbatim, joined by newlines — never paraphrased, never yours"),
