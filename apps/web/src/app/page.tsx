@@ -43,31 +43,47 @@ export default async function Home() {
           </div>
           <PixelDivider />
         </section>
-        <section className="grid gap-4 pb-12 sm:grid-cols-3">
+        <section className="grid gap-4 sm:grid-cols-3">
           <div className="card space-y-2 p-5">
-            <span className="chip">learns you</span>
-            <h2 className="font-medium">How you think, not just what you said</h2>
+            <span className="chip">the interview</span>
+            <h2 className="font-medium">Teach it who you are</h2>
             <p className="muted text-sm">
-              Your persona distills reasoning patterns, confirmed facts and playbooks from the
-              conversations and work you were doing anyway.
+              An adaptive interview asks about real moments — decisions, conflicts, money, people —
+              and follows the threads your answers open, including the ones that don&rsquo;t quite add up.
             </p>
           </div>
           <div className="card space-y-2 p-5">
             <span className="chip">evidence-backed</span>
-            <h2 className="font-medium">Every pattern shows its receipts</h2>
+            <h2 className="font-medium">Every claim shows its receipts</h2>
             <p className="muted text-sm">
-              Nothing is asserted without your own words behind it. You see the evidence, and you
-              confirm or reject what it learned — &ldquo;that&rsquo;s me&rdquo; or &ldquo;not me&rdquo;.
+              What it learns is labelled honestly — <em>you said this</em>, <em>observed</em>, or just
+              a <em>hunch</em> — with your own words one tap away, and &ldquo;that&rsquo;s me / not
+              me&rdquo; buttons everywhere.
             </p>
           </div>
           <div className="card space-y-2 p-5">
-            <span className="chip">yours</span>
-            <h2 className="font-medium">Private by design</h2>
+            <span className="chip">tested blind</span>
+            <h2 className="font-medium">It has to prove it knows you</h2>
             <p className="muted text-sm">
-              It runs on your own Claude, raw chats can be sealed with a key only you hold, and your
-              persona is shared only when you decide, on your terms.
+              Fresh scenarios, predicted blind before you answer, scored on decision, reasoning and
+              style. Every miss you correct makes it more you.
             </p>
           </div>
+        </section>
+        <section className="py-10">
+          <p className="muted mx-auto flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center font-mono text-xs">
+            {['interview', 'model', 'predict', 'test', 'correct', 'predict better'].map((s, i) => (
+              <span key={s} className="inline-flex items-center gap-2">
+                {i > 0 && <span aria-hidden className="opacity-40">→</span>}
+                <span className={i === 5 ? 'font-medium text-neutral-700 dark:text-neutral-300' : ''}>{s}</span>
+              </span>
+            ))}
+          </p>
+          <p className="muted mt-3 text-center text-sm">
+            The loop the whole product bends toward: does it actually get better at predicting you?
+            It also runs on your own Claude, seals raw chats with a key only you hold, and deletes
+            completely when you say so.
+          </p>
         </section>
         <footer className="muted flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-neutral-200 pt-6 text-xs dark:border-neutral-800">
           <Link href="/explore" className="hover:underline">Explore shared personas</Link>

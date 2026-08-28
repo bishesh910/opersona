@@ -136,3 +136,34 @@ a trait with no verified quote survives only as `hypothesis` (confidence ≤ 0.6
 without receipts are dropped, tiers never auto-promote (only new explicit quoted evidence or an
 owner verdict, always via `learning_events`). Hypothesis-tier is never rendered into any prompt;
 non-owner audiences see only rows marked `shareable` (default false).
+
+## Blind prediction tests + simulation
+
+- `POST /clones/:id/scenarios` `{ orgId, userId, count? }` — generate a batch; each scenario's
+  blind prediction is made and SEALED at creation (`predicted_at < answered_at` is a stored
+  invariant). Generation targets the model's weak spots (hypothesis/low-confidence traits, open
+  tensions, uncovered reasoning dimensions, low-scoring recent categories).
+- `GET /clones/:id/scenarios?view=open|history` — `open` serves OPEN_COLUMNS only: the
+  prediction and scores are structurally absent from blind payloads.
+- `POST /clones/:id/scenarios/:sid/answer` `{ orgId, userId, answer, factors? }` — one atomic
+  `UPDATE … WHERE status='open'` (409 on a double submit), then the LLM judge scores decision /
+  reasoning / preference / communication (calibration is computed in code:
+  `1 − |confidence − decision_match|`). A judge crash leaves `failed` with the answer intact.
+- `POST /clones/:id/scenarios/:sid/skip` · `POST …/:sid/correct` `{ kinds[], note }` — the
+  correction loop: counter-observations + candidate knowledge proposals (trait/rule/memory/fact)
+  with the person's words as evidence, then fingerprint recompute + snapshot republish.
+- `GET /clones/:id/similarity` — per-dimension averages + overall (null under 5 scored:
+  "Not enough data yet"); labelled an internal model metric.
+- `POST /clones/:id/simulate` `{ orgId, userId, mode: ask|respond|decide|compare|explain, text,
+  options?, context? }` — one-shot behavioural prediction. Context is assembled server-side
+  (recall + documents BEFORE the call); the output contract is code-enforced: `evidence_used`
+  is filtered to the ids the server actually retrieved, thin evidence forces the standard
+  "I don't have enough information" abstention, compare requires per-option verdicts. Never
+  writes to `conversations`.
+
+## Deletion (server-to-server)
+
+- `POST /orgs/purge-files` `{ orgId }` — remove the whole org data dir (account deletion).
+- `POST /clones/:id/purge-files` `{ orgId, documentIds? }` — remove one clone's dirs + its
+  upload files (persona deletion). DB truth never depends on these; they are best-effort
+  filesystem cleanup after the information_schema-driven row sweep in the web tier.

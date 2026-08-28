@@ -5,12 +5,12 @@
  * the never-approved account and its empty personal workspace.
  */
 import { revalidatePath } from 'next/cache';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db, authSchema } from '@opersona/db';
 import { getSessionCtx } from '@/lib/session';
 import { isPlatformAdmin } from '@/lib/auth';
 import { sendEmail, MAILER_ON } from '@/lib/email';
-import { wipeOrg } from '@/lib/deletion';
+import { deleteUserAccount } from '@/lib/deletion';
 
 async function requireStaff() {
   const s = await getSessionCtx();
@@ -39,20 +39,6 @@ export async function rejectUserAction(userId: string): Promise<void> {
   if (!u) return;
   if (u.approvedAt) throw new Error('account is already approved — removal is a support task, not a click');
   if (isPlatformAdmin(u.email)) throw new Error('refusing to reject a platform admin');
-  const memberships = await db.select({ orgId: authSchema.member.organizationId }).from(authSchema.member).where(eq(authSchema.member.userId, userId));
-  await db.transaction(async (tx) => {
-    for (const m of memberships) {
-      const others = await tx.select({ c: sql<number>`count(*)::int` }).from(authSchema.member)
-        .where(sql`${authSchema.member.organizationId} = ${m.orgId} and ${authSchema.member.userId} <> ${userId}`);
-      if ((others[0]?.c ?? 0) > 0) continue; // shared org: leave it, just remove membership below
-      await wipeOrg(tx, m.orgId); // org is theirs alone — wipe every org-scoped row
-
-    }
-    await tx.execute(sql`delete from member where user_id = ${userId}`);
-    await tx.execute(sql`delete from session where user_id = ${userId}`);
-    await tx.execute(sql`delete from account where user_id = ${userId}`);
-    await tx.execute(sql`delete from verification where identifier = ${u.email}`);
-    await tx.delete(authSchema.user).where(eq(authSchema.user.id, userId));
-  });
+  await deleteUserAccount(userId, u.email);
   revalidatePath('/admin/approvals');
 }

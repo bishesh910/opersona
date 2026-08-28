@@ -13,7 +13,7 @@ import { SettingsTabs } from '@/components/settings/SettingsTabs';
 import { ConnectorCard } from '@/components/settings/ConnectorCard';
 import { BridgeCard } from '@/components/settings/BridgeCard';
 import { SealCard } from '@/components/settings/SealCard';
-import { engineFetch } from '@/lib/engine';
+import { DangerZone } from '@/components/settings/DangerZone';
 
 const MODEL_LABELS: Record<string, string> = {
   'claude-fable-5': 'Fable 5',
@@ -26,6 +26,8 @@ export default async function SettingsPage() {
   const ctx = await requireOrg();
   const [row] = await db.select().from(schema.orgSettings).where(eq(schema.orgSettings.orgId, ctx.orgId)).limit(1);
   const [userRow] = await db.select({ twoFactorEnabled: authSchema.user.twoFactorEnabled }).from(authSchema.user).where(eq(authSchema.user.id, ctx.userId)).limit(1);
+  const [ownClone] = await db.select({ name: schema.clones.name }).from(schema.clones)
+    .where(and(eq(schema.clones.orgId, ctx.orgId), eq(schema.clones.ownerUserId, ctx.userId), eq(schema.clones.kind, 'member'), sql`${schema.clones.archivedAt} is null`)).limit(1);
   const admin = isOrgAdmin(ctx);
   const pendingInvites = admin
     ? await db.select({ id: authSchema.invitation.id, email: authSchema.invitation.email, expiresAt: authSchema.invitation.expiresAt })
@@ -71,6 +73,7 @@ export default async function SettingsPage() {
               }))}
             />
             <NamesCard orgName={ctx.orgName} userName={ctx.user.name} canRenameOrg={false} />
+            <DangerZone email={ctx.user.email} personaName={ownClone?.name ?? null} />
           </>
         }
         org={showOrgTab ? (

@@ -76,7 +76,7 @@ export default function PrivacyPage() {
       <section className="card space-y-2 p-5">
         <h2 className="font-medium">Who sees what</h2>
         <ul className="muted list-disc space-y-1 pl-5 text-sm">
-          <li><strong>Other people: nothing</strong>, unless you explicitly share your persona with them (coming soon — and even then, section by section, with a full preview, never your conversations).</li>
+          <li><strong>Other people: nothing</strong>, unless you explicitly publish your persona — section by section, with a full preview of exactly what leaves, never your conversations. Unpublish any time.</li>
           <li><strong>If a teammate asks your persona a question</strong>, that conversation belongs to your persona — you can read it, and they know that.</li>
           <li><strong>The claude.ai connector</strong> only sees the tool calls your own Claude makes: a memory search here, an insight you asked it to save there. Your claude.ai conversations never stream to us.</li>
           <li><strong>We (the operators)</strong>: the app gives us no page, route, or API to read anyone&apos;s content — admins get metadata only (accounts, usage totals). Like any host anywhere, we could technically query the database — which is exactly why chats are sealed: the part you&apos;d worry about is ciphertext even to us. Backups are encrypted too.</li>
@@ -97,7 +97,7 @@ export default function PrivacyPage() {
         <h2 className="font-medium">Your exit, any time</h2>
         <ul className="muted list-disc space-y-1 pl-5 text-sm">
           <li>Export your persona and its memory from the app.</li>
-          <li>Ask us to delete your account and everything goes — workspace, persona, memory, files. (A self-serve delete button is on the way.)</li>
+          <li>Delete your persona or your whole account yourself, in Settings → Account. Everything goes — workspace, persona, memory, files on disk — permanently, the moment you confirm.</li>
           <li>Don&apos;t trust our server at all? opersona is <strong>self-hostable by design</strong> — run the same product on your own machine.</li>
         </ul>
       </section>

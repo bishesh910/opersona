@@ -464,3 +464,38 @@ routes.post('/documents/:id/ingest', async (c) => {
   const body = await parse(c, z.object({ orgId: z.string() }));
   return c.json({ chunks: await ingestDocument(body.orgId, c.req.param('id')) });
 });
+
+// ─── deletion: filesystem purge (server-to-server; DB truth never depends on these) ──
+const safeOrgDir = async (orgId: string) => {
+  const { resolve, join } = await import('node:path');
+  const base = resolve(config.dataDir, 'orgs');
+  const dir = resolve(join(base, orgId));
+  if (!dir.startsWith(base + '/') || dir === base) throw new Error('bad org path');
+  return dir;
+};
+
+/** Remove the whole org data dir (uploads, clone homes/workspaces). Account deletion. */
+routes.post('/orgs/purge-files', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string().min(3).max(128).regex(/^[\w.-]+$/) }));
+  const { rm } = await import('node:fs/promises');
+  const dir = await safeOrgDir(body.orgId);
+  await rm(dir, { recursive: true, force: true });
+  console.log('[deletion] purged org files', body.orgId);
+  return c.json({ ok: true });
+});
+
+/** Remove one clone's dirs + its upload files. Persona deletion. */
+routes.post('/clones/:id/purge-files', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string().min(3).max(128).regex(/^[\w.-]+$/), documentIds: z.array(z.string().uuid()).max(1000).optional() }));
+  const { rm } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const cloneId = c.req.param('id');
+  if (!/^[0-9a-f-]{36}$/i.test(cloneId)) return c.json({ error: 'bad clone id' }, 400);
+  const orgDir = await safeOrgDir(body.orgId);
+  await rm(join(orgDir, 'clones', cloneId), { recursive: true, force: true });
+  for (const docId of body.documentIds ?? []) {
+    await rm(join(orgDir, 'uploads', docId), { force: true }).catch(() => {});
+  }
+  console.log('[deletion] purged clone files', cloneId);
+  return c.json({ ok: true });
+});
