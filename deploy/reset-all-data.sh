@@ -42,7 +42,20 @@ rm -rf "$ENGINE_DATA_DIR/orgs" "$ENGINE_DATA_DIR/probe" "$ENGINE_DATA_DIR/e2e-re
 echo "→ restarting services"
 sudo systemctl restart opersona-engine opersona-web
 
+# Warm the auth layer with ONE serial request: better-auth lazily re-creates its
+# OAuth resource row on first use, and concurrent first requests race the unique
+# constraint (observed: a poisoned instance 500ing until restart). One warm-up
+# request creates the row alone; then verify and restart once more if needed.
 sleep 4
+curl -s -o /dev/null --max-time 15 http://127.0.0.1:3000/ || true
+sleep 1
+if [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 http://127.0.0.1:3000/)" != "200" ]]; then
+  echo "→ web unhealthy after warm-up; one more restart"
+  sudo systemctl restart opersona-web
+  sleep 4
+  curl -s -o /dev/null --max-time 15 http://127.0.0.1:3000/ || true
+fi
+
 echo "→ post-reset state:"
 psql "$DATABASE_URL" -tAc \
   "select 'users: '||count(*) from \"user\"
