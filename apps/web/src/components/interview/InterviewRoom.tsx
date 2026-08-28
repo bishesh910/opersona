@@ -220,12 +220,16 @@ export function InterviewRoom({ cloneId, personaName, avatar }: { cloneId: strin
         <div className="hidden sm:block"><CategoryBars categories={state.progress.categories} /></div>
         <div className="sm:hidden"><CategoryBars categories={state.progress.categories} compactSummary /></div>
         <p className="muted text-xs">
+          {state.progress.categories.some((c) => !c.justStarted) && (
+            <>Overall it knows you ≈ {Math.round((state.progress.categories.reduce((s, c) => s + (c.justStarted ? 0 : c.coverage), 0) / state.progress.categories.length) * 100)}% · </>
+          )}
           {state.progress.answered} thread{state.progress.answered === 1 ? '' : 's'} finished
           {state.progress.knowledge.memories + state.progress.knowledge.traits + state.progress.knowledge.rules > 0 && (
             <> · {state.progress.knowledge.memories} memor{state.progress.knowledge.memories === 1 ? 'y' : 'ies'}, {state.progress.knowledge.traits} trait{state.progress.knowledge.traits === 1 ? '' : 's'}, {state.progress.knowledge.rules} rule{state.progress.knowledge.rules === 1 ? '' : 's'} learned — see the Memory tab</>
           )}
-          . Leave any time — the chat picks up right here.
+          .
         </p>
+        <p className="muted text-xs">There’s no finish line — this is a habit, not a form. A few threads per sitting is plenty; leave any time and the chat picks up right here.</p>
       </section>
     </div>
   );

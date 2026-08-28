@@ -12,7 +12,7 @@
  * acknowledgment and moves on.
  */
 import { z } from 'zod';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, sql } from 'drizzle-orm';
 import { db, interviewMessages, interviewQuestions, interviewAnswers, clones, personaBriefs } from '@opersona/db';
 import { redactSecrets } from '@opersona/shared';
 import { structuredCall } from '../llm.js';
@@ -184,6 +184,16 @@ async function runInterviewerTurn(orgId: string, cloneId: string): Promise<void>
     await say(orgId, cloneId, question.id, turn.reply);
     if (turn.action === 'wrap_up') {
       await finalizeThread(orgId, cloneId, question);
+      // Session pacing: there is deliberately no finish line (the interview is a
+      // habit, not a form) — so every third wrapped thread in a sitting, give
+      // explicit permission to stop. Continuing stays one message away.
+      const twoHoursAgo = new Date(Date.now() - 2 * 3600_000);
+      const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(interviewAnswers)
+        .where(and(eq(interviewAnswers.cloneId, cloneId), eq(interviewAnswers.skipped, false), gte(interviewAnswers.createdAt, twoHoursAgo)));
+      if (n >= 3 && n % 3 === 0) {
+        await say(orgId, cloneId, question.id,
+          `That's ${n === 3 ? 'three' : n} solid threads this sitting — honestly plenty. I've got a lot to chew on; you'll see it land in your Memory tab. Step away whenever, I'll have fresh questions when you're back. Or keep going if you're in the mood.`);
+      }
       await interviewChatState(orgId, cloneId); // opens the next question + its opener message
       return;
     }
