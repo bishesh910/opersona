@@ -8,14 +8,16 @@ import { ZodError } from 'zod';
 import { config } from './config.js';
 import { internalAuth } from './auth.js';
 import { routes } from './routes/index.js';
-import { bridgePublic } from './routes/bridgePublic.js';
 import { ingest } from './routes/ingest.js';
 import { shutdown, liveCount } from './sessions/manager.js';
 import { resumePending } from './learning/queue.js';
 
 const app = new Hono();
 app.route('/ingest', ingest);   // token-authenticated, no internal token
-app.route('/bridge', bridgePublic); // obr_-token-authenticated (tray avatar), no internal token
+// /bridge/* below this line requires the internal token; the only bridge-token
+// surface is the /bridge/ws upgrade handled on the HTTP server directly. The old
+// obr_-authed GET /bridge/{prompt,avatar} (desktop-app era) are gone — a leaked
+// bridge token must not be enough to exfiltrate a full persona prompt.
 app.use('*', internalAuth);
 app.route('/', routes);
 app.onError((err, c) => {

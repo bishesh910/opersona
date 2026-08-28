@@ -153,7 +153,8 @@ export function buildPersonaTools(ctx: ToolContext): SdkMcpToolDefinition[] {
     SPEC.list_team.shape,
     async () => {
       const rows = await db.select({ id: clones.id, name: clones.name, kind: clones.kind, archivedAt: clones.archivedAt }).from(clones).where(eq(clones.orgId, ctx.orgId));
-      const briefs = await db.select({ cloneId: personaBriefs.cloneId, roleTitle: personaBriefs.roleTitle, team: personaBriefs.team }).from(personaBriefs);
+      const briefs = await db.select({ cloneId: personaBriefs.cloneId, roleTitle: personaBriefs.roleTitle, team: personaBriefs.team }).from(personaBriefs)
+        .where(eq(personaBriefs.orgId, ctx.orgId));
       const bmap = new Map(briefs.map((b2) => [b2.cloneId, b2]));
       const line = (r: typeof rows[number]) => {
         const b2 = bmap.get(r.id);

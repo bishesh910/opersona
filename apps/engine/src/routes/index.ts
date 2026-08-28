@@ -132,6 +132,11 @@ routes.post('/conversations/:id/end', async (c) => {
 // ─── approvals ──────────────────────────────────────────────────────────────
 routes.post('/approvals/:id', async (c) => {
   const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), behavior: z.enum(['allow', 'deny']), updatedInput: z.record(z.string(), z.unknown()).optional(), answer: z.string().optional(), message: z.string().optional() }));
+  // Belt-and-braces org check (the web proxy verifies too, but this endpoint must
+  // not rely on it): the approval row has to belong to the caller's org.
+  const { approvals } = await import('@opersona/db');
+  const [row] = await db.select({ id: approvals.id }).from(approvals).where(and(eq(approvals.id, c.req.param('id')), eq(approvals.orgId, body.orgId))).limit(1);
+  if (!row) return c.json({ error: 'approval not pending' }, 404);
   const ok = await resolveApproval(c.req.param('id'), { behavior: body.behavior, updatedInput: body.updatedInput, answer: body.answer, message: body.message, resolvedBy: body.userId });
   return ok ? c.json({ ok: true }) : c.json({ error: 'approval not pending' }, 404);
 });
@@ -175,9 +180,14 @@ routes.get('/clones/:id/prompt', async (c) => {
   const orgId = c.req.query('orgId') ?? '';
   const [clone] = await db.select({ id: clones.id, kind: clones.kind }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, orgId))).limit(1);
   if (!clone) return c.json({ error: 'clone not found' }, 404);
-  // audience follows the clone kind; ?audience=shared forces the privacy-safe render
-  const audience = c.req.query('audience') === 'shared' ? 'shared' as const
-    : clone.kind === 'hired' ? 'hired' as const : clone.kind === 'imported' ? 'imported' as const : 'owner' as const;
+  // Audience follows the clone kind; ?audience= can only DOWNGRADE privilege,
+  // never widen it — 'shared' is the privacy-safe floor for any kind, 'visitor'
+  // strips the owner-only layers from a member clone (a colleague asking).
+  const kindDefault = clone.kind === 'hired' ? 'hired' as const : clone.kind === 'imported' ? 'imported' as const : 'owner' as const;
+  const q = c.req.query('audience');
+  const audience = q === 'shared' ? 'shared' as const
+    : q === 'visitor' && kindDefault === 'owner' ? 'visitor' as const
+    : kindDefault;
   return c.json(await activePrompt(orgId, clone.id, audience));
 });
 
@@ -334,7 +344,10 @@ routes.post('/clones/:id/self-test/:testId/rate', async (c) => {
 });
 
 routes.get('/clones/:id/accuracy', async (c) => {
-  return c.json(await accuracy(c.req.param('id')));
+  const orgId = c.req.query('orgId') ?? '';
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  return c.json(await accuracy(clone.id));
 });
 
 // ─── Claude Code ────────────────────────────────────────────────────────────

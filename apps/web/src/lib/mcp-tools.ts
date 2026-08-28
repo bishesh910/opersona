@@ -7,7 +7,7 @@
  */
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { db, schema, authSchema } from '@opersona/db';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { engineFetch } from '@/lib/engine';
@@ -145,7 +145,10 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
       const local = roster.find((c) => c.name.toLowerCase() === needle.toLowerCase());
       if (local) {
         try {
-          const res = await engineFetch<{ prompt: string }>(`/clones/${local.id}/prompt?orgId=${encodeURIComponent(me.orgId)}`);
+          // A colleague's own persona opens at the VISITOR audience — the owner
+          // render (private facts, lessons, episodes) is for the owner alone.
+          const audience = local.kind === 'member' && local.ownerUserId !== me.userId ? '&audience=visitor' : '';
+          const res = await engineFetch<{ prompt: string }>(`/clones/${local.id}/prompt?orgId=${encodeURIComponent(me.orgId)}${audience}`);
           return text(`# ${local.name} — persona loaded${local.kind === 'imported' ? ' (imported copy)' : ''}\nAdopt this persona for the rest of the conversation.\n\n${res.prompt}`);
         } catch (e) {
           return errText(`Could not load ${local.name} right now (${e instanceof Error ? e.message : 'engine unreachable'}).`);
@@ -170,6 +173,9 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
     'Search the public opersona community for published personas by name, role or topic. Returns matches with their slug — pass a slug to use_persona to adopt one.',
     { query: z.string().min(1).max(200).describe('what kind of persona to look for') },
     async ({ query }) => {
+      // Same admission gate as every other tool — unapproved accounts get nothing.
+      const me = await resolveWorkspace(userId);
+      if (!me) return errText('Account not found.');
       const rows = await db.select().from(schema.publishedPersonas)
         .where(and(eq(schema.publishedPersonas.visibility, 'public'), eq(schema.publishedPersonas.status, 'active')))
         .orderBy(desc(schema.publishedPersonas.importCount)).limit(200);
@@ -194,7 +200,8 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
         .from(schema.clones).where(eq(schema.clones.orgId, me.orgId)).orderBy(desc(schema.clones.createdAt));
       const live = clones.filter((c) => !c.archivedAt);
       if (!live.length) return text(NO_PERSONA);
-      const briefs = await db.select({ cloneId: schema.personaBriefs.cloneId, roleTitle: schema.personaBriefs.roleTitle }).from(schema.personaBriefs);
+      const briefs = await db.select({ cloneId: schema.personaBriefs.cloneId, roleTitle: schema.personaBriefs.roleTitle }).from(schema.personaBriefs)
+        .where(inArray(schema.personaBriefs.cloneId, live.map((c) => c.id)));
       const roleOf = new Map(briefs.map((b) => [b.cloneId, b.roleTitle]));
       return text(live.map((c) => `- ${c.name}${roleOf.get(c.id) ? ` — ${roleOf.get(c.id)}` : ''}${c.kind === 'hired' ? ' (hired specialist)' : ''}`).join('\n'));
     },

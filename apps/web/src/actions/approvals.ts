@@ -10,6 +10,7 @@ import { db, authSchema } from '@opersona/db';
 import { getSessionCtx } from '@/lib/session';
 import { isPlatformAdmin } from '@/lib/auth';
 import { sendEmail, MAILER_ON } from '@/lib/email';
+import { wipeOrg } from '@/lib/deletion';
 
 async function requireStaff() {
   const s = await getSessionCtx();
@@ -44,12 +45,8 @@ export async function rejectUserAction(userId: string): Promise<void> {
       const others = await tx.select({ c: sql<number>`count(*)::int` }).from(authSchema.member)
         .where(sql`${authSchema.member.organizationId} = ${m.orgId} and ${authSchema.member.userId} <> ${userId}`);
       if ((others[0]?.c ?? 0) > 0) continue; // shared org: leave it, just remove membership below
-      await tx.execute(sql`select 1`); // org is theirs alone — wipe org-scoped rows
-      const tables = await tx.execute(sql`select table_name from information_schema.columns where table_schema='public' and column_name='org_id' and table_name <> 'organization'`);
-      for (const row of tables.rows as { table_name: string }[]) {
-        await tx.execute(sql.raw(`delete from "${row.table_name}" where org_id = '${m.orgId.replace(/'/g, '')}'`));
-      }
-      await tx.execute(sql`delete from organization where id = ${m.orgId}`);
+      await wipeOrg(tx, m.orgId); // org is theirs alone — wipe every org-scoped row
+
     }
     await tx.execute(sql`delete from member where user_id = ${userId}`);
     await tx.execute(sql`delete from session where user_id = ${userId}`);
