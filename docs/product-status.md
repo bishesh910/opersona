@@ -11,7 +11,9 @@ background replies, cross-thread memory, session pacing, and an internal
 scroll box. Bridge `opersona@0.4.0` ships warm job sessions (no more
 cold-booting Claude per reply). The landing and all logged-out public pages
 wear the auth pages' Night Shift look, with the pixie crowd dimmed to a
-skyline. Self-serve factory reset script for clean-slate testing.
+skyline. The `/explore` gallery is members-only now (individual `/p/<slug>`
+pages stay public — those links are handed out by their authors). Self-serve
+factory reset script for clean-slate testing.
 
 ## Where we are
 

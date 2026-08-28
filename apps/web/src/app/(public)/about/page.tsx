@@ -138,7 +138,6 @@ export default function AboutPage() {
         <PixelDivider />
         <p className="text-sm">If any of this sounds like how software should treat you:</p>
         <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-          <li><Link href="/explore" className={linkClass}>Explore public personas</Link></li>
           <li><Link href="/privacy" className={linkClass}>Privacy, honestly</Link></li>
           <li>
             <Link href="/sign-up" className={linkClass}>Sign up</Link>{" "}

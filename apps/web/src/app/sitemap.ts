@@ -5,7 +5,8 @@ import { SITE_URL } from '@/lib/community';
 
 export const dynamic = 'force-dynamic';
 
-/** Landing, explore, privacy + every PUBLIC active persona (restricted ones never appear). */
+/** Landing, privacy + every PUBLIC active persona (restricted ones never appear;
+ *  /explore is members-only and stays out of search). */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const pubs = await db.select({ slug: schema.publishedPersonas.slug, updatedAt: schema.publishedPersonas.updatedAt })
     .from(schema.publishedPersonas)
@@ -14,7 +15,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .catch(() => [] as { slug: string; updatedAt: Date }[]); // fresh self-host: tables may not exist yet
   return [
     { url: `${SITE_URL}/`, changeFrequency: 'weekly' },
-    { url: `${SITE_URL}/explore`, changeFrequency: 'daily' },
     { url: `${SITE_URL}/privacy`, changeFrequency: 'monthly' },
     ...pubs.map((p) => ({ url: `${SITE_URL}/p/${p.slug}`, lastModified: p.updatedAt })),
   ];

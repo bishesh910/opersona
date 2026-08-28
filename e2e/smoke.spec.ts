@@ -25,13 +25,13 @@ test('old /office and /clones URLs land somewhere real', async ({ page }) => {
   expect(r2?.status()).toBeLessThan(400);
 });
 
-test('explore, about and privacy are public', async ({ page }) => {
-  await page.goto('/explore');
-  await expect(page).toHaveURL(/\/explore/);
+test('about and privacy are public; explore is members-only', async ({ page }) => {
   await page.goto('/about');
   await expect(page.getByRole('heading', { name: /about opersona/i })).toBeVisible();
   await page.goto('/privacy');
   await expect(page).toHaveURL(/\/privacy/);
+  await page.goto('/explore');
+  await page.waitForURL(/\/sign-in/);
 });
 
 test('unknown routes show the branded 404', async ({ page }) => {

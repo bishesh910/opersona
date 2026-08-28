@@ -9,7 +9,7 @@ export default function NotFound() {
         <p className="muted text-sm">The page moved, was unpublished, or never existed.</p>
         <div className="flex justify-center gap-2 pt-1">
           <Link href="/" className="btn-primary btn-sm">Go home</Link>
-          <Link href="/explore" className="btn-secondary btn-sm">Explore</Link>
+          <Link href="/about" className="btn-secondary btn-sm">About</Link>
         </div>
       </div>
     </main>

@@ -51,8 +51,8 @@ export default async function Home() {
         <nav className="flex items-center justify-between gap-3">
           <span className="text-xl font-semibold tracking-tight text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">opersona.me</span>
           <div className="flex items-center gap-2 text-sm">
-            <Link href="/explore" className="rounded-md px-3 py-2 font-medium text-neutral-300 transition-colors hover:text-white">Explore</Link>
-            <Link href="/about" className="hidden rounded-md px-3 py-2 font-medium text-neutral-300 transition-colors hover:text-white sm:inline-flex">About</Link>
+            <Link href="/about" className="rounded-md px-3 py-2 font-medium text-neutral-300 transition-colors hover:text-white">About</Link>
+            <Link href="/privacy" className="hidden rounded-md px-3 py-2 font-medium text-neutral-300 transition-colors hover:text-white sm:inline-flex">Privacy</Link>
             <Link href="/sign-in" className={CTA_QUIET + ' !h-10 !px-4 text-sm'}>Sign in</Link>
           </div>
         </nav>
@@ -113,7 +113,7 @@ export default async function Home() {
           <span>Runs on your own Claude · chats sealable with a key only you hold · deletes completely when you say so</span>
           <span className="ml-auto flex gap-4">
             <Link href="/privacy" className="transition-colors hover:text-neutral-300">Privacy</Link>
-            <Link href="/explore" className="transition-colors hover:text-neutral-300">Explore</Link>
+            <Link href="/about" className="transition-colors hover:text-neutral-300">About</Link>
           </span>
         </footer>
       </div>

@@ -15,7 +15,9 @@ better at predicting the person over time?* Everything below feeds that.
 
 Logged-out visitors get the landing: what it is (interview / receipts / blind
 tests), the loop, and two doors — **Build my persona** (`/sign-up`) and
-**See how it works** (`/about`). `/explore`, `/privacy`, `/p/<slug>` are public.
+**See how it works** (`/about`). `/about`, `/privacy` and `/p/<slug>` (a link a
+persona's author hands out deliberately) are public; the `/explore` gallery is
+members-only — no anonymous browsing of the community.
 
 ## 2 · Create an account — `/sign-up` → `/pending` → in
 

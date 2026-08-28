@@ -13,9 +13,9 @@ export async function CommunityHeader() {
       <div className="flex items-center gap-2 text-sm">
         <Link href="/about" className="muted mr-1 hidden text-xs hover:underline sm:inline">About</Link>
         <Link href="/privacy" className="muted mr-1 hidden text-xs hover:underline sm:inline">Privacy</Link>
-        <Link href="/explore" className="btn-secondary btn-sm">Explore</Link>
         {session ? (
           <>
+            <Link href="/explore" className="btn-secondary btn-sm">Explore</Link>
             <Link href="/me/share" className="btn-secondary btn-sm">Share my opersona</Link>
             <Link href="/chat" className="btn-primary btn-sm">My workspace →</Link>
           </>

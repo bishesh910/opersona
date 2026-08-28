@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { and, desc, eq } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { getSessionCtx } from '@/lib/session';
@@ -10,9 +11,13 @@ export const metadata = {
 };
 export const dynamic = 'force-dynamic';
 
+/** Members-only: the gallery is for people in the community, not anonymous
+ *  browsing/scraping. A persona's own page (/p/<slug>) stays public — that
+ *  link is something its author hands out deliberately. */
 export default async function ExplorePage({ searchParams }: { searchParams: Promise<{ q?: string; sort?: string }> }) {
   const { q = '', sort = 'popular' } = await searchParams;
   const session = await getSessionCtx();
+  if (!session) redirect('/sign-in');
   const rows = await db.select().from(schema.publishedPersonas)
     .where(and(eq(schema.publishedPersonas.visibility, 'public'), eq(schema.publishedPersonas.status, 'active')))
     .orderBy(sort === 'new' ? desc(schema.publishedPersonas.updatedAt) : desc(schema.publishedPersonas.importCount))
@@ -31,11 +36,6 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
           People publish how they think — their reasoning patterns, facts and playbooks — as personas you can add
           to your own workspace. The copy runs on <em>your</em> Claude and never phones home.
         </p>
-        {!session && (
-          <p className="text-sm">
-            <Link href="/sign-up" className="underline">Create your account</Link> to build your own persona and add others&apos;.
-          </p>
-        )}
       </header>
 
       <form className="flex gap-2" action="/explore" method="get">
