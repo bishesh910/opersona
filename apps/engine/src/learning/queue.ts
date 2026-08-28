@@ -4,17 +4,21 @@
  * `resumePending()` re-enqueues unfinished work on boot.
  */
 import { and, eq, isNull, ne, inArray } from 'drizzle-orm';
-import { db, conversations, turns, importJobs } from '@opersona/db';
+import { db, conversations, turns, importJobs, interviewAnswers } from '@opersona/db';
 import { extractFromConversation } from './extractReasoning.js';
 import { writeEpisode } from './episodes.js';
 import { recomputeFingerprint } from './fingerprint.js';
 import { runImport } from './importClaude.js';
 import { publishSnapshot } from '../persona/assemble.js';
 
-type Job = { kind: 'extract'; orgId: string; cloneId: string; conversationId: string } | { kind: 'import'; importId: string } | { kind: 'refresh'; orgId: string; cloneId: string };
+type Job =
+  | { kind: 'extract'; orgId: string; cloneId: string; conversationId: string }
+  | { kind: 'import'; importId: string }
+  | { kind: 'refresh'; orgId: string; cloneId: string }
+  | { kind: 'interview_extract'; orgId: string; cloneId: string; answerId: string };
 const q: Job[] = []; let running = false;
 const queuedKeys = new Set<string>();
-const key = (j: Job) => j.kind === 'extract' ? `x:${j.conversationId}` : j.kind === 'import' ? `i:${j.importId}` : `r:${j.cloneId}`;
+const key = (j: Job) => j.kind === 'extract' ? `x:${j.conversationId}` : j.kind === 'import' ? `i:${j.importId}` : j.kind === 'interview_extract' ? `a:${j.answerId}` : `r:${j.cloneId}`;
 
 export function enqueue(j: Job): void {
   const k = key(j); if (queuedKeys.has(k)) return; queuedKeys.add(k); q.push(j); void pump();
@@ -60,6 +64,10 @@ async function run(j: Job): Promise<void> {
     await refresh(j.orgId, j.cloneId);
   } else if (j.kind === 'import') {
     await runImport(j.importId);
+  } else if (j.kind === 'interview_extract') {
+    const { extractInterviewAnswer } = await import('../interview/extractAnswer.js');
+    const r = await extractInterviewAnswer(j.orgId, j.cloneId, j.answerId);
+    console.log(`[learning] interview answer ${j.answerId}: ${r.status} (${r.note})`);
   } else {
     await refresh(j.orgId, j.cloneId);
   }
@@ -87,5 +95,8 @@ export async function resumePending(): Promise<void> {
   for (const c of convs) enqueue({ kind: 'extract', orgId: c.orgId, cloneId: c.cloneId, conversationId: c.id });
   const imps = await db.select({ id: importJobs.id }).from(importJobs).where(inArray(importJobs.status, ['queued', 'running']));
   for (const i of imps) enqueue({ kind: 'import', importId: i.id });
-  if (convs.length || imps.length) console.log(`[learning] resumed ${convs.length} extraction(s), ${imps.length} import(s)`);
+  const answers = await db.select({ id: interviewAnswers.id, orgId: interviewAnswers.orgId, cloneId: interviewAnswers.cloneId })
+    .from(interviewAnswers).where(and(eq(interviewAnswers.extractionStatus, 'pending'), eq(interviewAnswers.skipped, false)));
+  for (const a of answers) enqueue({ kind: 'interview_extract', orgId: a.orgId, cloneId: a.cloneId, answerId: a.id });
+  if (convs.length || imps.length || answers.length) console.log(`[learning] resumed ${convs.length} extraction(s), ${imps.length} import(s), ${answers.length} interview answer(s)`);
 }

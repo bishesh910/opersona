@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 const TABS: { key: string; label: string }[] = [
   { key: 'brief', label: 'Brief' },
   { key: 'thinking', label: 'How I think' },
+  { key: 'interview', label: 'Interview' },
   { key: 'personality', label: 'Personality' },
   { key: 'survey', label: 'Survey' },
   { key: 'avatar', label: 'Pixie' },

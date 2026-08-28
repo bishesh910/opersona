@@ -21,8 +21,9 @@ const now = () => timestamp('created_at', { withTimezone: true }).defaultNow().n
 const updated = () => timestamp('updated_at', { withTimezone: true }).defaultNow().notNull();
 
 export type LearnedStatus = 'candidate' | 'confirmed' | 'disputed' | 'retired';
-export type SourceKind = 'conversation' | 'teach' | 'correction' | 'document' | 'reflection' | 'admin' | 'import';
-export interface Evidence { quote: string; turn_id?: string }
+export type SourceKind = 'conversation' | 'teach' | 'correction' | 'document' | 'reflection' | 'admin' | 'import' | 'interview';
+/** `ref` points at the exact source for click-through, e.g. 'interview:<answerId>'. */
+export interface Evidence { quote: string; turn_id?: string; ref?: string }
 
 /** Provenance spine mixed into every learned-layer table. */
 const spine = () => ({
@@ -629,3 +630,183 @@ export const importedPersonas = pgTable('imported_personas', {
   createdAt: now(),
   updatedAt: updated(),
 }, (t) => [index('imported_personas_org_idx').on(t.orgId)]);
+
+// ─── cognitive interview + knowledge model (P2) ─────────────────────────────
+// The interview asks behavioural questions across ten life categories; every
+// answer is analysed into MEMORIES (things that happened), TRAITS (values /
+// beliefs / preferences / behaviours / decision patterns) and CONTEXTUAL RULES
+// (IF situation AND condition THEN tendency). Each learned item carries the
+// provenance spine PLUS an epistemic `tier`: 'explicit' (they plainly said it),
+// 'inferred' (observed across answers), 'hypothesis' (suspected). Tiers never
+// auto-promote — only new explicit quoted evidence or an owner verdict moves one.
+
+export type InterviewQuestionKind = 'behavioural' | 'follow_up' | 'contradiction';
+export type InterviewQuestionSource = 'bank' | 'generated' | 'triage';
+export type InterviewQuestionStatus = 'pending' | 'asked' | 'answered' | 'skipped' | 'retired';
+export type EpistemicTier = 'explicit' | 'inferred' | 'hypothesis';
+export type TraitKind = 'value' | 'belief' | 'preference' | 'behaviour' | 'decision_pattern';
+
+export const interviewQuestions = pgTable('interview_questions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: text('org_id').notNull(),
+  cloneId: uuid('clone_id').notNull(),
+  category: text('category').notNull(),
+  /** Sub-area within the category the question probes (bank facets; nullable for follow-ups). */
+  facet: text('facet'),
+  text: text('text').notNull(),
+  /** One quiet line under the question ("a real moment beats a general answer"). */
+  hint: text('hint'),
+  kind: text('kind').$type<InterviewQuestionKind>().notNull().default('behavioural'),
+  source: text('source').$type<InterviewQuestionSource>().notNull().default('bank'),
+  /** Follow-up intent (why | alternatives | what_mattered | would_you_today | exception | close_person). */
+  intent: text('intent'),
+  parentAnswerId: uuid('parent_answer_id'),
+  contradictionId: uuid('contradiction_id'),
+  /** Stable bank id so an opener is materialized at most once per clone. */
+  bankKey: text('bank_key'),
+  status: text('status').$type<InterviewQuestionStatus>().notNull().default('pending'),
+  priority: real('priority').notNull().default(0),
+  askedAt: timestamp('asked_at', { withTimezone: true }),
+  createdAt: now(),
+}, (t) => [
+  index('interview_questions_clone_status_idx').on(t.cloneId, t.status),
+  uniqueIndex('interview_questions_bank_uq').on(t.cloneId, t.bankKey).where(sql`bank_key is not null`),
+]);
+
+export const interviewAnswers = pgTable('interview_answers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: text('org_id').notNull(),
+  cloneId: uuid('clone_id').notNull(),
+  questionId: uuid('question_id').notNull(),
+  /** Denormalized so the answer stays self-describing even if the question is retired. */
+  category: text('category').notNull(),
+  questionText: text('question_text').notNull(),
+  text: text('text').notNull().default(''),
+  skipped: boolean('skipped').notNull().default(false),
+  context: jsonb('context').$type<{ threadDepth?: number; intent?: string | null }>().notNull().default({}),
+  /** Edits never erase: prior versions pushed here. */
+  revisions: jsonb('revisions').$type<{ text: string; at: string }[]>().notNull().default([]),
+  /** Summary of what the async pass extracted (for the answer history UI). */
+  extraction: jsonb('extraction').$type<{ memories: number; traits: number; rules: number; tensions: number; quality: string; note: string } | null>().default(null),
+  extractionStatus: text('extraction_status').$type<'pending' | 'done' | 'failed' | 'skipped'>().notNull().default('pending'),
+  extractedAt: timestamp('extracted_at', { withTimezone: true }),
+  editedAt: timestamp('edited_at', { withTimezone: true }),
+  createdAt: now(),
+}, (t) => [
+  index('interview_answers_clone_idx').on(t.cloneId, t.createdAt),
+  index('interview_answers_extract_idx').on(t.cloneId, t.extractionStatus),
+]);
+
+/** Life memories — things that HAPPENED, separate from behaviour patterns.
+ *  "Moved cities in 2024 for work" is a memory; "willing to relocate for career
+ *  upside" is a trait. */
+export const memories = pgTable('memories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ...spine(),
+  summary: text('summary').notNull(),
+  fullContext: text('full_context').notNull().default(''),
+  importance: real('importance').notNull().default(0.5),
+  emotionalSignificance: real('emotional_significance').notNull().default(0),
+  peopleInvolved: text('people_involved').array().notNull().default(sql`'{}'::text[]`),
+  /** Verbatim fuzzy period as the person said it ("2024", "when I was a kid"). */
+  dateOrPeriod: text('date_or_period'),
+  periodStart: timestamp('period_start', { withTimezone: true }),
+  periodEnd: timestamp('period_end', { withTimezone: true }),
+  category: text('category'),
+  shareable: boolean('shareable').notNull().default(false),
+  tsv: tsvector('tsv').generatedAlwaysAs(sql`to_tsvector('english', coalesce(summary,'') || ' ' || coalesce(full_context,'') || ' ' || coalesce(date_or_period,''))`),
+}, (t) => [
+  index('memories_clone_idx').on(t.cloneId, t.status),
+  index('memories_tsv_idx').using('gin', t.tsv),
+]);
+
+/** Values / beliefs / preferences / behaviours / decision patterns, keyed for
+ *  reinforcement (same key ⇒ evidence accumulates instead of duplicating). */
+export const traits = pgTable('traits', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ...spine(),
+  kind: text('kind').$type<TraitKind>().notNull(),
+  key: text('key').notNull(),
+  /** Short display name, e.g. "Independence". */
+  label: text('label').notNull(),
+  /** One-sentence statement of the trait. */
+  statement: text('statement').notNull(),
+  category: text('category'),
+  tier: text('tier').$type<EpistemicTier>().notNull(),
+  /** How strongly held (≠ confidence, which is how sure WE are). */
+  strength: real('strength').notNull().default(0.5),
+  contexts: text('contexts').array().notNull().default(sql`'{}'::text[]`),
+  shareable: boolean('shareable').notNull().default(false),
+  validFrom: timestamp('valid_from', { withTimezone: true }),
+  validUntil: timestamp('valid_until', { withTimezone: true }),
+  tsv: tsvector('tsv').generatedAlwaysAs(sql`to_tsvector('english', coalesce(label,'') || ' ' || coalesce(statement,'') || ' ' || coalesce(category,''))`),
+}, (t) => [
+  uniqueIndex('traits_clone_kind_key_uq').on(t.cloneId, t.kind, t.key),
+  index('traits_clone_idx').on(t.cloneId, t.status),
+  index('traits_tsv_idx').using('gin', t.tsv),
+]);
+
+/** Conditional behaviour: IF situation (AND condition) THEN tendency. The
+ *  simulation consults these — and exceptions — before predicting. */
+export const contextualRules = pgTable('contextual_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ...spine(),
+  category: text('category'),
+  situation: text('situation').notNull(),
+  condition: text('condition'),
+  tendency: text('tendency').notNull(),
+  /** When this rule is an exception to a trait, the trait it bends. */
+  exceptionToTraitId: uuid('exception_to_trait_id'),
+  tier: text('tier').$type<'explicit' | 'inferred'>().notNull(),
+  shareable: boolean('shareable').notNull().default(false),
+  validFrom: timestamp('valid_from', { withTimezone: true }),
+  validUntil: timestamp('valid_until', { withTimezone: true }),
+  tsv: tsvector('tsv').generatedAlwaysAs(sql`to_tsvector('english', coalesce(situation,'') || ' ' || coalesce(condition,'') || ' ' || coalesce(tendency,''))`),
+}, (t) => [
+  index('contextual_rules_clone_idx').on(t.cloneId, t.status),
+  index('contextual_rules_tsv_idx').using('gin', t.tsv),
+]);
+
+/** Detected tensions between what the model believes and a new answer — each
+ *  gets a targeted probe question; a resolution usually becomes a contextual rule. */
+export const contradictions = pgTable('contradictions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: text('org_id').notNull(),
+  cloneId: uuid('clone_id').notNull(),
+  traitId: uuid('trait_id'),
+  answerId: uuid('answer_id').notNull(),
+  description: text('description').notNull(),
+  probeQuestionId: uuid('probe_question_id'),
+  status: text('status').$type<'open' | 'probed' | 'resolved' | 'dismissed'>().notNull().default('open'),
+  resolutionAnswerId: uuid('resolution_answer_id'),
+  resolutionNote: text('resolution_note'),
+  createdAt: now(),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+}, (t) => [index('contradictions_clone_status_idx').on(t.cloneId, t.status)]);
+
+/** Per-category coverage cache, recomputed after each extraction. */
+export const interviewCoverage = pgTable('interview_coverage', {
+  cloneId: uuid('clone_id').notNull(),
+  category: text('category').notNull(),
+  orgId: text('org_id').notNull(),
+  coverage: real('coverage').notNull().default(0),
+  facets: jsonb('facets').$type<Record<string, number>>().notNull().default({}),
+  answered: integer('answered').notNull().default(0),
+  openContradictions: integer('open_contradictions').notNull().default(0),
+  updatedAt: updated(),
+}, (t) => [primaryKey({ columns: [t.cloneId, t.category] })]);
+
+/** Vendor-free embedding store (written only when EMBEDDINGS_PROVIDER is set;
+ *  FTS stays the default retrieval). vec is jsonb so a later pgvector swap is a
+ *  column change, not a schema redesign. */
+export const knowledgeEmbeddings = pgTable('knowledge_embeddings', {
+  itemKind: text('item_kind').$type<'memory' | 'trait' | 'rule'>().notNull(),
+  itemId: uuid('item_id').notNull(),
+  cloneId: uuid('clone_id').notNull(),
+  orgId: text('org_id').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  dim: integer('dim').notNull(),
+  vec: jsonb('vec').$type<number[]>().notNull(),
+  createdAt: now(),
+}, (t) => [primaryKey({ columns: [t.itemKind, t.itemId] }), index('knowledge_embeddings_clone_idx').on(t.cloneId)]);

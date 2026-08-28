@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, notInArray } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
 import { getCloneAccess } from '@/lib/clones';
@@ -7,6 +7,7 @@ import { FactList } from '@/components/memory/FactList';
 import { PlaybookList } from '@/components/memory/PlaybookList';
 import { PromptPanel } from '@/components/memory/PromptPanel';
 import { EpisodeList } from '@/components/memory/EpisodeList';
+import { MemoryList, TraitList, RuleList } from '@/components/memory/KnowledgeLists';
 
 export default async function MemoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: rawId } = await params;
@@ -16,14 +17,41 @@ export default async function MemoryPage({ params }: { params: Promise<{ id: str
   // Chat + learning content is private to the persona's owner — admins see metadata only.
   if (!access.isOwner) notFound();
   const id = access.clone.id;
-  const [facts, playbooks, episodes] = await Promise.all([
+  const [facts, playbooks, episodes, lifeMemories, traitRows, ruleRows] = await Promise.all([
     db.select().from(schema.facts).where(eq(schema.facts.cloneId, id)).orderBy(desc(schema.facts.pinned), desc(schema.facts.updatedAt)).limit(500),
     db.select().from(schema.playbooks).where(eq(schema.playbooks.cloneId, id)).orderBy(desc(schema.playbooks.updatedAt)).limit(200),
     db.select().from(schema.episodes).where(eq(schema.episodes.cloneId, id)).orderBy(desc(schema.episodes.createdAt)).limit(30),
+    db.select().from(schema.memories).where(and(eq(schema.memories.cloneId, id), notInArray(schema.memories.status, ['retired', 'disputed'])))
+      .orderBy(desc(schema.memories.importance), desc(schema.memories.updatedAt)).limit(200),
+    db.select().from(schema.traits).where(and(eq(schema.traits.cloneId, id), notInArray(schema.traits.status, ['retired', 'disputed'])))
+      .orderBy(desc(schema.traits.confidence)).limit(300),
+    db.select().from(schema.contextualRules).where(and(eq(schema.contextualRules.cloneId, id), notInArray(schema.contextualRules.status, ['retired', 'disputed'])))
+      .orderBy(desc(schema.contextualRules.confidence)).limit(200),
   ]);
   const ro = !access.canWrite;
+  const hasKnowledge = lifeMemories.length + traitRows.length + ruleRows.length > 0;
   return (
     <div className="space-y-6">
+      {/* Interview-learned knowledge: who you are, what you hold, and when it bends. */}
+      <section className="space-y-5">
+        <div>
+          <h2 className="font-medium">What the interview has learned {hasKnowledge && <span className="muted text-sm">({lifeMemories.length + traitRows.length + ruleRows.length})</span>}</h2>
+          <p className="muted mt-0.5 text-sm">Built from your own answers on the Interview tab. Every item opens to show the exact words behind it.</p>
+        </div>
+        <div>
+          <h3 className="mb-1.5 text-sm font-medium">Values &amp; leanings {traitRows.length > 0 && <span className="muted">({traitRows.length})</span>}</h3>
+          <TraitList rows={traitRows.map((t) => ({ id: t.id, kind: t.kind, label: t.label, statement: t.statement, tier: t.tier, confidence: t.confidence, status: t.status, reinforceCount: t.reinforceCount, evidence: t.evidence }))} />
+        </div>
+        <div>
+          <h3 className="mb-1.5 text-sm font-medium">Life memories {lifeMemories.length > 0 && <span className="muted">({lifeMemories.length})</span>}</h3>
+          <MemoryList rows={lifeMemories.map((m) => ({ id: m.id, summary: m.summary, fullContext: m.fullContext, importance: m.importance, peopleInvolved: m.peopleInvolved, dateOrPeriod: m.dateOrPeriod, evidence: m.evidence }))} />
+        </div>
+        <div>
+          <h3 className="mb-1.5 text-sm font-medium">Rules &amp; exceptions {ruleRows.length > 0 && <span className="muted">({ruleRows.length})</span>}</h3>
+          <RuleList rows={ruleRows.map((r) => ({ id: r.id, situation: r.situation, condition: r.condition, tendency: r.tendency, tier: r.tier, confidence: r.confidence, evidence: r.evidence }))} />
+        </div>
+      </section>
+
       {/* Episodes — the living memory: one distilled entry per conversation, searchable by the persona via recall. */}
       <section>
         <h2 className="font-medium">Episodes ({episodes.length})</h2>

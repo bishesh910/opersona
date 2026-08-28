@@ -184,6 +184,45 @@ routes.get('/clones/:id/prompt', async (c) => {
   return c.json(await activePrompt(orgId, clone.id, promptAudience(clone.kind, c.req.query('audience'))));
 });
 
+// ─── cognitive interview ────────────────────────────────────────────────────
+/** Current (or next) interview question + per-category progress. Resume-safe. */
+routes.post('/clones/:id/interview/next', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string() }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { nextQuestionFor } = await import('../interview/service.js');
+  return c.json(await nextQuestionFor(body.orgId, clone.id));
+});
+
+/** Store an answer (or skip), queue the async extraction, return the next question. */
+routes.post('/clones/:id/interview/answer', async (c) => {
+  const body = await parse(c, z.object({
+    orgId: z.string(), userId: z.string(), questionId: z.string().uuid(),
+    text: z.string().max(20_000).optional(), skipped: z.boolean().optional(),
+  }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { submitAnswer } = await import('../interview/service.js');
+  try {
+    return c.json(await submitAnswer({ orgId: body.orgId, cloneId: clone.id, questionId: body.questionId, text: body.text, skipped: body.skipped }));
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : 'could not save the answer' }, 409);
+  }
+});
+
+/** Revision-preserving edit of an earlier answer; sole-source derived items retire and extraction reruns. */
+routes.post('/clones/:id/interview/answers/:answerId/edit', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), text: z.string().min(1).max(20_000) }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { editAnswer } = await import('../interview/service.js');
+  try {
+    return c.json(await editAnswer({ orgId: body.orgId, cloneId: clone.id, answerId: c.req.param('answerId'), text: body.text }));
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : 'could not edit the answer' }, 404);
+  }
+});
+
 /** Onboarding interview → persona brief, on the cheapest model (condense = haiku
  *  by default) with low effort: a handful of one-line answers become the story. */
 routes.post('/clones/:id/compose-brief', async (c) => {

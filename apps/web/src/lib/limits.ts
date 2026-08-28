@@ -13,6 +13,7 @@ const RULES = {
   docs: { limit: 60, windowMs: 86_400_000, label: 'up to 60 document ingests per day' },
   ccUpload: { limit: 20, windowMs: 3_600_000, label: 'up to 20 transcript uploads per hour' },
   compose: { limit: 10, windowMs: 3_600_000, label: 'up to 10 story drafts per hour' },
+  interview: { limit: 90, windowMs: 3_600_000, label: 'up to 90 interview answers per hour' },
 } satisfies Record<string, Rule>;
 
 const hits = new Map<string, number[]>();
@@ -48,5 +49,6 @@ export function engineLimitFor(method: string, path: string[]): { bucket: string
   if (path[0] === 'documents' && path[2] === 'ingest') return { bucket: 'docs', rule: RULES.docs };
   if (path[0] === 'clones' && path[2] === 'claude-code' && path[3] === 'upload') return { bucket: 'ccUpload', rule: RULES.ccUpload };
   if (path[0] === 'clones' && path[2] === 'compose-brief') return { bucket: 'compose', rule: RULES.compose };
+  if (path[0] === 'clones' && path[2] === 'interview' && (path[3] === 'answer' || path[3] === 'next')) return { bucket: 'interview', rule: RULES.interview };
   return null;
 }

@@ -119,7 +119,17 @@ export async function authorize(ctx: OrgCtx, method: string, path: string[]): Pr
     if (sub === 'fingerprint' && (tail === 'recompute' || tail === 'tidy')) return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'read-only');
     // Episodic memory backfill for existing conversations. Owner only.
     if (sub === 'episodes' && tail === 'backfill') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can backfill episodes');
+    // The cognitive interview is strictly the owner teaching their own persona.
+    if (sub === 'interview' && (tail === 'next' || tail === 'answer')) return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can be interviewed');
     return deny(404, 'unknown engine path');
+  }
+
+  // Edit an earlier interview answer: clones/:id/interview/answers/:answerId/edit. Owner only.
+  if (root === 'clones' && id && UUID.test(id) && path.length === 6 && method === 'POST'
+    && path[2] === 'interview' && path[3] === 'answers' && path[4] && UUID.test(path[4]) && path[5] === 'edit') {
+    const access = await getCloneAccess(ctx, id);
+    if (!access) return deny(404, 'clone not found');
+    return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can edit their answers');
   }
 
   // Claude-history import: web inserts the import_jobs row and saves the file, then starts it here.
