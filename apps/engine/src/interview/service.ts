@@ -92,7 +92,7 @@ export async function nextQuestionFor(orgId: string, cloneId: string): Promise<{
   const [ins] = await db.insert(interviewQuestions).values({
     orgId, cloneId, category: bank.category, facet: bank.facet, text: bank.text, hint: bank.hint ?? null,
     kind: 'behavioural', source: 'bank', bankKey: bank.bankKey, status: 'asked', askedAt: new Date(),
-  }).onConflictDoNothing({ target: [interviewQuestions.cloneId, interviewQuestions.bankKey] })
+  }).onConflictDoNothing() // arbiter-less: the partial (clone_id, bank_key) unique index can't be inferred as a target
     .returning();
   if (!ins) {
     // Raced with another materialization of the same bank key — serve whatever exists.
