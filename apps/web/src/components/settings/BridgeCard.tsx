@@ -58,7 +58,7 @@ export function BridgeCard() {
           Chat on your own subscription <span className="chip ml-2 border-green-400 text-green-700 dark:border-green-700 dark:text-green-400">no API key</span>
         </h2>
         <p className="muted mt-1 text-sm">
-          Put the <span className="font-medium text-neutral-700 dark:text-neutral-300">opersona bridge</span> on any machine where Claude Code is signed in — a tiny menu-bar app on Mac, one command anywhere else.
+          Put the <span className="font-medium text-neutral-700 dark:text-neutral-300">opersona bridge</span> on any machine where Claude Code is signed in — one command, no install.
           Your chats here then <em>think</em> on that machine, on the Claude plan you already pay for. Your Anthropic login never leaves it,
           and the web can never run code there — anything beyond reading its own scratch folder asks you first.
         </p>
@@ -77,19 +77,12 @@ export function BridgeCard() {
             <CopyButton text={fresh} />
           </div>
           <div className="space-y-1.5">
-            <p className="text-xs font-medium">Mac <span className="chip ml-1">easiest</span></p>
-            <ol className="muted list-inside list-decimal space-y-1 text-xs">
-              <li>
-                <a href="/download/opersona.dmg" className="font-medium underline underline-offset-2" data-dmg-download>Download the app</a> — open the .dmg, drag <span className="font-medium">opersona</span> to Applications, then one Terminal command (Apple marks unsigned apps &ldquo;damaged&rdquo; — it isn&apos;t):
-                <span className="mt-1 flex items-center gap-2">
-                  <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">xattr -cr /Applications/opersona.app</code>
-                  <CopyButton text="xattr -cr /Applications/opersona.app" />
-                </span>
-              </li>
-              <li>Open the app once (a pixie appears in your menu bar), then press:</li>
-            </ol>
-            <a href={`opersona://pair?token=${fresh}${sealForLink ? `&seal=${keyForLink(sealForLink)}` : ''}`} className="btn-primary inline-block" data-deeplink-pair>⚡ Pair the app — one click, no copying</a>
-            <p className="muted text-xs">The menu flips to <span className="font-medium">● Online</span> within seconds. (Manual fallback: menu → Pair this machine… and paste the token above.)</p>
+            <p className="text-xs font-medium">Run this on any machine where Claude Code is signed in:</p>
+            <div className="flex items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900" data-bridge-cmd>{cmd}</code>
+              <CopyButton text={cmd} />
+            </div>
+            <p className="muted text-xs">Needs Node and the <code>claude</code> CLI signed in. The status above flips to <span className="font-medium">● online</span> within seconds.</p>
           {recovery && (
             <div className="space-y-1.5 rounded-lg border border-emerald-300 bg-emerald-50 p-2.5 dark:border-emerald-800 dark:bg-emerald-950/40" data-seal-recovery>
               <p className="text-xs font-medium">🔑 Your conversations are now SEALED — save this key like a password.</p>

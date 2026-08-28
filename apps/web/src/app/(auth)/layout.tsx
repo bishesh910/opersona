@@ -27,9 +27,6 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
             </div>
             {children}
           </div>
-          <a href="/download" className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-white/80 hover:text-white">
-            <span aria-hidden>↓</span> Get the macOS app — Claude Code that thinks like you
-          </a>
         </AuthPixieFrame>
       </div>
     </div>

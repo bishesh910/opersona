@@ -12,7 +12,6 @@ export async function CommunityHeader() {
       <Link href={session ? '/chat' : '/'} className="text-base font-semibold tracking-tight">opersona.me</Link>
       <div className="flex items-center gap-2 text-sm">
         <Link href="/about" className="muted mr-1 hidden text-xs hover:underline sm:inline">About</Link>
-        <Link href="/download" className="muted mr-1 hidden text-xs hover:underline sm:inline">Download</Link>
         <Link href="/privacy" className="muted mr-1 hidden text-xs hover:underline sm:inline">Privacy</Link>
         <Link href="/explore" className="btn-secondary btn-sm">Explore</Link>
         {session ? (
