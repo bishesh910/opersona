@@ -44,7 +44,10 @@ export default async function Home() {
     <div className="auth-bg relative min-h-dvh bg-[#07070c] text-neutral-100">
       {/* The scene follows the visitor's clock: sunrise mornings, blue sky days, stars at night. */}
       <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "(function(){try{var h=new Date().getHours();document.documentElement.setAttribute('data-daypart',h>=5&&h<11?'morning':h>=11&&h<18?'day':'night');}catch(e){}})()" }} />
-      <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-5 py-6 sm:px-8">
+      {/* Scrim: the backdrop's pixie crowd stays a faint skyline, never the show —
+          bottom-heavy so the sky and stars up top survive. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#07070c]/30 via-[#07070c]/55 to-[#07070c]/90" />
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-5 py-6 sm:px-8">
         <nav className="flex items-center justify-between gap-3">
           <span className="text-xl font-semibold tracking-tight text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">opersona.me</span>
           <div className="flex items-center gap-2 text-sm">
@@ -79,8 +82,7 @@ export default async function Home() {
         </main>
 
         <section className="grid gap-4 pb-10 sm:grid-cols-3">
-          <div className={GLASS_CARD + ' relative'}>
-            <Windows />
+          <div className={GLASS_CARD}>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-300/90">the interview</p>
             <h2 className="mt-2 font-semibold text-white">Teach it who you are</h2>
             <p className="mt-1.5 text-sm leading-relaxed text-neutral-400">
@@ -88,8 +90,7 @@ export default async function Home() {
               and follows the threads your answers open, including the ones that don&rsquo;t quite add up.
             </p>
           </div>
-          <div className={GLASS_CARD + ' relative'}>
-            <Windows />
+          <div className={GLASS_CARD}>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-300/90">evidence-backed</p>
             <h2 className="mt-2 font-semibold text-white">Every claim shows its receipts</h2>
             <p className="mt-1.5 text-sm leading-relaxed text-neutral-400">
@@ -98,8 +99,7 @@ export default async function Home() {
               me&rdquo; everywhere.
             </p>
           </div>
-          <div className={GLASS_CARD + ' relative'}>
-            <Windows />
+          <div className={GLASS_CARD}>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-300/90">tested blind</p>
             <h2 className="mt-2 font-semibold text-white">It has to prove it knows you</h2>
             <p className="mt-1.5 text-sm leading-relaxed text-neutral-400">
