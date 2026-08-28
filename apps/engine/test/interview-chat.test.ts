@@ -34,6 +34,8 @@ function railMock(chat: { reply: string; action: 'continue' | 'wrap_up' } | 'thr
 }
 
 const flushQueue = () => new Promise((r) => setTimeout(r, 250)); // the in-process queue is serial and fast with a mocked rail
+/** Replies now compute in the BACKGROUND (bridge-reality) — wait for the worker to land. */
+const settle = () => new Promise((r) => setTimeout(r, 600));
 
 beforeAll(async () => {
   const name = (await pool.query('select current_database() as d').catch(() => null))?.rows?.[0]?.d as string | undefined;
@@ -65,13 +67,18 @@ describe('chat interview', () => {
     expect(interviewer[1]!.text).toContain(s.question!.text.slice(0, 40));
   });
 
-  it('a continue turn appends the interviewer reply and keeps the same question open', async () => {
+  it('send returns immediately (awaitingReply) and the reply lands in the background', async () => {
     if (!enabled) return;
     railMock({ reply: 'Two weeks, wow. What made you sure?', action: 'continue' });
     const before = await interviewChatState(ORG, CLONE);
     const s = await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'I once moved cities on two weeks notice.' });
-    expect(s.question?.id).toBe(before.question?.id);
-    const last = s.messages[s.messages.length - 1]!;
+    expect(s.awaitingReply).toBe(true); // send never blocks on the model
+    // (with an instant mock the background reply may already be in `s.messages` — real rails take seconds)
+    await settle();
+    const after = await interviewChatState(ORG, CLONE);
+    expect(after.question?.id).toBe(before.question?.id);
+    expect(after.awaitingReply).toBe(false);
+    const last = after.messages[after.messages.length - 1]!;
     expect(last.role).toBe('interviewer');
     expect(last.text).toContain('What made you sure?');
   });
@@ -80,8 +87,9 @@ describe('chat interview', () => {
     if (!enabled) return;
     railMock({ reply: 'Got it — that says a lot.', action: 'wrap_up' });
     const before = await interviewChatState(ORG, CLONE);
-    const s = await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'Because staying felt like slowly disappearing.' });
-    await flushQueue();
+    await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'Because staying felt like slowly disappearing.' });
+    await settle(); await flushQueue();
+    const s = await interviewChatState(ORG, CLONE);
     expect(s.question).not.toBeNull();
     expect(s.question!.id).not.toBe(before.question!.id); // moved on
     const [ans] = await db.select().from(interviewAnswers)
@@ -98,11 +106,34 @@ describe('chat interview', () => {
     expect(opener[0]!.role).toBe('interviewer');
   });
 
+  it('double texts while it thinks are coalesced into one more pass', async () => {
+    if (!enabled) return;
+    let calls = 0;
+    vi.mocked(structuredCall).mockImplementation(async (args: { kind?: string }) => {
+      if (args.kind === 'interview-chat') {
+        calls++;
+        await new Promise((r) => setTimeout(r, 200)); // slow enough for a second send to land mid-think
+        return { reply: `reply ${calls}`, action: 'continue' };
+      }
+      return EMPTY_EXTRACTION;
+    });
+    await interviewChatState(ORG, CLONE);
+    await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'first thought' });
+    await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'oh and also this' });
+    await settle(); await settle();
+    expect(calls).toBe(2); // one pass, then exactly one more for the double text — not one per message racing
+    const s = await interviewChatState(ORG, CLONE);
+    const tail = s.messages.slice(-4).map((m) => `${m.role}:${m.text}`);
+    expect(tail.join('|')).toContain('reply 2'); // the second pass saw the full thread
+  });
+
   it('a flaky rail stays present and keeps the thread open — never a cold wrap', async () => {
     if (!enabled) return;
     railMock('throw');
     const before = await interviewChatState(ORG, CLONE);
-    const s = await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'Honestly this is a hard one for me right now.' });
+    await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'Honestly this is a hard one for me right now.' });
+    await settle();
+    const s = await interviewChatState(ORG, CLONE);
     expect(s.question!.id).toBe(before.question!.id); // same thread, still open
     const last = s.messages[s.messages.length - 1]!;
     expect(last.role).toBe('interviewer');
@@ -111,14 +142,22 @@ describe('chat interview', () => {
     const [ans] = await db.select().from(interviewAnswers)
       .where(and(eq(interviewAnswers.cloneId, CLONE), eq(interviewAnswers.questionId, before.question!.id))).limit(1);
     expect(ans).toBeUndefined();
-    // Recovery: the rail comes back, a wrap works, the thread closes with BOTH messages captured.
+    // A second failure does NOT parrot the same apology again.
+    await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'go on mate' });
+    await settle();
+    const s2 = await interviewChatState(ORG, CLONE);
+    const apologies = s2.messages.filter((m) => m.text.includes('I did read what you said'));
+    expect(apologies.length).toBe(1);
+    // Recovery: the rail comes back, a wrap works, the thread closes with ALL user messages captured.
     railMock({ reply: 'That sounds heavy. Thank you for trusting me with it.', action: 'wrap_up' });
-    const s2 = await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'Yeah. Anyway, that is where I am.' });
-    await flushQueue();
-    expect(s2.question!.id).not.toBe(before.question!.id);
+    await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'Yeah. Anyway, that is where I am.' });
+    await settle(); await flushQueue();
+    const s3 = await interviewChatState(ORG, CLONE);
+    expect(s3.question!.id).not.toBe(before.question!.id);
     const [wrapped] = await db.select().from(interviewAnswers)
       .where(and(eq(interviewAnswers.cloneId, CLONE), eq(interviewAnswers.questionId, before.question!.id))).limit(1);
     expect(wrapped!.text).toContain('hard one for me right now');
+    expect(wrapped!.text).toContain('go on mate');
     expect(wrapped!.text).toContain('where I am');
   });
 
@@ -129,7 +168,9 @@ describe('chat interview', () => {
       return EMPTY_EXTRACTION;
     });
     const before = await interviewChatState(ORG, CLONE);
-    const s = await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'hello?' });
+    await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'hello?' });
+    await settle();
+    const s = await interviewChatState(ORG, CLONE);
     expect(s.question!.id).toBe(before.question!.id); // NOT wrapped — waiting for a rail
     const last = s.messages[s.messages.length - 1]!;
     expect(last.role).toBe('interviewer');

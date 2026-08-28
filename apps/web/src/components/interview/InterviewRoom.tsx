@@ -25,7 +25,7 @@ interface Progress {
   knowledge: { memories: number; traits: number; rules: number };
 }
 interface ChatMessage { id: string; role: 'interviewer' | 'user'; text: string; questionId: string; createdAt: string }
-interface ChatState { question: Question | null; messages: ChatMessage[]; progress: Progress }
+interface ChatState { question: Question | null; messages: ChatMessage[]; progress: Progress; awaitingReply: boolean }
 
 async function post<T>(url: string, body?: unknown): Promise<T> {
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
@@ -73,25 +73,61 @@ function Typing({ avatar, personaName }: { avatar: AvatarRecipe | null; personaN
 export function InterviewRoom({ cloneId, personaName, avatar }: { cloneId: string; personaName: string; avatar: AvatarRecipe | null }) {
   const [state, setState] = useState<ChatState | null>(null);
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false);          // the brief send/skip round-trip
+  const [thinking, setThinking] = useState(false);  // the interviewer is composing (client polls)
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const pollTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const alive = useRef(true);
   const base = `/api/engine/clones/${cloneId}/interview/chat`;
 
+  // The chat scrolls INSIDE its box — the page never grows with the conversation.
   const scrollDown = useCallback(() => {
-    requestAnimationFrame(() => endRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }));
+    requestAnimationFrame(() => {
+      const el = boxRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    });
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-    post<ChatState>(`${base}/state`)
-      .then((s) => { if (alive) { setState(s); scrollDown(); } })
-      .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : 'could not load the interview'); })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
+  // The reply computes server-side in the background (a bridge can take 30-60s
+  // cold) — poll like a messenger until awaitingReply clears.
+  const poll = useCallback(async () => {
+    try {
+      const s = await post<ChatState>(`${base}/state`);
+      if (!alive.current) return;
+      setState(s);
+      scrollDown();
+      if (s.awaitingReply) {
+        setThinking(true);
+        pollTimer.current = setTimeout(() => void poll(), 1500);
+      } else {
+        setThinking(false);
+      }
+    } catch {
+      if (alive.current) pollTimer.current = setTimeout(() => void poll(), 3000); // transient — keep listening
+    }
   }, [base, scrollDown]);
+
+  const startPolling = useCallback(() => {
+    setThinking(true);
+    clearTimeout(pollTimer.current);
+    pollTimer.current = setTimeout(() => void poll(), 1200);
+  }, [poll]);
+
+  useEffect(() => {
+    alive.current = true;
+    post<ChatState>(`${base}/state`)
+      .then((s) => {
+        if (!alive.current) return;
+        setState(s); scrollDown();
+        if (s.awaitingReply) startPolling(); // resumed mid-think
+      })
+      .catch((e) => { if (alive.current) setErr(e instanceof Error ? e.message : 'could not load the interview'); })
+      .finally(() => { if (alive.current) setLoading(false); });
+    return () => { alive.current = false; clearTimeout(pollTimer.current); };
+  }, [base, scrollDown, startPolling]);
 
   const grow = useCallback(() => {
     const el = areaRef.current;
@@ -111,9 +147,10 @@ export function InterviewRoom({ cloneId, personaName, avatar }: { cloneId: strin
     if (areaRef.current) areaRef.current.style.height = 'auto';
     scrollDown();
     try {
-      const s = await post<ChatState>(`${base}/send`, { text: t });
+      const s = await post<ChatState>(`${base}/send`, { text: t }); // returns immediately; the reply arrives via polling
       setState(s);
       scrollDown();
+      if (s.awaitingReply) startPolling();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'could not send — try again');
       setState((s) => s ? { ...s, messages: s.messages.filter((m) => m.id !== optimistic.id) } : s);
@@ -143,13 +180,15 @@ export function InterviewRoom({ cloneId, personaName, avatar }: { cloneId: strin
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <div className="flex min-h-[40dvh] flex-col justify-end space-y-2.5 rounded-xl border border-neutral-200 p-3 sm:p-4 dark:border-neutral-800">
-          {state.messages.map((m) => <Bubble key={m.id} msg={m} avatar={avatar} personaName={personaName} />)}
-          {busy && <Typing avatar={avatar} personaName={personaName} />}
-          {!q && !busy && (
-            <p className="muted py-4 text-center text-sm">That’s everything I have for now — new questions appear as I study your answers.</p>
-          )}
-          <div ref={endRef} />
+        <div ref={boxRef} className="chat-scroll scroll-touch flex h-[52dvh] flex-col overflow-y-auto rounded-xl border border-neutral-200 p-3 sm:h-[58dvh] sm:p-4 dark:border-neutral-800">
+          <div aria-hidden className="mt-auto" />{/* bottom-anchor a short conversation */}
+          <div className="space-y-2.5">
+            {state.messages.map((m) => <Bubble key={m.id} msg={m} avatar={avatar} personaName={personaName} />)}
+            {(busy || thinking) && <Typing avatar={avatar} personaName={personaName} />}
+            {!q && !busy && !thinking && (
+              <p className="muted py-4 text-center text-sm">That’s everything I have for now — new questions appear as I study your answers.</p>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {q && <span className="chip">{q.categoryLabel}</span>}
@@ -165,7 +204,7 @@ export function InterviewRoom({ cloneId, personaName, avatar }: { cloneId: strin
               ref={areaRef}
               rows={1}
               className="input max-h-40 min-h-0 flex-1 resize-none py-2.5 text-base leading-relaxed"
-              placeholder="Message your persona — short is fine"
+              placeholder={thinking ? 'It’s typing — you can keep talking' : 'Message your persona — short is fine'}
               value={text}
               disabled={busy}
               onChange={(e) => { setText(e.target.value); grow(); }}

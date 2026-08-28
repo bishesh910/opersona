@@ -22,10 +22,11 @@ import { knownDigest, storeCoverage } from './state.js';
 import { nextQuestionFor, type Progress, type ServedQuestion } from './service.js';
 
 export const MAX_USER_MESSAGES_PER_THREAD = 5;
-/** Bridge jobs (the user's own machine thinking) routinely need 10-20s — a chat
- *  can breathe behind typing dots; a cold fallback after a heartfelt message
- *  cannot. */
-export const CHAT_TIMEOUT_MS = 25_000;
+/** The reply computes in the BACKGROUND and the client polls — a bridge job
+ *  (the user's own machine, cold-starting a Claude process) may take 30-60s
+ *  and that's fine behind typing dots. This ceiling only bounds a truly hung
+ *  call; it is not a UX deadline. */
+export const CHAT_TIMEOUT_MS = 90_000;
 
 export const ChatTurn = z.object({
   reply: z.string().min(1).max(320).describe('your next message — 1-3 short sentences, one probe at most'),
@@ -54,7 +55,12 @@ const greet = (name: string) =>
   `Hey — it's your persona. The more of you I actually know, the better I get at being you. Mind if I ask you things here now and then? Short answers are fine — this is a chat, not a form.`;
 
 export interface ChatMessage { id: string; role: 'interviewer' | 'user'; text: string; questionId: string; createdAt: string }
-export interface ChatState { question: ServedQuestion | null; messages: ChatMessage[]; progress: Progress }
+export interface ChatState { question: ServedQuestion | null; messages: ChatMessage[]; progress: Progress; awaitingReply: boolean }
+
+/** One in-flight interviewer turn per clone; `dirty` = more user messages
+ *  arrived while it ran (humans double-text) → run one more pass after. */
+const inflight = new Map<string, { dirty: boolean }>();
+export const isReplying = (cloneId: string) => inflight.has(cloneId);
 
 const toMsg = (m: typeof interviewMessages.$inferSelect): ChatMessage =>
   ({ id: m.id, role: m.role, text: m.text, questionId: m.questionId, createdAt: m.createdAt.toISOString() });
@@ -85,7 +91,7 @@ export async function interviewChatState(orgId: string, cloneId: string): Promis
       await say(orgId, cloneId, next.question.id, next.question.text + (next.question.hint ? `\n${next.question.hint}` : ''));
     }
   }
-  return { question: next.question, messages: await recentMessages(cloneId), progress: next.progress };
+  return { question: next.question, messages: await recentMessages(cloneId), progress: next.progress, awaitingReply: isReplying(cloneId) };
 }
 
 /** Wrap the open thread: user side → an interview_answers row → the existing pipeline. */
@@ -107,7 +113,17 @@ async function finalizeThread(orgId: string, cloneId: string, question: typeof i
   await storeCoverage(orgId, cloneId);
 }
 
-/** One user message in: react (continue) or wrap and move to the next question. Never throws, never stalls. */
+export const CONNECT_MSG = 'I heard you — but my brain isn’t connected yet, so I can’t really talk back. Pair the bridge or add an API key in Settings → Models, then message me again and we’ll pick this right up.';
+export const HICCUP_MSG = 'Sorry — I dropped the connection for a second (my side, not you). I did read what you said. Message me again — even just "go on" — and we’ll pick up right here.';
+export const CAP_MSG = 'Okay — that’s a lot of real stuff, thank you. Let me sit with this one.';
+
+/**
+ * One user message in: store it and return IMMEDIATELY — the interviewer's
+ * reply computes in the background (a bridge job can take 30-60s cold and
+ * that's fine behind typing dots). The client polls `state` until
+ * awaitingReply clears. Double texts while it thinks are coalesced into one
+ * more pass over the fresh thread.
+ */
 export async function sendInterviewChat(a: { orgId: string; cloneId: string; text: string }): Promise<ChatState> {
   // The open thread is whatever question is currently 'asked'.
   const [question] = await db.select().from(interviewQuestions)
@@ -117,41 +133,63 @@ export async function sendInterviewChat(a: { orgId: string; cloneId: string; tex
 
   await db.insert(interviewMessages).values({ orgId: a.orgId, cloneId: a.cloneId, questionId: question.id, role: 'user', text: redactSecrets(a.text).slice(0, 8000) });
 
-  const thread = await db.select().from(interviewMessages)
-    .where(and(eq(interviewMessages.cloneId, a.cloneId), eq(interviewMessages.questionId, question.id)))
-    .orderBy(asc(interviewMessages.createdAt));
-  const userCount = thread.filter((m) => m.role === 'user').length;
+  const running = inflight.get(a.cloneId);
+  if (running) {
+    running.dirty = true; // the in-flight pass will take one more look when it lands
+  } else {
+    inflight.set(a.cloneId, { dirty: false });
+    void runInterviewerTurn(a.orgId, a.cloneId).finally(() => inflight.delete(a.cloneId));
+  }
+  const next = await nextQuestionFor(a.orgId, a.cloneId); // still 'asked' → same question
+  return { question: next.question, messages: await recentMessages(a.cloneId), progress: next.progress, awaitingReply: true };
+}
 
-  let turn: ChatTurnT | null = null;
-  if (userCount < MAX_USER_MESSAGES_PER_THREAD) {
-    try {
-      turn = await interviewerTurn(a.orgId, a.cloneId, question, thread);
-    } catch (e) {
-      const noRail = e instanceof Error && e.message.startsWith('no_api_key');
-      // Whatever broke, NEVER cold-wrap a thread someone just poured into.
-      // Stay present, say what's true, keep the thread open — their words are
-      // safe and the conversation resumes exactly here.
-      await say(a.orgId, a.cloneId, question.id, noRail
-        ? 'I heard you — but my brain isn’t connected yet, so I can’t really talk back. Pair the bridge or add an API key in Settings → Models, then message me again and we’ll pick this right up.'
-        : 'Sorry — I lost my train of thought for a second (connection hiccup on my side, not you). I did read what you said. Give me a moment and message me again — even just "go on" — and we’ll pick up right here.');
-      const next = await nextQuestionFor(a.orgId, a.cloneId); // still 'asked' → resumes this question
-      return { question: next.question, messages: await recentMessages(a.cloneId), progress: next.progress };
+/** The background worker: one interviewer pass (plus one more if they double-texted). */
+async function runInterviewerTurn(orgId: string, cloneId: string): Promise<void> {
+  for (;;) {
+    const flag = inflight.get(cloneId);
+    if (flag) flag.dirty = false;
+    const [question] = await db.select().from(interviewQuestions)
+      .where(and(eq(interviewQuestions.cloneId, cloneId), eq(interviewQuestions.status, 'asked')))
+      .orderBy(desc(interviewQuestions.askedAt)).limit(1);
+    if (!question) return;
+    const thread = await db.select().from(interviewMessages)
+      .where(and(eq(interviewMessages.cloneId, cloneId), eq(interviewMessages.questionId, question.id)))
+      .orderBy(asc(interviewMessages.createdAt));
+    const userCount = thread.filter((m) => m.role === 'user').length;
+    if (userCount === 0) return;
+
+    let turn: ChatTurnT;
+    if (userCount >= MAX_USER_MESSAGES_PER_THREAD) {
+      turn = { reply: CAP_MSG, action: 'wrap_up' };
+    } else {
+      try {
+        turn = await interviewerTurn(orgId, cloneId, question, thread);
+      } catch (e) {
+        const noRail = e instanceof Error && e.message.startsWith('no_api_key');
+        console.error('[interview-chat] turn failed', cloneId.slice(0, 8), e instanceof Error ? e.message.slice(0, 200) : e);
+        // NEVER cold-wrap a thread someone just poured into: stay present, say
+        // what's true (once — no parroting the same apology), keep it open.
+        const apology = noRail ? CONNECT_MSG : HICCUP_MSG;
+        const lastInterviewer = [...thread].reverse().find((m) => m.role === 'interviewer');
+        if (lastInterviewer?.text !== apology) await say(orgId, cloneId, question.id, apology);
+        return;
+      }
     }
-  }
-  if (!turn) {
-    // Thread cap only: they've given a lot — close with gratitude, never with a shrug.
-    turn = { reply: 'Okay — that’s a lot of real stuff, thank you. Let me sit with this one.', action: 'wrap_up' };
-  }
 
-  if (turn.action === 'continue') {
-    await say(a.orgId, a.cloneId, question.id, turn.reply);
-    const next = await nextQuestionFor(a.orgId, a.cloneId); // question is still 'asked' → resume returns it
-    return { question: next.question, messages: await recentMessages(a.cloneId), progress: next.progress };
-  }
+    // The person may have skipped the thread while the model thought — check before speaking.
+    const [still] = await db.select({ status: interviewQuestions.status }).from(interviewQuestions).where(eq(interviewQuestions.id, question.id)).limit(1);
+    if (still?.status !== 'asked') return;
 
-  await say(a.orgId, a.cloneId, question.id, turn.reply);
-  await finalizeThread(a.orgId, a.cloneId, question);
-  return interviewChatState(a.orgId, a.cloneId);
+    await say(orgId, cloneId, question.id, turn.reply);
+    if (turn.action === 'wrap_up') {
+      await finalizeThread(orgId, cloneId, question);
+      await interviewChatState(orgId, cloneId); // opens the next question + its opener message
+      return;
+    }
+    if (!inflight.get(cloneId)?.dirty) return; // no double-text arrived — done
+    // else: fresh messages landed mid-think — one more pass over the updated thread.
+  }
 }
 
 /** Skip the open thread (counts as skipped for the picker's suppression). */
