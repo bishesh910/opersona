@@ -41,8 +41,10 @@ export function scoreCandidate(c: Candidate, s: PickerState): number {
   const uncertainty = s.uncertainty[c.category] ?? 1;
   const infoGain = c.facet ? 1 - (cov?.facets[c.facet] ?? 0) : 0.5;
   const importanceBonus = IMPORTANT.has(c.category) && (cov?.answered ?? 0) < 3 ? 0.15 : 0;
+  // Contradiction probes outrank everything a bank question can score (max ≈1.95):
+  // an open tension is the single most informative thing to ask about.
   const kindBonus = c.kind === 'follow_up' ? 0.35 + 0.55 * Math.min(1, Math.max(0, c.priority))
-    : c.kind === 'contradiction' ? 0.6 : 0;
+    : c.kind === 'contradiction' ? 1.2 : 0;
   const last = s.recentCategories[0];
   const rotation = (c.kind === 'behavioural' && last === c.category ? 0.5 : 0)
     + (c.kind === 'behavioural' && last !== c.category && s.recentCategories.slice(0, 3).includes(c.category) ? 0.2 : 0);
