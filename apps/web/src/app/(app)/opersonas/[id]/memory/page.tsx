@@ -40,15 +40,15 @@ export default async function MemoryPage({ params }: { params: Promise<{ id: str
         </div>
         <div>
           <h3 className="mb-1.5 text-sm font-medium">Values &amp; leanings {traitRows.length > 0 && <span className="muted">({traitRows.length})</span>}</h3>
-          <TraitList rows={traitRows.map((t) => ({ id: t.id, kind: t.kind, label: t.label, statement: t.statement, tier: t.tier, confidence: t.confidence, status: t.status, reinforceCount: t.reinforceCount, evidence: t.evidence }))} />
+          <TraitList cloneId={id} readOnly={ro} rows={traitRows.map((t) => ({ id: t.id, kind: t.kind, label: t.label, statement: t.statement, tier: t.tier, confidence: t.confidence, status: t.status, reinforceCount: t.reinforceCount, evidence: t.evidence }))} />
         </div>
         <div>
           <h3 className="mb-1.5 text-sm font-medium">Life memories {lifeMemories.length > 0 && <span className="muted">({lifeMemories.length})</span>}</h3>
-          <MemoryList rows={lifeMemories.map((m) => ({ id: m.id, summary: m.summary, fullContext: m.fullContext, importance: m.importance, peopleInvolved: m.peopleInvolved, dateOrPeriod: m.dateOrPeriod, evidence: m.evidence }))} />
+          <MemoryList cloneId={id} readOnly={ro} rows={lifeMemories.map((m) => ({ id: m.id, summary: m.summary, fullContext: m.fullContext, importance: m.importance, peopleInvolved: m.peopleInvolved, dateOrPeriod: m.dateOrPeriod, status: m.status, evidence: m.evidence }))} />
         </div>
         <div>
           <h3 className="mb-1.5 text-sm font-medium">Rules &amp; exceptions {ruleRows.length > 0 && <span className="muted">({ruleRows.length})</span>}</h3>
-          <RuleList rows={ruleRows.map((r) => ({ id: r.id, situation: r.situation, condition: r.condition, tendency: r.tendency, tier: r.tier, confidence: r.confidence, evidence: r.evidence }))} />
+          <RuleList cloneId={id} readOnly={ro} rows={ruleRows.map((r) => ({ id: r.id, situation: r.situation, condition: r.condition, tendency: r.tendency, tier: r.tier, confidence: r.confidence, status: r.status, evidence: r.evidence }))} />
         </div>
       </section>
 

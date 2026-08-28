@@ -11,9 +11,10 @@
  * renders of the same data are byte-identical (→ same promptHash).
  */
 import { createHash } from 'node:crypto';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import {
   db, clones, personaBriefs, facts, playbooks, corrections, autonomyLedger, episodes, personaSnapshots, documents, reasoningPatterns, personalityTests, importedPersonas,
+  traits, contextualRules, memories,
 } from '@opersona/db';
 import { describeMbti, AXIS_POLES, type Axis } from '@opersona/shared';
 import { renderFingerprint, type PatternRow } from '../learning/fingerprint.js';
@@ -82,6 +83,25 @@ export async function renderPersona(orgId: string, cloneId: string, orgName?: st
   const kb = copy ? [] : (await db.select({ id: documents.id, filename: documents.filename }).from(documents)
     .where(and(eq(documents.orgId, orgId), inArray(documents.cloneId, [cloneId]))).orderBy(asc(documents.id)));
 
+  // Interview-learned knowledge: CONFIRMED only, hypothesis-tier never rendered
+  // (same silence rule as emerging patterns), non-owner audiences see only rows
+  // marked shareable (default false ⇒ nothing leaks). validUntil'd rows are out.
+  const knowledgeShareOnly = audience !== 'owner';
+  const KIND_ORDER = ['value', 'belief', 'preference', 'behaviour', 'decision_pattern'];
+  const traitRows = (await db.select().from(traits)
+    .where(and(eq(traits.cloneId, cloneId), eq(traits.status, 'confirmed'), isNull(traits.validUntil), ...(knowledgeShareOnly ? [eq(traits.shareable, true)] : []))))
+    .filter((t) => t.tier !== 'hypothesis')
+    .sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || b.confidence - a.confidence || a.id.localeCompare(b.id))
+    .slice(0, 30);
+  const ruleRows = (await db.select().from(contextualRules)
+    .where(and(eq(contextualRules.cloneId, cloneId), eq(contextualRules.status, 'confirmed'), isNull(contextualRules.validUntil), ...(knowledgeShareOnly ? [eq(contextualRules.shareable, true)] : []))))
+    .sort((a, b) => b.confidence - a.confidence || a.id.localeCompare(b.id))
+    .slice(0, 15);
+  const memoryRows = (await db.select().from(memories)
+    .where(and(eq(memories.cloneId, cloneId), eq(memories.status, 'confirmed'), ...(knowledgeShareOnly ? [eq(memories.shareable, true)] : []))))
+    .sort((a, b) => b.importance - a.importance || a.id.localeCompare(b.id))
+    .slice(0, 8);
+
   const name = brief?.displayName || clone.name;
   const parts: string[] = [shared ? SHARED_CORE : CORE_RULES, ''];
 
@@ -107,6 +127,19 @@ export async function renderPersona(orgId: string, cloneId: string, orgName?: st
     parts.push('', `## Personality lens (self-reported, ${personality.type})`,
       describeMbti({ type: personality.type, scores: personality.scores }),
       strong.length ? `Let this colour tone and framing (${strong.join(', ').toLowerCase()}), but the "How ${name} thinks" patterns above always win when they conflict — observed behaviour beats self-report.` : `Weak preferences across the board — treat this as flavour only; the observed patterns above always win.`);
+  }
+
+  if (traitRows.length) {
+    parts.push('', `## What ${name} values and how they lean`);
+    for (const t of traitRows) parts.push(`- [${t.kind.replace('_', ' ')}] ${t.label}: ${t.statement}${t.tier === 'inferred' ? ' _(observed)_' : ''}`);
+  }
+  if (ruleRows.length) {
+    parts.push('', `## Rules and exceptions (consult these before predicting what ${name} would do)`);
+    for (const r of ruleRows) parts.push(`- IF ${r.situation}${r.condition ? ` AND ${r.condition}` : ''} → ${r.tendency}`);
+  }
+  if (memoryRows.length) {
+    parts.push('', `## Things that shaped ${name}`);
+    for (const m of memoryRows) parts.push(`- ${m.summary}${m.dateOrPeriod ? ` (${m.dateOrPeriod})` : ''}`);
   }
 
   if (pinnedFirst.length) {
@@ -149,7 +182,7 @@ export async function renderPersona(orgId: string, cloneId: string, orgName?: st
     prompt,
     promptHash,
     tokenEstimate: Math.ceil(prompt.length / 4),
-    layerVersions: { brief: brief?.version ?? 0, patterns: patterns.filter((p) => p.status === 'confirmed').length, facts: pinnedFirst.length, playbooks: pbs.length, lessons: lessons.length },
+    layerVersions: { brief: brief?.version ?? 0, patterns: patterns.filter((p) => p.status === 'confirmed').length, facts: pinnedFirst.length, playbooks: pbs.length, lessons: lessons.length, traits: traitRows.length, rules: ruleRows.length, memories: memoryRows.length },
   };
 }
 

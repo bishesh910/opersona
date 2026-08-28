@@ -132,6 +132,14 @@ export async function authorize(ctx: OrgCtx, method: string, path: string[]): Pr
     return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can edit their answers');
   }
 
+  // Verdict on an interview-learned knowledge item: clones/:id/knowledge/:kind/:itemId/verdict. Owner only.
+  if (root === 'clones' && id && UUID.test(id) && path.length === 6 && method === 'POST'
+    && path[2] === 'knowledge' && ['trait', 'memory', 'rule'].includes(path[3] ?? '') && path[4] && UUID.test(path[4]) && path[5] === 'verdict') {
+    const access = await getCloneAccess(ctx, id);
+    if (!access) return deny(404, 'clone not found');
+    return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can judge their model');
+  }
+
   // Claude-history import: web inserts the import_jobs row and saves the file, then starts it here.
   if (root === 'imports' && id && UUID.test(id) && leaf === 'start' && method === 'POST' && path.length === 3) {
     const [job] = await db.select().from(schema.importJobs)

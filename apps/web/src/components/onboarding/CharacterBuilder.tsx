@@ -495,9 +495,11 @@ function ReadyStep({ displayName, roleTitle, mbtiType }: {
         {mbtiType && <><dt className="muted">Mind</dt><dd className="font-mono">{mbtiType}</dd></>}
       </dl>
       <div className="flex flex-wrap gap-2">
-        <Link href="/chat" className="btn-primary">Start chatting</Link>
+        <Link href="/me/interview" className="btn-primary">Start your interview</Link>
+        <Link href="/chat" className="btn-secondary">Start chatting</Link>
         <Link href="/onboarding/sources" className="btn-secondary">Add learning sources</Link>
       </div>
+      <p className="muted text-xs">The interview is the fastest way to teach it who you are — real questions, your real answers, ten minutes at a time.</p>
     </div>
   );
 }

@@ -103,17 +103,20 @@ export async function nextQuestionFor(orgId: string, cloneId: string): Promise<{
   return { question: serve(ins), progress: await progressFor(state, cloneId) };
 }
 
-/** Store an answer (or skip), queue extraction, return the next question — one round-trip. */
+/** Store an answer (or skip), run sync triage, queue extraction, return the next question — one round-trip. */
 export async function submitAnswer(a: {
   orgId: string; cloneId: string; questionId: string; text?: string; skipped?: boolean;
-}): Promise<{ answerId: string | null; question: ServedQuestion | null; progress: Progress }> {
+}): Promise<{ answerId: string | null; ack: string | null; question: ServedQuestion | null; progress: Progress }> {
   const [q] = await db.select().from(interviewQuestions)
     .where(and(eq(interviewQuestions.id, a.questionId), eq(interviewQuestions.cloneId, a.cloneId), eq(interviewQuestions.orgId, a.orgId))).limit(1);
   if (!q) throw new Error('question not found');
   if (q.status === 'answered') throw new Error('already answered — refresh for the next question');
 
   const skipped = a.skipped === true || !a.text?.trim();
-  const threadDepth = q.parentAnswerId ? 1 + Number(q.kind === 'follow_up') : 0;
+  const parentDepth = q.parentAnswerId
+    ? ((await db.select({ context: interviewAnswers.context }).from(interviewAnswers).where(eq(interviewAnswers.id, q.parentAnswerId)).limit(1))[0]?.context?.threadDepth ?? 0)
+    : -1;
+  const threadDepth = q.kind === 'follow_up' ? parentDepth + 1 : 0;
   const [ans] = await db.insert(interviewAnswers).values({
     orgId: a.orgId, cloneId: a.cloneId, questionId: q.id, category: q.category, questionText: q.text,
     text: a.text?.trim() ?? '', skipped,
@@ -123,11 +126,43 @@ export async function submitAnswer(a: {
   }).returning({ id: interviewAnswers.id });
   await db.update(interviewQuestions).set({ status: skipped ? 'skipped' : 'answered' }).where(eq(interviewQuestions.id, q.id));
 
-  if (!skipped) enqueue({ kind: 'interview_extract', orgId: a.orgId, cloneId: a.cloneId, answerId: ans!.id });
+  let ack: string | null = null;
+  if (!skipped) {
+    enqueue({ kind: 'interview_extract', orgId: a.orgId, cloneId: a.cloneId, answerId: ans!.id });
+
+    // Sync triage (≤6s, never throws): conversational steering only — follow-up
+    // hooks and an early tension probe become question rows; ack goes to the UI.
+    const { triageAnswer } = await import('./triage.js');
+    const t = await triageAnswer({ orgId: a.orgId, cloneId: a.cloneId, questionText: q.text, answerText: a.text!.trim() });
+    if (t) {
+      ack = t.ack;
+      if (threadDepth < 2) {
+        for (const f of t.followups) {
+          await db.insert(interviewQuestions).values({
+            orgId: a.orgId, cloneId: a.cloneId, category: q.category, facet: q.facet,
+            text: f.question, kind: 'follow_up', source: 'triage', intent: f.intent,
+            parentAnswerId: ans!.id, priority: f.hook_strength, status: 'pending',
+          });
+        }
+      }
+      if (t.tension) {
+        const { contradictions } = await import('@opersona/db');
+        const [contra] = await db.insert(contradictions).values({
+          orgId: a.orgId, cloneId: a.cloneId, answerId: ans!.id, description: t.tension.description,
+        }).returning({ id: contradictions.id });
+        const [probe] = await db.insert(interviewQuestions).values({
+          orgId: a.orgId, cloneId: a.cloneId, category: q.category, facet: q.facet,
+          text: t.tension.probe_question, kind: 'contradiction', source: 'triage',
+          contradictionId: contra!.id, status: 'pending',
+        }).returning({ id: interviewQuestions.id });
+        await db.update(contradictions).set({ probeQuestionId: probe!.id }).where(eq(contradictions.id, contra!.id));
+      }
+    }
+  }
   await storeCoverage(a.orgId, a.cloneId); // answered counts move instantly; item counts follow extraction
 
   const next = await nextQuestionFor(a.orgId, a.cloneId);
-  return { answerId: skipped ? null : ans!.id, ...next };
+  return { answerId: skipped ? null : ans!.id, ack, ...next };
 }
 
 /** Revision-preserving edit: old text is kept, derived sole-source items retire, extraction reruns. */

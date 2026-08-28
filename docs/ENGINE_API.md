@@ -107,3 +107,32 @@ chunks, writes `document_chunks`. `{ chunks: n }`.
 - `POST /keys/validate` `{ apiKey }` → `{ ok, model }` or `{ ok: false, status, error }`
   (always HTTP 200). Called before storing an org key — a bad key otherwise looks like a hang
   (the SDK retries 401s ~11× with backoff; `status` SSE events surface those retries).
+
+## Cognitive interview + knowledge model
+
+All owner-only through the web proxy (`access.canWrite`); the engine re-checks the clone↔org pair.
+
+- `POST /clones/:id/interview/next` `{ orgId, userId }` → `{ question, progress }` — the current
+  (resume-safe) or next question. The picker is deterministic: coverage gap × uncertainty ×
+  info gain + follow-up/contradiction bonuses − rotation/skip penalties; the ~50-question
+  authored bank needs no LLM, so this always answers fast.
+- `POST /clones/:id/interview/answer` `{ orgId, userId, questionId, text? | skipped }` →
+  `{ answerId, ack, question, progress }` — stores the answer, runs sync triage on the condense
+  model (≤6s hard ceiling; on timeout `ack` is null and the pool question serves — the interview
+  never stalls; `INTERVIEW_TRIAGE=false` disables), queues the async extraction
+  (`interview_extract` job, restart-resumable), returns the next question in the same round-trip.
+  Extraction writes memories / traits / contextual_rules with verbatim-quote evidence
+  (`ref: interview:<answerId>`), detects tensions → `contradictions` + a ready probe question,
+  then refreshes `interview_coverage` and republishes the persona snapshot.
+- `POST /clones/:id/interview/answers/:answerId/edit` `{ orgId, userId, text }` — revision-
+  preserving edit: old text is kept in `revisions`, knowledge items whose ONLY evidence was this
+  answer retire, extraction reruns.
+- `POST /clones/:id/knowledge/{trait|memory|rule}/:itemId/verdict` `{ orgId, userId, verdict:
+  'confirm'|'dispute'|null }` — owner verdict ("that's me" / "not me" / reset); logged to
+  `learning_events`, snapshot republished.
+
+Epistemic tiers are code-enforced, not prompt-hoped: quotes must appear verbatim in the answer,
+a trait with no verified quote survives only as `hypothesis` (confidence ≤ 0.6), memories/rules
+without receipts are dropped, tiers never auto-promote (only new explicit quoted evidence or an
+owner verdict, always via `learning_events`). Hypothesis-tier is never rendered into any prompt;
+non-owner audiences see only rows marked `shareable` (default false).

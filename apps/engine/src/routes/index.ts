@@ -223,6 +223,33 @@ routes.post('/clones/:id/interview/answers/:answerId/edit', async (c) => {
   }
 });
 
+/** Owner verdict on an interview-learned item: confirm ("that's me"), dispute
+ *  ("not me"), or reset. Status changes are logged and the prompt re-publishes. */
+routes.post('/clones/:id/knowledge/:kind/:itemId/verdict', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), verdict: z.enum(['confirm', 'dispute']).nullable() }));
+  const kind = c.req.param('kind');
+  if (!['trait', 'memory', 'rule'].includes(kind)) return c.json({ error: 'unknown knowledge kind' }, 404);
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { traits, memories, contextualRules, learningEvents } = await import('@opersona/db');
+  const table = kind === 'trait' ? traits : kind === 'memory' ? memories : contextualRules;
+  const [row] = await db.select({ id: table.id, status: table.status }).from(table)
+    .where(and(eq(table.id, c.req.param('itemId')), eq(table.cloneId, clone.id))).limit(1);
+  if (!row) return c.json({ error: 'item not found' }, 404);
+  const status = body.verdict === 'confirm' ? 'confirmed' as const : body.verdict === 'dispute' ? 'disputed' as const : 'candidate' as const;
+  await db.update(table).set({ status, updatedAt: new Date() }).where(eq(table.id, row.id));
+  await db.insert(learningEvents).values({
+    orgId: body.orgId, cloneId: clone.id, layer: kind, targetId: row.id,
+    action: body.verdict === 'confirm' ? 'promoted' : body.verdict === 'dispute' ? 'disputed' : 'updated',
+    summary: body.verdict === 'confirm' ? "owner: that's me" : body.verdict === 'dispute' ? 'owner: not me' : 'owner: verdict reset',
+    before: { status: row.status }, after: { status },
+    sourceKind: 'interview', reviewStatus: body.verdict === 'confirm' ? 'accepted' : body.verdict === 'dispute' ? 'rejected' : 'auto',
+    reviewedBy: body.userId, reviewedAt: new Date(),
+  });
+  await publishSnapshot(body.orgId, clone.id);
+  return c.json({ ok: true, status });
+});
+
 /** Onboarding interview → persona brief, on the cheapest model (condense = haiku
  *  by default) with low effort: a handful of one-line answers become the story. */
 routes.post('/clones/:id/compose-brief', async (c) => {

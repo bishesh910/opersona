@@ -83,6 +83,8 @@ export default async function ThinkingPage({ params }: { params: Promise<{ id: s
   ]);
   const [{ n: claudeCode }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.claudeCodeSessions)
     .where(and(eq(schema.claudeCodeSessions.cloneId, id), eq(schema.claudeCodeSessions.status, 'done')));
+  const [{ n: interviewAnswered }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.interviewAnswers)
+    .where(and(eq(schema.interviewAnswers.cloneId, id), eq(schema.interviewAnswers.skipped, false)));
 
   // Overall accuracy (chat feedback + self-tests) from the engine; the page still renders if the engine is down.
   const acc = await engineFetch<{ me: number; notMe: number; pct: number | null }>(`/clones/${id}/accuracy`, { query: { orgId: ctx.orgId } })
@@ -152,6 +154,7 @@ export default async function ThinkingPage({ params }: { params: Promise<{ id: s
         accuracy={me + notMe > 0 ? me / (me + notMe) : null}
         feedbackCount={me + notMe}
         accuracyPct={acc.pct}
+        interviewAnswers={access.isOwner ? interviewAnswered : undefined}
       />
       <p className="muted text-xs">
         This week: learned from {sessionsWeek} {sessionsWeek === 1 ? 'session' : 'sessions'} · {newObs} new {newObs === 1 ? 'observation' : 'observations'} · {newConfirmed} {newConfirmed === 1 ? 'pattern' : 'patterns'} confirmed.

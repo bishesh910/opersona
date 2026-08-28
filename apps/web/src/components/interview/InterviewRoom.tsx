@@ -20,7 +20,7 @@ interface Progress {
   answered: number;
   knowledge: { memories: number; traits: number; rules: number };
 }
-interface NextPayload { question: Question | null; progress: Progress }
+interface NextPayload { question: Question | null; progress: Progress; ack?: string | null }
 
 async function post<T>(url: string, body?: unknown): Promise<T> {
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
@@ -42,6 +42,7 @@ export function InterviewRoom({ cloneId }: { cloneId: string }) {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [ack, setAck] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const base = `/api/engine/clones/${cloneId}/interview`;
@@ -71,7 +72,8 @@ export function InterviewRoom({ cloneId }: { cloneId: string }) {
       const r = await post<NextPayload>(`${base}/answer`, payload);
       setQ(r.question); setProgress(r.progress);
       setText('');
-      setSaved(!skipped);
+      setAck(!skipped ? r.ack ?? null : null);
+      setSaved(!skipped && !r.ack);
       areaRef.current?.focus();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'could not save that — try again');
@@ -88,6 +90,7 @@ export function InterviewRoom({ cloneId }: { cloneId: string }) {
     <div className="mx-auto max-w-2xl space-y-8">
       {q ? (
         <section className="space-y-4">
+          {ack && <p className="text-sm italic text-neutral-500 dark:text-neutral-400">{ack}</p>}
           <div className="flex flex-wrap items-center gap-2">
             <span className="chip">{q.categoryLabel}</span>
             {KIND_CHIP[q.kind] && (
@@ -102,7 +105,7 @@ export function InterviewRoom({ cloneId }: { cloneId: string }) {
             placeholder="Take your time — a real moment beats a general answer."
             value={text}
             disabled={busy}
-            onChange={(e) => { setText(e.target.value); setSaved(false); grow(); }}
+            onChange={(e) => { setText(e.target.value); setSaved(false); setAck(null); grow(); }}
             onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); void send(false); } }}
             autoFocus
           />

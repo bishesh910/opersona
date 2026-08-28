@@ -5,12 +5,14 @@
 import { sql } from 'drizzle-orm';
 import { db } from '@opersona/db';
 
-export type Layer = 'facts' | 'playbooks' | 'episodes' | 'corrections' | 'condensed';
+export type Layer = 'facts' | 'playbooks' | 'episodes' | 'corrections' | 'condensed' | 'memories' | 'traits' | 'rules';
 export interface Hit { layer: Layer; id: string; text: string; confidence: number | null; status: string | null; source: string | null; rank: number }
 
 const q = (query: string) => sql`websearch_to_tsquery('english', ${query})`;
 
-export async function recallMemory(cloneId: string, query: string, layers: Layer[] = ['facts', 'playbooks', 'episodes', 'corrections', 'condensed'], k = 8, visitor = false): Promise<Hit[]> {
+export async function recallMemory(cloneId: string, query: string, layers: Layer[] = ['facts', 'playbooks', 'episodes', 'corrections', 'condensed', 'memories', 'traits', 'rules'], k = 8, visitor = false): Promise<Hit[]> {
+  // Interview knowledge stays owner-only in recall for now (the prompt's shareable
+  // sections are the only non-owner surface).
   if (visitor) layers = layers.filter((l) => l === 'facts' || l === 'playbooks');
   const parts: ReturnType<typeof sql>[] = [];
   if (layers.includes('facts')) parts.push(sql`
@@ -45,6 +47,26 @@ export async function recallMemory(cloneId: string, query: string, layers: Layer
     select 'condensed' as layer, id::text, domain || ': ' || left(summary_md, 1200) as text, null::real as confidence, null::text as status, 'reflection' as source,
       ts_rank(to_tsvector('english', summary_md), ${q(query)}) as rank
     from condensed_history where clone_id = ${cloneId} and to_tsvector('english', summary_md) @@ ${q(query)}`);
+  if (layers.includes('memories')) {
+    // Life memories from the interview: FTS plus ILIKE-any-term so people_involved is findable.
+    const terms = query.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3).slice(0, 8).map((w) => `%${w}%`);
+    parts.push(sql`
+    select 'memories' as layer, id::text,
+      summary || case when date_or_period is not null then ' (' || date_or_period || ')' else '' end
+        || case when full_context <> '' then ' — ' || left(full_context, 300) else '' end as text,
+      confidence, status, source_kind as source, ts_rank(tsv, ${q(query)}) as rank
+    from memories where clone_id = ${cloneId} and status in ('confirmed','candidate')
+      and (tsv @@ ${q(query)}${terms.length ? sql` or array_to_string(people_involved, ' ') ilike any(array[${sql.join(terms.map((t) => sql`${t}`), sql`, `)}])` : sql``})`);
+  }
+  if (layers.includes('traits')) parts.push(sql`
+    select 'traits' as layer, id::text, label || ': ' || statement || case when tier = 'inferred' then ' (observed)' else '' end as text,
+      confidence, status, source_kind as source, ts_rank(tsv, ${q(query)}) as rank
+    from traits where clone_id = ${cloneId} and status in ('confirmed','candidate') and tier <> 'hypothesis' and tsv @@ ${q(query)}`);
+  if (layers.includes('rules')) parts.push(sql`
+    select 'rules' as layer, id::text,
+      'IF ' || situation || case when condition is not null then ' AND ' || condition else '' end || ' THEN ' || tendency as text,
+      confidence, status, source_kind as source, ts_rank(tsv, ${q(query)}) as rank
+    from contextual_rules where clone_id = ${cloneId} and status in ('confirmed','candidate') and tsv @@ ${q(query)}`);
   if (!parts.length) return [];
   const union = sql.join(parts, sql` union all `);
   const res = await db.execute(sql`select * from (${union}) h order by rank desc limit ${k}`);

@@ -293,6 +293,11 @@ export async function extractInterviewAnswer(orgId: string, cloneId: string, ans
     });
 
     await storeCoverage(orgId, cloneId);
+    if (out.memories.length || out.traits.length || out.rules.length) {
+      // The knowledge sections render into the persona prompt — publish a fresh version.
+      const { publishSnapshot } = await import('../persona/assemble.js');
+      await publishSnapshot(orgId, cloneId).catch((e) => console.error('[interview] snapshot after extraction failed', e));
+    }
     return { status: 'done', note: `${out.memories.length}m/${out.traits.length}t/${out.rules.length}r/${out.tensions.length}x` };
   } catch (e) {
     await db.update(interviewAnswers).set({ extractionStatus: 'failed' }).where(eq(interviewAnswers.id, answerId)).catch(() => {});
