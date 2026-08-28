@@ -56,11 +56,13 @@ export default function AboutPage() {
           <span className="chip">1 · learn</span>
           <h3 className="font-medium">It learns from work you already do</h3>
           <p className="muted text-sm">
-            As you chat and work, your persona distills how you reason — patterns, confirmed facts,
-            playbooks. It runs on your own Claude: either the opersona app on your machine, a menu-bar
-            app and bridge that use your existing Claude subscription (your login never leaves your
-            computer), or as a connector inside claude.ai. There is no platform API key. Nobody&rsquo;s
-            thinking is billed to us.
+            As you chat, work, and answer its interview — your persona messages you about real
+            moments and follows the threads — it distills how you reason: patterns, confirmed facts,
+            playbooks. It runs on your own Claude: the opersona bridge on your machine (one{" "}
+            <code className="text-xs">npx opersona</code> command using the Claude subscription you
+            already have — your login never leaves your computer), an API key you provide, or as a
+            connector inside claude.ai, where saying &ldquo;opersona me&rdquo; starts your interview.
+            There is no platform API key. Nobody&rsquo;s thinking is billed to us.
           </p>
         </div>
 
@@ -102,7 +104,7 @@ export default function AboutPage() {
             <li>
               <p className="font-medium">Hold your Claude login.</p>
               <p className="muted">
-                The app and bridge run on your machine. Your credentials stay there. We never see them.
+                The bridge runs on your machine. Your credentials stay there. We never see them.
               </p>
             </li>
             <li>

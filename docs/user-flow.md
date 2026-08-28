@@ -30,24 +30,35 @@ Five short steps, no AI settings to configure:
 
 | Step | What happens |
 | --- | --- |
-| **Connect** | Pick a rail: pair the `npx opersona` bridge (your own Claude subscription) or an API key. Skippable. |
+| **Connect** | Pick a rail: pair the `npx opersona` bridge (your own Claude subscription — `npx opersona install` runs it terminal-free at every login) or an API key. Skippable. |
 | **Pixie** | An avatar — from a selfie (never stored), a dice roll, or by hand. |
 | **Story** | Four one-line questions → an AI-drafted first-person brief you edit. |
 | **Mind** | A 12-question personality quick take (or the full 24). Flavour, never authority. |
 | **Ready** | The persona exists. Primary CTA: **Start your interview.** |
 
-## 4 · The cognitive interview — `/me/interview`
+## 4 · The cognitive interview — a chat, in two places
 
-The core teaching surface. One large behavioural question at a time
-("Tell me about the last time…", never "are you a risk taker?"), a textarea,
-skip, ⌘↵. Pause by leaving — the server resumes exactly where you stopped.
+The core teaching surface is a CONVERSATION: your persona *messages you*
+("Tell me about the last time…", never "are you a risk taker?") and you answer
+like you'd text a friend — short is fine, probing is its job. Two ways in:
 
-Behind each answer:
+- **claude.ai (recommended)** — with the opersona connector attached, say
+  **"opersona me"**: your own fast Claude conducts the interview via the
+  `opersona_me` / `submit_interview_answer` tools and completed exchanges land
+  in opersona verbatim. Replies are instant; extraction runs asynchronously on
+  your bridge, where its slowness costs nobody a second.
+- **opersona.me → `/me/interview`** — the in-app chat with your pixie: ~2s
+  replies with an API key; on the bridge rail the reply computes in the
+  background while the page polls like a messenger (typing dots, keep typing).
+
+Threads wrap once they hold a concrete story plus the why (capped at five of
+your messages); every third finished thread offers a natural break — there is
+deliberately no finish line. Pause by leaving; it resumes exactly there.
+
+Behind each wrapped thread:
 
 - an instant next question from a deterministic picker (coverage gap ×
   uncertainty × info gain; a ~50-question authored bank means zero cold-start),
-- a fast triage pass that acknowledges you and hangs follow-up hooks
-  (why / alternatives / would-you-today / is there an exception),
 - an async extraction into **memories** (what happened), **traits**
   (values / beliefs / preferences / behaviours / decision patterns) and
   **contextual rules** (IF situation AND condition THEN tendency) — every item
@@ -117,7 +128,7 @@ as a new version, and the next prediction is better. Misses teach it the most.
 
 | Concept | Surface |
 | --- | --- |
-| Adaptive interview, follow-ups, contradictions | `/me/interview` |
+| Adaptive interview, follow-ups, contradictions | claude.ai ("opersona me") or `/me/interview` |
 | Memories vs behaviour patterns, evidence, tiers | `/me/memory` |
 | Explicit / inferred / hypothesis | tier chips everywhere; hypothesis never enters a prompt |
 | Contextual rules & exceptions | `/me/memory` → "Rules & exceptions"; consulted by chat + simulate |

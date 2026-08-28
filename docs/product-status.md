@@ -1,6 +1,17 @@
 # Product status
 
-*Last updated 2026-08-28 (commits `9c7cf63…d3524e3`). This page changes when the software changes.*
+*Last updated 2026-08-28 evening (commits `9c7cf63…d1f95a4`). This page changes when the software changes.*
+
+**Since the morning edition:** the interview became a CHAT (your persona
+messages you) and moved its recommended home into claude.ai — say
+**"opersona me"** with the connector attached and your own fast Claude
+conducts it (`opersona_me` / `submit_interview_answer` tools; extraction stays
+async on the bridge). The in-app interview chat polls like a messenger with
+background replies, cross-thread memory, session pacing, and an internal
+scroll box. Bridge `opersona@0.4.0` ships warm job sessions (no more
+cold-booting Claude per reply). The landing and all logged-out public pages
+wear the auth pages' Night Shift look, with the pixie crowd dimmed to a
+skyline. Self-serve factory reset script for clean-slate testing.
 
 ## Where we are
 
@@ -12,7 +23,7 @@ phase plan:
 | Spec phase | Status |
 | --- | --- |
 | **1 — foundations** (auth, persona creation, dashboard, chat, Claude integration, DB, extraction) | ✅ shipped (predates this cycle) + repaired: migration system squash-baselined, 2FA enrollment fixed, security audit findings closed, real landing page, error surfaces |
-| **2 — adaptive interview, memory system, behaviour patterns, evidence, retrieval** | ✅ shipped. 10 categories × 5 facets, deterministic picker, triage follow-ups, contradiction probes, memories/traits/rules with epistemic tiers + verbatim-quote evidence, wired into the persona prompt and `recall_memory` (Postgres FTS; embedding seam ready, vendor-free) |
+| **2 — adaptive interview, memory system, behaviour patterns, evidence, retrieval** | ✅ shipped. 10 categories × 5 facets, deterministic picker, chat-style interview (in-app + claude.ai "opersona me"), contradiction probes, memories/traits/rules with epistemic tiers + verbatim-quote evidence, wired into the persona prompt and `recall_memory` (Postgres FTS; embedding seam ready, vendor-free) |
 | **3 — scenario testing, human-vs-AI prediction, accuracy metrics, correction loop** | ✅ shipped. Blind-at-creation predictions (enforced in the schema and every code path, not the UI), LLM judge across 4 dimensions + code-computed calibration, similarity metric gated below 5 samples, structured correction loop that writes back into the model |
 | **4 — versioning, voice, export/import, advanced privacy** | ◐ partial. Versioning (numbered snapshots + layer deltas) ✅ · full export `persona-full@2` ✅ · self-serve persona & account deletion ✅ · publish/import ✅ · **voice interview: not built** (the interview UI is transport-agnostic by design) |
 
@@ -47,17 +58,19 @@ phase plan:
 
 ## Known gaps / next candidates
 
-1. **Voice interview** — mic → STT → interview engine → TTS. The room is a
-   plain question/answer exchange, so this is additive.
+1. **Voice interview** — mic → STT → interview engine → TTS. The interview is
+   already a message exchange, so voice is a transport swap, not a redesign.
 2. **Semantic retrieval** — FTS-first by design; `knowledge_embeddings` +
    the provider seam exist, pgvector is already installed on prod. Wire a
    vendor when FTS recall demonstrably fails.
 3. **Shareable interview knowledge** — traits/memories/rules carry a
    `shareable` flag (default off) but the publish flow doesn't surface
    toggles for them yet; published personas currently exclude them entirely.
-4. **Interview triage latency** — the 6 s sync ceiling sometimes trips on the
-   platform rail; the fallback is seamless (a bank question, no ack), but
-   acknowledgments land less often than designed.
+4. **Bridge rail per-turn floor** — even with 0.4.0's warm job sessions (the
+   CLI boot is gone), the subscription rail costs ~5-9s per reply at interview
+   prompt sizes vs ~2s on a direct API key. Mitigated by the claude.ai
+   interview path (conversation latency lives where a warm Claude already
+   runs) and by honest typing-dot UX in the in-app chat.
 5. **Fold self-tests into scenarios** — two coexisting gauges ("sounds like
    me" and "behavioural similarity") is deliberate for now; revisit after ~50
    scored scenarios of real usage.

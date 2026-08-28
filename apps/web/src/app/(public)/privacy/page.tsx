@@ -51,6 +51,7 @@ export default function PrivacyPage() {
         </p>
         <ul className="muted list-disc space-y-1 pl-5 text-sm">
           <li>Every entry is visible to you, with its origin, and deletable in one click.</li>
+          <li><strong>The interview lives on this side.</strong> What you tell your persona in the interview — including your exact words, kept as evidence — is stored readable, because it <em>is</em> the persona&apos;s memory. It follows the same rules: visible to you, never shared unless you mark it shareable, gone when you delete it.</li>
           <li>Rule of thumb: the <strong>diary is sealed, the résumé is readable</strong> — verbatim conversations encrypted, distilled insights not.</li>
         </ul>
       </section>
@@ -58,7 +59,7 @@ export default function PrivacyPage() {
       <section className="card space-y-2 p-5">
         <h2 className="font-medium">Where the AI actually runs</h2>
         <ul className="muted list-disc space-y-1 pl-5 text-sm">
-          <li>With the <strong>opersona bridge</strong> (the menu-bar app), your chats and your persona&apos;s learning run on <strong>your computer</strong>, through your own Claude login. That login never leaves your machine — nothing Anthropic-related ever reaches our servers.</li>
+          <li>With the <strong>opersona bridge</strong> (one <code className="text-xs">npx opersona</code> command on your computer), your chats and your persona&apos;s learning run on <strong>your machine</strong>, through your own Claude login. That login never leaves your machine — nothing Anthropic-related ever reaches our servers.</li>
           <li>With an API key instead: the key is stored encrypted (AES-256-GCM) and used only for your own workspace&apos;s requests.</li>
           <li>Selfies for your Pixie are processed in memory and <strong>never stored</strong> — only the resulting cartoon recipe is saved.</li>
         </ul>

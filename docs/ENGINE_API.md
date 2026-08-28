@@ -117,13 +117,34 @@ All owner-only through the web proxy (`access.canWrite`); the engine re-checks t
   info gain + follow-up/contradiction bonuses − rotation/skip penalties; the ~50-question
   authored bank needs no LLM, so this always answers fast.
 - `POST /clones/:id/interview/answer` `{ orgId, userId, questionId, text? | skipped }` →
-  `{ answerId, ack, question, progress }` — stores the answer, runs sync triage on the condense
-  model (≤6s hard ceiling; on timeout `ack` is null and the pool question serves — the interview
-  never stalls; `INTERVIEW_TRIAGE=false` disables), queues the async extraction
-  (`interview_extract` job, restart-resumable), returns the next question in the same round-trip.
-  Extraction writes memories / traits / contextual_rules with verbatim-quote evidence
-  (`ref: interview:<answerId>`), detects tensions → `contradictions` + a ready probe question,
-  then refreshes `interview_coverage` and republishes the persona snapshot.
+  `{ answerId, ack, question, progress }` — the original single-shot path (kept for API
+  completeness; the chat + MCP surfaces below are what the product uses): stores the answer,
+  runs sync triage on the condense model (≤6s ceiling, `INTERVIEW_TRIAGE=false` disables),
+  queues the async extraction (`interview_extract` job, restart-resumable), returns the next
+  question in the same round-trip. Extraction writes memories / traits / contextual_rules with
+  verbatim-quote evidence (`ref: interview:<answerId>`), detects tensions → `contradictions` +
+  a ready probe question, then refreshes `interview_coverage` and republishes the snapshot.
+- **In-app interview chat** — the persona-messages-you surface behind `/me/interview`:
+  - `POST /clones/:id/interview/chat/state` `{ orgId, userId }` → `{ messages, question,
+    progress, awaitingReply }` — resume-safe: opens the current thread (greeting + question as
+    interviewer messages) or replays its history.
+  - `POST /clones/:id/interview/chat/send` `{ orgId, userId, text }` → returns immediately with
+    `awaitingReply: true`; the interviewer's reply computes in a BACKGROUND worker
+    (single-flight per clone; double-texts coalesce into one reply that answers both) and the
+    client polls `state` like a messenger. A flaky rail keeps the thread open with at most one
+    honest apology; no rail at all says so plainly instead of pretending. A thread wraps once
+    it holds a concrete story plus the why (≤5 user messages), materializes into
+    `interview_answers` (user's verbatim words quotable, full dialogue as context) and rides
+    the same extraction pipeline; every third wrap within 2h offers a natural break.
+  - `POST /clones/:id/interview/chat/skip` `{ orgId, userId }` — skip the current question
+    mid-conversation.
+- `POST /clones/:id/interview/submit-thread` `{ orgId, questionId, userText, dialogue? }` — the
+  MCP path: the interview CONVERSATION runs inside claude.ai (the user's own fast Claude plays
+  the interviewer via the `opersona_me` / `submit_interview_answer` connector tools); a
+  completed exchange lands here as one answer (user's verbatim words quotable, dialogue as
+  context) and rides the same extraction pipeline. Returns the next question. This is the
+  recommended free-tier interview: conversation latency lives where a warm Claude already runs;
+  only the async extraction touches the bridge, where slowness costs nobody anything.
 - `POST /clones/:id/interview/answers/:answerId/edit` `{ orgId, userId, text }` — revision-
   preserving edit: old text is kept in `revisions`, knowledge items whose ONLY evidence was this
   answer retire, extraction reruns.
@@ -167,11 +188,3 @@ non-owner audiences see only rows marked `shareable` (default false).
 - `POST /clones/:id/purge-files` `{ orgId, documentIds? }` — remove one clone's dirs + its
   upload files (persona deletion). DB truth never depends on these; they are best-effort
   filesystem cleanup after the information_schema-driven row sweep in the web tier.
-
-- `POST /clones/:id/interview/submit-thread` `{ orgId, questionId, userText, dialogue? }` — the
-  MCP path: the interview CONVERSATION runs inside claude.ai (the user's own fast Claude plays
-  the interviewer via the `opersona_me` / `submit_interview_answer` connector tools); a
-  completed exchange lands here as one answer (user's verbatim words quotable, dialogue as
-  context) and rides the same extraction pipeline. Returns the next question. This is the
-  recommended free-tier interview: conversation latency lives where a warm Claude already runs;
-  only the async extraction touches the bridge, where slowness costs nobody anything.

@@ -17,11 +17,13 @@ middleman ever sees a message.
 
 ## What it does
 
-- **Interviews you.** An adaptive cognitive interview across ten life areas — identity, values,
-  decisions, relationships, work, money, feelings, ethics, social life, the future — asks about
-  real moments, chases the threads your answers open, and probes the places where your story
-  doesn't quite add up ("what makes those situations different for you?"). Everything it learns
-  is tiered honestly — *you said this* / *observed* / *hunch* — and traceable to your own words.
+- **Interviews you — by chatting with you.** Your persona *messages you* about real moments
+  across ten life areas — identity, values, decisions, relationships, work, money, feelings,
+  ethics, social life, the future — chases the threads your answers open, and probes the places
+  where your story doesn't quite add up ("what makes those situations different for you?").
+  Have the conversation in the app, or say **"opersona me"** to the opersona connector on
+  claude.ai and your own Claude conducts the interview right there. Everything it learns is
+  tiered honestly — *you said this* / *observed* / *hunch* — and traceable to your own words.
 - **Predicts you, blind, and keeps score.** Fresh scenarios are answered by your persona BEFORE
   you see them (the prediction is sealed at creation — it can never peek). You answer, it
   reveals, an LLM judge scores decision / reasoning / preference / communication match, and
