@@ -1,9 +1,10 @@
 'use client';
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveFactAction, deleteFactAction } from '@/actions/memory';
 import type { ActionResult } from '@/actions/brief';
 import { ActionStatus, SpineChips } from './Status';
+import { ConfirmDialog } from '@/components/shell/Dialog';
 
 export interface FactRow { id: string; statement: string; domain: string | null; tags: string[]; pinned: boolean; shareable: boolean; status: string; sourceKind: string; confidence: number }
 
@@ -38,13 +39,24 @@ function FactForm({ cloneId, fact, onDone }: { cloneId: string; fact?: FactRow; 
 
 function DeleteFact({ cloneId, id }: { cloneId: string; id: string }) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [confirming, setConfirming] = useState(false);
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(deleteFactAction, null);
   useEffect(() => { if (state?.ok) router.refresh(); }, [state, router]);
   return (
-    <form action={action} onSubmit={(e) => { if (!confirm('Delete this fact?')) e.preventDefault(); }}>
+    <form ref={formRef} action={action}>
       <input type="hidden" name="cloneId" value={cloneId} />
       <input type="hidden" name="id" value={id} />
-      <button className="btn-secondary btn-sm" disabled={pending}>Delete</button>
+      <button type="button" className="btn-secondary btn-sm" disabled={pending} onClick={() => setConfirming(true)}>Delete</button>
+      {confirming && (
+        <ConfirmDialog
+          title="Delete this fact?"
+          message="It leaves memory and the persona prompt."
+          busy={pending}
+          onConfirm={() => { setConfirming(false); formRef.current?.requestSubmit(); }}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
     </form>
   );
 }

@@ -33,25 +33,18 @@ middleman ever sees a message.
   with no network and no host filesystem access.
 - **Pixies.** Every person gets a procedurally drawn pixel avatar — from a selfie (never stored)
   or a dice roll — that blinks, thinks, and talks in the UI.
-- **Private by construction.** Invite-only, mandatory TOTP two-factor auth, and an
-  enforcement-over-surveillance privacy model: the product has no page, stream, or API that shows
-  an admin anyone else's content. There's a Privacy page in-app that says exactly what's visible
-  to whom.
+- **Private by construction.** Invite-only by default (`ALLOW_SIGNUP` opens it, with admin
+  admission), optional-to-mandatory TOTP two-factor auth (`REQUIRE_2FA`), sealed conversations
+  (raw chats encrypted with a key only you hold), and an enforcement-over-surveillance privacy
+  model: the product has no page, stream, or API that shows an admin anyone else's content.
+  There's a Privacy page in-app that says exactly what's visible to whom.
+- **Shareable, on your terms.** Publish a privacy-safe persona artifact to the community
+  (public or grant-restricted), let others import it, take it down any time.
 
 ## Pixies
 
 Flat, cute, procedural pixel people — 11 hairstyles, 6 garments, glasses, hats, facial hair,
 freckles, dip-dye tips, all from one typed recipe.
-
-## Command Center
-
-Appoint a boss (`/office`): star a persona and it runs the floor — it delegates work to
-whoever fits best, hires **temporary specialist personas** from a job description you watch it
-write (role, strengths, responsibilities, how to think), and archives them between engagements.
-Personas can also consult each other directly: ask yours to check something with a colleague
-and it puts the question to their persona — shareable knowledge only, one hop max, and every
-consultation is on the record for the people involved. The Tasks tab shows your delegations
-with live status; Team and Activity show the org-visible staffing picture.
 
 ![Pixie styles](docs/images/pixie-styles.png)
 ![Pixie clothes](docs/images/pixie-clothes.png)
@@ -96,7 +89,8 @@ shared platform account. The short version:
 cp .env.example .env      # set DATABASE_URL, ENGINE_INTERNAL_TOKEN, BETTER_AUTH_*, SECRETS_KEK;
                           # see docs/self-hosting.md for first-run
 pnpm install
-pnpm -C packages/db migrate
+pnpm db:migrate           # fresh DB; a database from before the 2026-08 migration
+                          # squash needs `pnpm db:baseline` once first
 pnpm dev                  # web :3000, engine :4000
 ```
 

@@ -38,7 +38,10 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      { source: '/office', destination: '/command-center', permanent: true },
+      // Command Center is gone; rescue old links AND browsers that cached the
+      // former permanent /office → /command-center redirect.
+      { source: '/office', destination: '/me', permanent: false },
+      { source: '/command-center', destination: '/me', permanent: false },
       { source: '/clones', destination: '/opersonas', permanent: true },
       { source: '/clones/:path*', destination: '/opersonas/:path*', permanent: true },
     ];

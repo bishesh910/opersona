@@ -5,24 +5,11 @@ import { db, authSchema } from '@opersona/db';
 import { auth, REQUIRE_2FA, isPlatformAdmin } from './auth';
 import { ensurePersonalWorkspace } from './workspace';
 
-export type OrgRole = 'owner' | 'admin' | 'member';
-
-export interface SessionCtx {
-  userId: string;
-  /** id of the session row backing THIS request (for the Devices card). */
-  sessionId: string;
-  user: { id: string; name: string; email: string };
-  activeOrganizationId: string | null;
-  twoFactorEnabled: boolean;
-  /** Admission control: platform admin approved this account (admins are always approved). */
-  approved: boolean;
-}
-
-export interface OrgCtx extends SessionCtx {
-  orgId: string;
-  orgName: string;
-  role: OrgRole;
-}
+// Shapes + role checks live in ./org (Next-free); re-exported here so existing
+// `from '@/lib/session'` imports keep working.
+export { isOrgAdmin } from './org';
+export type { OrgRole, SessionCtx, OrgCtx } from './org';
+import type { OrgRole, SessionCtx, OrgCtx } from './org';
 
 export async function getSessionCtx(): Promise<SessionCtx | null> {
   const s = await auth.api.getSession({ headers: await headers() });
@@ -84,8 +71,4 @@ export async function requireOrg(): Promise<OrgCtx> {
   const org = await getOrgCtx(s);
   if (!org) redirect('/onboarding');
   return org;
-}
-
-export function isOrgAdmin(ctx: Pick<OrgCtx, 'role'>): boolean {
-  return ctx.role === 'owner' || ctx.role === 'admin';
 }

@@ -12,6 +12,7 @@ import { ClaudeGlyph } from './ClaudeGlyph';
 import { Markdown } from './Markdown';
 import { Composer, type PendingAttachmentView } from './Composer';
 import { ConfirmDialog } from '@/components/shell/Dialog';
+import { CopyButton } from '@/components/shell/CopyButton';
 import { MODEL_LABEL, EFFORT_LABEL, type EffortValue } from './ModelMenu';
 
 export interface HistoryTurn {
@@ -197,8 +198,8 @@ function Title({ conversationId, title, canEdit, editing, setEditing, onRenamed 
 /** Engine errors worth translating for humans (stable prefixes from the engine). */
 function friendlyErr(m: string): string {
   if (m.startsWith('no_api_key:')) return 'No API key connected — add yours in Settings → Claude access to start chatting.';
-  if (m.startsWith('bridge_offline:')) return 'The opersona app on your machine is off — flip the bridge toggle (top right) to wake it, wait for it to turn green, then resend.';
-  if (/bridge (disconnected|reconnected elsewhere)/.test(m)) return 'Your machine went offline mid-reply — flip the bridge toggle (top right) to reconnect, then resend.';
+  if (m.startsWith('bridge_offline:')) return 'The opersona bridge on your machine is off — run `npx opersona@latest` in a terminal (the dot top right turns green), then resend.';
+  if (/bridge (disconnected|reconnected elsewhere)/.test(m)) return 'Your machine went offline mid-reply — restart the bridge with `npx opersona@latest`, then resend.';
   if (/model_not_found|not_found_error|no access to.*model|unknown model|does not exist.*model/i.test(m)) return 'Your Claude doesn\u2019t have access to the selected model — pick a different one in Settings \u2192 Models (Fable/Mythos-tier access varies by plan).';
   if (m.startsWith('budget_exceeded:')) return m.replace('budget_exceeded:', 'Monthly budget reached —') + '. Raise or clear it in Settings → Models.';
   return m;
@@ -754,19 +755,18 @@ export function ChatView({
   );
 }
 
-/** This device doesn't hold the workspace's seal key: paste the recovery key
- *  (fingerprint-checked locally; the key itself never leaves the browser). */
-/** Bridge activate/deactivate — mirrors whether YOUR machine is powering this
- *  persona right now. Off → opersona://open launches the app and starts the
- *  daemon; on → opersona://stop parks it. Clicking re-polls immediately and
- *  fast (1.5s) with a pulsing in-between state until the flip is confirmed.
+/** Bridge status — mirrors whether YOUR machine is powering this persona right
+ *  now. The desktop app (and its opersona:// scheme) is gone; the bridge runs
+ *  as `npx opersona@latest` in a terminal, so this is an indicator that opens a
+ *  small popover with the command instead of pretending it can flip anything.
  *  Hidden until a machine is paired. */
 function BridgeToggle() {
   const [st, setSt] = useState<{ paired: boolean; connected: boolean } | null>(null);
-  const [pending, setPending] = useState<null | 'on' | 'off'>(null);
+  const [open, setOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const alive = useRef(true);
-  const fastUntil = useRef(0);
+  const openRef = useRef(false);
+  openRef.current = open;
 
   const tick = useCallback(async () => {
     try {
@@ -775,46 +775,48 @@ function BridgeToggle() {
         const j = (await r.json()) as { paired?: boolean; connected?: boolean };
         if (!alive.current) return;
         setSt({ paired: !!j.paired, connected: !!j.connected });
-        setPending((p) => ((p === 'on' && j.connected) || (p === 'off' && !j.connected) ? null : p));
       }
     } catch { /* keep the last known state */ }
-    if (alive.current) timer.current = setTimeout(() => void tick(), Date.now() < fastUntil.current ? 1500 : 30_000);
+    if (alive.current) timer.current = setTimeout(() => void tick(), openRef.current ? 5_000 : 30_000);
   }, []);
   useEffect(() => {
     alive.current = true;
     void tick();
     return () => { alive.current = false; clearTimeout(timer.current); };
   }, [tick]);
-  // give up on "working…" after 45s (the app may not be installed on THIS machine)
-  useEffect(() => {
-    if (!pending) return;
-    const t = setTimeout(() => setPending(null), 45_000);
-    return () => clearTimeout(t);
-  }, [pending]);
+  useEffect(() => { // popover open → poll fast so a freshly started bridge turns green quickly
+    if (!open) return;
+    clearTimeout(timer.current);
+    void tick();
+  }, [open, tick]);
 
   if (!st?.paired) return null;
   const on = st.connected;
-  const flip = () => {
-    setPending(on ? 'off' : 'on');
-    fastUntil.current = Date.now() + 45_000;
-    clearTimeout(timer.current);                       // don't wait out the slow timer
-    timer.current = setTimeout(() => void tick(), 1200);
-    window.location.href = on ? 'opersona://stop' : 'opersona://open';
-  };
-  const title = pending
-    ? (pending === 'on' ? 'Starting the opersona app on your machine…' : 'Stopping the app…')
-    : on ? 'Active — your machine is powering this persona. Click to deactivate.'
-    : 'Inactive — click to start the opersona app on your machine.';
+  const title = on
+    ? 'Bridge active — your machine is powering this persona.'
+    : 'Bridge inactive — click for how to start it on your machine.';
   return (
-    <button type="button" role="switch" aria-checked={on} aria-busy={!!pending} data-bridge-toggle
-      aria-label={title} title={title}
-      className="ml-1 inline-flex h-7 items-center px-0.5" onClick={flip}>
-      <span className={'relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ' +
-        (pending ? 'bg-amber-400' : on ? 'bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-700')}>
-        <span className={'absolute h-[14px] w-[14px] rounded-full bg-white shadow transition-all ' +
-          (pending ? 'left-[9px] animate-pulse' : on ? 'left-[16px]' : 'left-[2px]')} />
-      </span>
-    </button>
+    <div className="relative ml-1">
+      <button type="button" aria-expanded={open} data-bridge-toggle aria-label={title} title={title}
+        className="inline-flex h-7 items-center px-0.5" onClick={() => setOpen((v) => !v)}>
+        <span className={'relative inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ' +
+          (on ? 'bg-emerald-500' : 'bg-neutral-300 dark:bg-neutral-700')}>
+          <span className={'absolute h-[14px] w-[14px] rounded-full bg-white shadow transition-all ' + (on ? 'left-[16px]' : 'left-[2px]')} />
+        </span>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-8 z-30 w-72 rounded-lg border border-neutral-200 bg-white p-3 text-left shadow-lg dark:border-neutral-800 dark:bg-neutral-900">
+          <p className="text-sm font-medium">{on ? 'Your machine is connected.' : 'Your machine is not connected.'}</p>
+          <p className="muted mt-1 text-xs">{on ? 'Stop the bridge from its terminal (Ctrl-C) to disconnect.' : 'Start the bridge in a terminal on your paired machine:'}</p>
+          {!on && (
+            <div className="mt-2 flex items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] dark:bg-neutral-800">npx opersona@latest</code>
+              <CopyButton text="npx opersona@latest" />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ConfirmDialog } from '@/components/shell/Dialog';
 
 export type IngestTokenRow = { id: string; name: string; createdAt: string; lastUsedAt: string | null };
 export type ClaudeCodeSessionRow = {
@@ -74,8 +75,9 @@ export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readO
     } finally { setCreating(false); }
   }
 
+  const [revoking, setRevoking] = useState<string | null>(null);
   async function revoke(id: string) {
-    if (!confirm('Revoke this token? Hooks using it will stop sending sessions.')) return;
+    setRevoking(null);
     const res = await fetch(`${base}/tokens/${id}/revoke`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     if (!res.ok) { setMsg({ kind: 'err', text: `Could not revoke (${res.status})` }); return; }
     setTokens((prev) => prev.filter((t) => t.id !== id));
@@ -170,10 +172,19 @@ export function ClaudeCodePanel({ cloneId, initialTokens, initialSessions, readO
                       created {new Date(t.createdAt).toLocaleString()} · {t.lastUsedAt ? `last used ${new Date(t.lastUsedAt).toLocaleString()}` : 'never used'}
                     </div>
                   </div>
-                  <button type="button" className="btn-secondary btn-sm" onClick={() => revoke(t.id)}>Revoke</button>
+                  <button type="button" className="btn-secondary btn-sm" onClick={() => setRevoking(t.id)}>Revoke</button>
                 </li>
               ))}
             </ul>
+          )}
+          {revoking && (
+            <ConfirmDialog
+              title="Revoke this token?"
+              message="Hooks using it stop sending sessions."
+              confirmLabel="Revoke"
+              onConfirm={() => void revoke(revoking)}
+              onCancel={() => setRevoking(null)}
+            />
           )}
         </div>
       )}

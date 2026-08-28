@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
-import { isOrgAdmin, type OrgCtx } from './session';
+import { isOrgAdmin, type OrgCtx } from './org';
 
 export type Clone = typeof schema.clones.$inferSelect;
 

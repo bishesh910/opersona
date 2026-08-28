@@ -3,9 +3,9 @@
  * twin with the identical wire format).
  *
  * AES-256-GCM with a 32-byte workspace key that is generated in the user's
- * browser and NEVER sent to the server. It reaches the bridge through the
- * opersona:// deep link (an OS-local hop). The server stores only a key
- * fingerprint and ciphertext.
+ * browser and NEVER sent to the server. It reaches the bridge inside the
+ * pairing command (`npx opersona --seal-key …`, pasted by the user). The
+ * server stores only a key fingerprint and ciphertext.
  *
  * Wire format:  enc1:<base64 iv(12)>:<base64 ciphertext||gcm-tag>
  */

@@ -7,6 +7,8 @@
  *   - evidence is never lost: observations are re-keyed, aggregates recomputed
  * Runs nightly (03:00–04:00 server time) and on demand ("Tidy up" button).
  */
+import { readdirSync, statSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
 import { config } from '../config.js';
 import { z } from 'zod';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -83,8 +85,6 @@ let lastRun = '';
 /** Uploads (import zips) are transient by contract: nothing survives 24h. */
 export function sweepUploads(): void {
   try {
-    const { readdirSync, statSync, unlinkSync } = require('node:fs') as typeof import('node:fs');
-    const { join } = require('node:path') as typeof import('node:path');
     const orgsDir = join(config.dataDir, 'orgs');
     for (const org of readdirSync(orgsDir)) {
       const up = join(orgsDir, org, 'uploads');

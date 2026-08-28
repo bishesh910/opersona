@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from 'react';
 import { sealState } from '@/actions/seal';
-import { loadSealKey, storeSealKey, sealKeyFingerprint, keyForLink } from '@/lib/seal-client';
+import { loadSealKey, storeSealKey, sealKeyFingerprint } from '@/lib/seal-client';
 import { CopyButton } from '@/components/shell/CopyButton';
 
 export function SealCard() {
@@ -44,7 +44,11 @@ export function SealCard() {
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="muted">This device holds the key.</span>
             <button type="button" className="btn-secondary btn-sm" onClick={() => setReveal((v) => !v)}>{reveal ? 'hide key' : 'reveal key'}</button>
-            <a className="btn-secondary btn-sm" href={`opersona://seal?key=${keyForLink(key)}`}>send key to the app</a>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="muted text-xs">Give it to your bridge:</span>
+            <code className="min-w-0 flex-1 truncate rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] dark:bg-neutral-800">npx opersona@latest --seal-key …</code>
+            <CopyButton text={`npx opersona@latest --seal-key ${key}`} />
           </div>
           {reveal && (
             <div className="flex items-center gap-2">

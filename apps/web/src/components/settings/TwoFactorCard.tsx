@@ -54,14 +54,16 @@ export function TwoFactorCard({ enabled, redirectTo, email }: { enabled: boolean
     e.preventDefault();
     if (stage.step !== 'password') return;
     if (stage.mode === 'enable') {
-      await beginEnable(password);
-      const res = await authClient.twoFactor.disable({ password });
-      setBusy(false);
-      if (res.error) { setError(res.error.message ?? 'Could not disable two-factor'); return; }
-      setPassword('');
-      setStage({ step: 'idle' });
-      router.refresh();
+      await beginEnable(password); // success moves to the verify step; failure shows the error inline
+      return;
     }
+    setBusy(true); setError(null);
+    const res = await authClient.twoFactor.disable({ password });
+    setBusy(false);
+    if (res.error) { setError(res.error.message ?? 'Could not disable two-factor'); return; }
+    setPassword('');
+    setStage({ step: 'idle' });
+    router.refresh();
   }
 
   async function onVerifySubmit(e: React.FormEvent) {

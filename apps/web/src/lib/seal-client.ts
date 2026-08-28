@@ -2,7 +2,8 @@
 /**
  * Browser twin of the seal crypto (WebCrypto AES-256-GCM, identical wire format
  * to packages/shared/src/seal.ts). The key is generated HERE, lives in
- * localStorage, and reaches the bridge only through the opersona:// deep link —
+ * localStorage, and reaches the bridge only by the user pasting it into
+ * `npx opersona --seal-key …` on their machine —
  * an OS-local hop the server never sees.
  */
 export const SEAL_PREFIX = 'enc1:';
@@ -51,5 +52,3 @@ export function loadSealKey(fp: string): string | null {
 export function storeSealKey(fp: string, keyB64: string): void {
   try { localStorage.setItem(LS(fp), keyB64); } catch { /* private mode */ }
 }
-/** URL-safe form for the opersona:// deep link. */
-export const keyForLink = (keyB64: string): string => keyB64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');

@@ -1,10 +1,8 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { and, asc, desc, eq, or } from 'drizzle-orm';
+import { and, asc, eq, or } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
 import { getCloneAccess } from '@/lib/clones';
-import { engineFetch } from '@/lib/engine';
 import { DEFAULT_TITLE_RE } from '@/lib/chat';
 import { orgHasChatKey, orgSealFp } from '@/lib/keys';
 import { ChatView, type FeedbackVerdict, type HistoryTurn } from '@/components/chat/ChatView';
@@ -30,9 +28,6 @@ export default async function ConversationPage({ params }: { params: Promise<{ s
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 px-1 pb-2">
-        
-      </div>
       <div className="flex min-h-0 w-full flex-1 flex-col">
         <ChatView
           key={conv.id}

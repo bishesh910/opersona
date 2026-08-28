@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { bridgeState, mintBridgeToken, revokeBridgeToken, type BridgeState } from '@/actions/bridge';
 import { sealState, enableSealAction } from '@/actions/seal';
-import { generateSealKeyB64, sealKeyFingerprint, storeSealKey, loadSealKey, keyForLink } from '@/lib/seal-client';
+import { generateSealKeyB64, sealKeyFingerprint, storeSealKey, loadSealKey } from '@/lib/seal-client';
 import { CopyButton } from '@/components/shell/CopyButton';
 
 function ago(iso: string): string {
@@ -31,7 +31,8 @@ export function BridgeCard() {
     try {
       const { token } = await mintBridgeToken('my machine');
       // Sealed conversations are the default: the FIRST pairing generates the key
-      // in this browser; it reaches the app only through the opersona:// link.
+      // in this browser; it reaches the bridge only inside the pairing command
+      // below (--seal-key) — it is never sent to the server.
       try {
         const st = await sealState();
         if (!st.fp) {
@@ -41,7 +42,7 @@ export function BridgeCard() {
           if (r.ok) { storeSealKey(fp, key); setSealForLink(key); setRecovery(key); }
         } else {
           const key = loadSealKey(st.fp);
-          setSealForLink(key); // null = this device lacks the key; link pairs without it
+          setSealForLink(key); // null = this device lacks the key; the command pairs without it
         }
       } catch { /* sealing is best-effort at pair time */ }
       setFresh(token);
@@ -49,7 +50,7 @@ export function BridgeCard() {
     } finally { setBusy(false); }
   }
 
-  const cmd = fresh ? `npx opersona@latest --token ${fresh}` : '';
+  const cmd = fresh ? `npx opersona@latest --token ${fresh}${sealForLink ? ` --seal-key ${sealForLink}` : ''}` : '';
 
   return (
     <section className="card space-y-3" data-bridge-card>

@@ -2,6 +2,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { deleteDocumentAction } from '@/actions/documents';
+import { ConfirmDialog } from '@/components/shell/Dialog';
 
 export interface DocRow { id: string; filename: string; mime: string; bytes: number; createdAt: string; chunks: number }
 
@@ -11,6 +12,7 @@ export function DocumentsPanel({ cloneId, documents, readOnly }: { cloneId: stri
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'warn' | 'err'; text: string } | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   async function upload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -39,7 +41,7 @@ export function DocumentsPanel({ cloneId, documents, readOnly }: { cloneId: stri
   }
 
   function remove(id: string) {
-    if (!confirm('Delete this document and its chunks?')) return;
+    setConfirmingId(null);
     start(async () => {
       const r = await deleteDocumentAction(cloneId, id);
       setMsg(r.ok ? { kind: 'ok', text: 'Deleted.' } : { kind: 'err', text: r.error ?? 'Delete failed' });
@@ -49,6 +51,15 @@ export function DocumentsPanel({ cloneId, documents, readOnly }: { cloneId: stri
 
   return (
     <div className="space-y-4">
+      {confirmingId && (
+        <ConfirmDialog
+          title="Delete this document?"
+          message="The file and its searchable chunks are removed."
+          busy={pending}
+          onConfirm={() => remove(confirmingId)}
+          onCancel={() => setConfirmingId(null)}
+        />
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-medium">Documents</h2>
@@ -75,7 +86,7 @@ export function DocumentsPanel({ cloneId, documents, readOnly }: { cloneId: stri
               {!readOnly && (
                 <div className="flex shrink-0 gap-1">
                   <button type="button" className="btn-secondary btn-sm" onClick={() => reingest(d.id)} disabled={busy}>Re-ingest</button>
-                  <button type="button" className="btn-secondary btn-sm" onClick={() => remove(d.id)} disabled={pending}>Delete</button>
+                  <button type="button" className="btn-secondary btn-sm" onClick={() => setConfirmingId(d.id)} disabled={pending}>Delete</button>
                 </div>
               )}
             </li>

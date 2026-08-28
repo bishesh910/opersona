@@ -11,6 +11,7 @@ import { registerDownloads } from './downloads.js';
 import { subscribe, turnStartId } from '../sessions/events.js';
 import { resolveApproval } from '../sessions/approvals.js';
 import { publishSnapshot, activePrompt } from '../persona/assemble.js';
+import { promptAudience } from '../persona/audience.js';
 import { recallMemory } from '../persona/retrieval.js';
 import { recipeFromSelfie } from '../avatar/fromSelfie.js';
 import { ingestDocument } from '../documents/ingest.js';
@@ -180,15 +181,7 @@ routes.get('/clones/:id/prompt', async (c) => {
   const orgId = c.req.query('orgId') ?? '';
   const [clone] = await db.select({ id: clones.id, kind: clones.kind }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, orgId))).limit(1);
   if (!clone) return c.json({ error: 'clone not found' }, 404);
-  // Audience follows the clone kind; ?audience= can only DOWNGRADE privilege,
-  // never widen it — 'shared' is the privacy-safe floor for any kind, 'visitor'
-  // strips the owner-only layers from a member clone (a colleague asking).
-  const kindDefault = clone.kind === 'hired' ? 'hired' as const : clone.kind === 'imported' ? 'imported' as const : 'owner' as const;
-  const q = c.req.query('audience');
-  const audience = q === 'shared' ? 'shared' as const
-    : q === 'visitor' && kindDefault === 'owner' ? 'visitor' as const
-    : kindDefault;
-  return c.json(await activePrompt(orgId, clone.id, audience));
+  return c.json(await activePrompt(orgId, clone.id, promptAudience(clone.kind, c.req.query('audience'))));
 });
 
 /** Onboarding interview → persona brief, on the cheapest model (condense = haiku

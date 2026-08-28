@@ -5,6 +5,7 @@ import type { PlaybookStep } from '@opersona/db';
 import { deletePlaybookAction } from '@/actions/memory';
 import { PlaybookEditor, emptyPlaybook, type PlaybookDraft } from './PlaybookEditor';
 import { SpineChips } from './Status';
+import { ConfirmDialog } from '@/components/shell/Dialog';
 
 export interface PlaybookRow {
   id: string; name: string; domain: string | null; trigger: string; preconditions: string[]; steps: PlaybookStep[]; pitfalls: string[];
@@ -22,10 +23,11 @@ export function PlaybookList({ cloneId, playbooks, readOnly }: { cloneId: string
   const [editing, setEditing] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   function remove(id: string) {
-    if (!confirm('Delete this playbook and its revisions?')) return;
+    setConfirmingId(null);
     start(async () => {
       const res = await deletePlaybookAction(cloneId, id);
       if (!res.ok) setErr(res.error ?? 'Delete failed'); else { setErr(res.warning ?? null); router.refresh(); }
@@ -34,6 +36,15 @@ export function PlaybookList({ cloneId, playbooks, readOnly }: { cloneId: string
 
   return (
     <section className="space-y-3">
+      {confirmingId && (
+        <ConfirmDialog
+          title="Delete this playbook?"
+          message="The playbook and its revision history are removed."
+          busy={pending}
+          onConfirm={() => remove(confirmingId)}
+          onCancel={() => setConfirmingId(null)}
+        />
+      )}
       <div className="flex items-center justify-between">
         <h2 className="font-medium">Playbooks <span className="muted text-sm">({playbooks.length})</span></h2>
         {!readOnly && !adding && <button type="button" className="btn-secondary btn-sm" onClick={() => setAdding(true)}>Add playbook</button>}
@@ -62,7 +73,7 @@ export function PlaybookList({ cloneId, playbooks, readOnly }: { cloneId: string
                   {!readOnly && (
                     <div className="flex shrink-0 gap-1">
                       <button type="button" className="btn-secondary btn-sm" onClick={() => setEditing(p.id)}>Edit</button>
-                      <button type="button" className="btn-secondary btn-sm" onClick={() => remove(p.id)} disabled={pending}>Delete</button>
+                      <button type="button" className="btn-secondary btn-sm" onClick={() => setConfirmingId(p.id)} disabled={pending}>Delete</button>
                     </div>
                   )}
                 </div>

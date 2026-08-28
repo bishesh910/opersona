@@ -2,11 +2,13 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { approveUserAction, rejectUserAction } from '@/actions/approvals';
+import { ConfirmDialog } from '@/components/shell/Dialog';
 
 export function ApprovalRow({ id, name, email, emailVerified, createdAt }: {
   id: string; name: string; email: string; emailVerified: boolean; createdAt: string;
 }) {
   const [err, setErr] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [pending, start] = useTransition();
   const router = useRouter();
   const act = (fn: (id: string) => Promise<void>) => start(async () => {
@@ -25,11 +27,20 @@ export function ApprovalRow({ id, name, email, emailVerified, createdAt }: {
       </div>
       <div className="flex shrink-0 gap-2">
         <button className="btn-primary btn-sm" disabled={pending} onClick={() => act(approveUserAction)}>Approve</button>
-        <button className="btn-secondary btn-sm" disabled={pending}
-          onClick={() => { if (confirm(`Reject and delete ${email}? Their empty account is removed; they can sign up again later.`)) act(rejectUserAction); }}>
+        <button className="btn-secondary btn-sm" disabled={pending} onClick={() => setConfirming(true)}>
           Reject
         </button>
       </div>
+      {confirming && (
+        <ConfirmDialog
+          title="Reject this account?"
+          message={`${email} is deleted along with their empty workspace; they can sign up again later.`}
+          confirmLabel="Reject & delete"
+          busy={pending}
+          onConfirm={() => { setConfirming(false); act(rejectUserAction); }}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
       {err && <p className="w-full text-xs text-red-600 dark:text-red-400" role="alert">{err}</p>}
     </li>
   );
