@@ -33,13 +33,13 @@ export default async function SourcesPage() {
         <div className="flex items-start gap-3">
           <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white dark:bg-neutral-100 dark:text-neutral-900">1</span>
           <div className="min-w-0">
-            <h2 className="font-medium">Just chat — nothing to set up</h2>
+            <h2 className="font-medium">Talk on claude.ai — with the connector attached</h2>
             <p className="muted mt-1 text-sm">
-              Talk to Claude here the way you normally would — work problems, decisions, debugging, planning.
-              Every finished conversation is analysed for reasoning moves in the background. A handful of real
-              chats is enough for the first patterns to appear.
+              Use claude.ai the way you already do. With the opersona connector, your Claude can save what it
+              learns about you (<code className="text-xs">learn_from_this_chat</code>), recall your persona&apos;s
+              memory mid-conversation — and say <span className="font-medium text-neutral-800 dark:text-neutral-200">&ldquo;opersona me&rdquo;</span>{' '}
+              any time to be interviewed about real moments. That interview is the fastest way to teach it who you are.
             </p>
-            <Link href="/chat" className="btn-primary mt-3 inline-block">Start chatting</Link>
           </div>
         </div>
       </section>
@@ -84,7 +84,7 @@ export default async function SourcesPage() {
 
       <div className="flex items-center justify-between border-t border-neutral-200 pt-4 dark:border-neutral-800">
         <p className="muted text-xs">All of this lives under <span className="font-medium">My persona → How I think</span> whenever you need it.</p>
-        <Link href="/chat" className="btn-secondary shrink-0">Done</Link>
+        <Link href="/me" className="btn-secondary shrink-0">Done</Link>
       </div>
     </div>
   );

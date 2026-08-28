@@ -56,8 +56,8 @@ export default function AboutPage() {
           <span className="chip">1 · learn</span>
           <h3 className="font-medium">It learns from work you already do</h3>
           <p className="muted text-sm">
-            As you chat, work, and answer its interview — your persona messages you about real
-            moments and follows the threads — it distills how you reason: patterns, confirmed facts,
+            As you chat and work on claude.ai with the connector attached — and answer its
+            interview there — your persona distills how you reason: patterns, confirmed facts,
             playbooks. It runs on your own Claude: the opersona bridge on your machine (one{" "}
             <code className="text-xs">npx opersona</code> command using the Claude subscription you
             already have — your login never leaves your computer), an API key you provide, or as a
@@ -67,13 +67,13 @@ export default function AboutPage() {
         </div>
 
         <div className="card space-y-2 p-5">
-          <span className="chip">2 · sealed vs. learned</span>
-          <h3 className="font-medium">Two layers, split on purpose</h3>
+          <span className="chip">2 · talk there, learn here</span>
+          <h3 className="font-medium">Conversations never land in our database</h3>
           <p className="muted text-sm">
-            Chat transcripts are sealed: encrypted with AES-256-GCM using a key generated in your
-            browser that never touches our servers. We store ciphertext we cannot read. What your
-            persona <em>learns</em> stays readable, deliberately — it is the product. You review it,
-            edit it, and delete it whenever you like.
+            You talk on claude.ai — your account, your storage — and only the tool calls your own
+            Claude makes reach opersona: a memory search, an interview answer, an insight to save.
+            What your persona <em>learns</em> stays readable here, deliberately — it is the product.
+            You review it, edit it, and delete it whenever you like.
           </p>
         </div>
 
@@ -95,10 +95,10 @@ export default function AboutPage() {
         <div className="card p-5">
           <ul className="space-y-4 text-sm">
             <li>
-              <p className="font-medium">Read your chats.</p>
+              <p className="font-medium">Store your chats.</p>
               <p className="muted">
-                Transcripts are encrypted with a key we never had. Enforced by code, not by a paragraph
-                in a policy.
+                There is no conversation table worth stealing — talking happens on claude.ai and your
+                machine. Enforced by architecture, not by a paragraph in a policy.
               </p>
             </li>
             <li>

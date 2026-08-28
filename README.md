@@ -8,22 +8,23 @@ break problems down, what they check first, when they push back. Not a chat-hist
 model of *how* someone thinks, built from evidence, gated by their own confirmation.
 
 Colleagues can ask your Pixie things when you're away. You can test it ("does this sound like
-me?") and correct it. And it all runs on **your own machine**, on **your own Claude
-subscription**, through the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk) —
-nothing sits between your box and Anthropic: no vendor server, no telemetry, no third-party
-middleman ever sees a message.
+me?") and correct it. The TALKING happens on **claude.ai through the opersona connector** —
+your own Claude interviews you, plays your persona, and recalls its memory; opersona.me is the
+dashboard where the model lives, shows its receipts, and gets tested blind. The learning runs
+on **your own machine**, on **your own Claude subscription** — no vendor key, and your
+conversations are never stored on the opersona server at all.
 
 ![Sign in](docs/images/signin-desktop.png)
 
 ## What it does
 
-- **Interviews you — by chatting with you.** Your persona *messages you* about real moments
-  across ten life areas — identity, values, decisions, relationships, work, money, feelings,
-  ethics, social life, the future — chases the threads your answers open, and probes the places
-  where your story doesn't quite add up ("what makes those situations different for you?").
-  Have the conversation in the app, or say **"opersona me"** to the opersona connector on
-  claude.ai and your own Claude conducts the interview right there. Everything it learns is
-  tiered honestly — *you said this* / *observed* / *hunch* — and traceable to your own words.
+- **Interviews you — on claude.ai.** Say **"opersona me"** with the opersona connector
+  attached and your own Claude conducts a cognitive interview about real moments across ten
+  life areas — identity, values, decisions, relationships, work, money, feelings, ethics,
+  social life, the future — chasing the threads your answers open and probing the places where
+  your story doesn't quite add up ("what makes those situations different for you?").
+  Everything it learns is tiered honestly — *you said this* / *observed* / *hunch* — and
+  traceable to your own words.
 - **Predicts you, blind, and keeps score.** Fresh scenarios are answered by your persona BEFORE
   you see them (the prediction is sealed at creation — it can never peek). You answer, it
   reveals, an LLM judge scores decision / reasoning / preference / communication match, and
@@ -37,21 +38,22 @@ middleman ever sees a message.
   criticism of their own proposals"* — each backed by verbatim quotes from your own messages.
   Patterns only enter your persona once confirmed by repetition or by you. Silence beats a wrong
   stereotype.
-- **Remembers what happened.** An episodic memory distills each finished conversation
+- **Remembers what happened.** An episodic memory distills each conversation it learns from
   ("what was the problem, what did we decide") that your persona can recall later — and that you
   can export as a Markdown vault (Obsidian-compatible). Owner-private, always.
 - **Imports your history.** claude.ai export zips, Claude Code sessions (hook or upload),
   and ChatGPT / Codex exports all feed the same extractor.
-- **A real chat, not a toy.** Web search, per-conversation model/effort settings, attachments
-  (images, PDFs, code, zips), and **sandboxed code execution**: your chat can run Python/Node,
-  process the files you upload, and hand results back as downloads — inside a kernel-level jail
-  with no network and no host filesystem access.
+- **Lives inside claude.ai.** The connector puts your persona where you already talk:
+  `my_persona` loads it into any conversation, `recall_memory` serves its memory mid-chat,
+  `save_insight` and `learn_from_this_chat` teach it, and teammates load your published
+  persona with `use_persona`. No second chat app to live in.
 - **Pixies.** Every person gets a procedurally drawn pixel avatar — from a selfie (never stored)
   or a dice roll — that blinks, thinks, and talks in the UI.
 - **Private by construction.** Invite-only by default (`ALLOW_SIGNUP` opens it, with admin
-  admission), optional-to-mandatory TOTP two-factor auth (`REQUIRE_2FA`), sealed conversations
-  (raw chats encrypted with a key only you hold), and an enforcement-over-surveillance privacy
-  model: the product has no page, stream, or API that shows an admin anyone else's content.
+  admission), optional-to-mandatory TOTP two-factor auth (`REQUIRE_2FA`), and the strongest
+  conversation-privacy stance available: **conversations are not stored here at all** — they
+  happen on claude.ai and your machine; the database holds only the distilled persona, which
+  you can read, edit, and delete. No page, stream, or API shows an admin anyone's content.
   There's a Privacy page in-app that says exactly what's visible to whom.
 - **Shareable, on your terms.** Publish a privacy-safe persona artifact to the community
   (public or grant-restricted), let others import it, take it down any time.
@@ -68,15 +70,17 @@ freckles, dip-dye tips, all from one typed recipe.
 ## Architecture
 
 ```
-apps/web         Next.js 15 — auth (better-auth, invite-only + TOTP), chat UI, persona pages,
-                 approvals, settings; talks to the engine only through an authenticated proxy
-apps/engine      Hono + Claude Agent SDK — one live query() per conversation (streaming input,
-                 idle-reap + resume), persona MCP tools, learning jobs, sandboxed exec, SSE
+apps/web         Next.js 15 — auth (better-auth, invite-only + TOTP), the dashboard (model
+                 review, blind tests, simulate, share, settings), and the claude.ai MCP
+                 connector; talks to the engine only through an authenticated proxy
+apps/engine      Hono — interview picker + extraction, blind predictions, corrections,
+                 simulation, learning queue; inference via org keys or bridge jobs
 packages/db      Drizzle + Postgres 16 — persona layers with a provenance spine (every learned
-                 row carries evidence, confidence, and status), conversations, episodes, costs
-packages/shared  zod schemas (AvatarRecipe, engine events), redactSecrets, crypto helpers
+                 row carries evidence, confidence, and status), episodes, costs
+packages/shared  zod schemas (AvatarRecipe, bridge frames), redactSecrets, crypto helpers
+packages/bridge  npm `opersona` — the machine-side daemon: inference jobs on your subscription
+                 + learning from finished Claude Code / Codex sessions
 packages/pixel-avatar  the Pixie engine — recipe → 36×56 portrait, animation frames, PNG/canvas
-sbx/             bubblewrap sandbox runner for chat code execution
 ```
 
 Key design choices, documented in [`docs/`](docs/):
@@ -85,9 +89,8 @@ Key design choices, documented in [`docs/`](docs/):
 | --- | --- |
 | [user-flow.md](docs/user-flow.md) | The end-to-end journey — landing → onboarding → interview → model review → blind tests → corrections → share/export/delete |
 | [product-status.md](docs/product-status.md) | Where the product stands vs the spec: shipped, verified, gaps, next |
-| [architecture.md](docs/architecture.md) | The two-service layout, session lifecycle, prompt assembly, cost logging |
+| [architecture.md](docs/architecture.md) | The two-service layout, the connector, bridge jobs, prompt assembly, cost logging |
 | [learning.md](docs/learning.md) | Reasoning fingerprint, episodes, imports, self-tests, pattern hygiene |
-| [chat-and-sandbox.md](docs/chat-and-sandbox.md) | Chat features, attachments, the code-execution jail, file downloads |
 | [pixies.md](docs/pixies.md) | The avatar engine: recipes, the v2 art style, animation, regression contract |
 | [security-and-privacy.md](docs/security-and-privacy.md) | Threat model, auth, sandbox guarantees, the privacy model |
 | [self-hosting.md](docs/self-hosting.md) | What it takes to run this on your own box (honest edition) |
@@ -98,11 +101,11 @@ Key design choices, documented in [`docs/`](docs/):
 
 opersona is **self-hosted by design** — you bring a machine, and every workspace brings
 its own Claude: either the **opersona bridge** (a tiny daemon on your computer that runs
-chats on the Claude subscription you already have) or an Anthropic API key. There is no
-shared platform account. The short version:
+the learning on the Claude subscription you already have) or an Anthropic API key. There
+is no shared platform account. The short version:
 
 ```bash
-# Node 22, pnpm 9, Postgres 16 required; bubblewrap for chat code execution
+# Node 22, pnpm 9, Postgres 16 required
 cp .env.example .env      # set DATABASE_URL, ENGINE_INTERNAL_TOKEN, BETTER_AUTH_*, SECRETS_KEK;
                           # see docs/self-hosting.md for first-run
 pnpm install
@@ -111,8 +114,8 @@ pnpm db:migrate           # fresh DB; a database from before the 2026-08 migrati
 pnpm dev                  # web :3000, engine :4000
 ```
 
-The full walk-through — including reverse proxy, systemd units, the sandbox's host
-prerequisites, and what is *not* yet automated — is in
+The full walk-through — including reverse proxy, systemd units, and what is *not* yet
+automated — is in
 [docs/self-hosting.md](docs/self-hosting.md). A one-command installer is on the roadmap.
 
 ## Roadmap

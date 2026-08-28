@@ -9,7 +9,6 @@ import { config } from './config.js';
 import { internalAuth } from './auth.js';
 import { routes } from './routes/index.js';
 import { ingest } from './routes/ingest.js';
-import { shutdown, liveCount } from './sessions/manager.js';
 import { resumePending } from './learning/queue.js';
 
 const app = new Hono();
@@ -30,7 +29,7 @@ void resumePending().catch((e) => console.error('[learning] resume failed', e));
 import('./learning/merge.js').then((m) => m.startNightlyTidy());
 
 const server = serve({ fetch: app.fetch, port: config.port, hostname: process.env.ENGINE_HOST ?? '127.0.0.1' }, (info) => {
-  console.log(`[engine] listening on :${info.port} · data=${config.dataDir} · live sessions=${liveCount()}`);
+  console.log(`[engine] listening on :${info.port} · data=${config.dataDir}`);
 });
 
 // ── opersona bridge: authenticated WebSocket from user machines (Caddy proxies /bridge/ws) ──
@@ -50,4 +49,4 @@ const wss = new WebSocketServer({ noServer: true, maxPayload: 40_000_000 }); // 
   }).catch((e) => { console.error('[bridge] upgrade auth error', e); socket.destroy(); });
 });
 
-for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { void shutdown().finally(() => { server.close(); process.exit(0); }); });
+for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { server.close(); process.exit(0); });

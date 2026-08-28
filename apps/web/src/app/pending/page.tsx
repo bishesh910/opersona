@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export default async function PendingPage() {
   const s = await getSessionCtx();
   if (!s) redirect('/sign-in');
-  if (s.approved) redirect('/chat');
+  if (s.approved) redirect('/me');
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-5 px-5 py-10">
       {/* re-check every 30s so approval kicks in without a manual reload */}

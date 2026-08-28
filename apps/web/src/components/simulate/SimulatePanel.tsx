@@ -72,7 +72,6 @@ export function SimulatePanel({ cloneId, history }: { cloneId: string; history: 
               {m.label}
             </button>
           ))}
-          <Link href="/chat?mode=clone" className="muted self-center text-xs hover:underline">or roleplay in Chat →</Link>
         </div>
         <textarea className="input min-h-24 w-full text-sm" placeholder={active.placeholder}
           value={text} onChange={(e) => setText(e.target.value)} disabled={busy} />

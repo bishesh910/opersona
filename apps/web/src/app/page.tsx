@@ -86,8 +86,9 @@ export default async function Home() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-300/90">the interview</p>
             <h2 className="mt-2 font-semibold text-white">Teach it who you are</h2>
             <p className="mt-1.5 text-sm leading-relaxed text-neutral-400">
-              An adaptive interview asks about real moments — decisions, conflicts, money, people —
-              and follows the threads your answers open, including the ones that don&rsquo;t quite add up.
+              Say &ldquo;opersona me&rdquo; on claude.ai and your own Claude interviews you about real
+              moments — decisions, conflicts, money, people — following the threads your answers open,
+              including the ones that don&rsquo;t quite add up.
             </p>
           </div>
           <div className={GLASS_CARD}>
@@ -110,7 +111,7 @@ export default async function Home() {
         </section>
 
         <footer className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/10 py-5 text-xs text-neutral-500">
-          <span>Runs on your own Claude · chats sealable with a key only you hold · deletes completely when you say so</span>
+          <span>Runs on your own Claude · your conversations are never stored here · deletes completely when you say so</span>
           <span className="ml-auto flex gap-4">
             <Link href="/privacy" className="transition-colors hover:text-neutral-300">Privacy</Link>
             <Link href="/about" className="transition-colors hover:text-neutral-300">About</Link>

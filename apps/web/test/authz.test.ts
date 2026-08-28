@@ -99,10 +99,10 @@ describe('authorize() tenant isolation', () => {
     expect(v).toMatchObject({ ok: true, cloneId: CLONE_A1 });
   });
 
-  it('only the conversation creator writes into it', async () => {
+  it('conversation paths are gone entirely (chat moved to the claude.ai connector)', async () => {
     if (!enabled) return; // not a scratch/test DB — see header
     const v = await authorize(ctx(MEMBER_A, ORG_A, 'member'), 'POST', ['conversations', CONV_A, 'messages']);
-    expect(v).toMatchObject({ status: 403 });
+    expect(v).toMatchObject({ status: 404 });
   });
 
   it('unknown paths are 404 by default', async () => {

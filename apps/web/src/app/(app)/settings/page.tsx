@@ -12,7 +12,6 @@ import { MembersCard } from '@/components/settings/MembersCard';
 import { SettingsTabs } from '@/components/settings/SettingsTabs';
 import { ConnectorCard } from '@/components/settings/ConnectorCard';
 import { BridgeCard } from '@/components/settings/BridgeCard';
-import { SealCard } from '@/components/settings/SealCard';
 import { DangerZone } from '@/components/settings/DangerZone';
 
 const MODEL_LABELS: Record<string, string> = {
@@ -123,9 +122,8 @@ export default async function SettingsPage() {
                 />
               )}
             </section>
-            <SealCard />
-            <BridgeCard />
             <ConnectorCard />
+            <BridgeCard />
             <section className="card space-y-2">
               <h2 className="font-medium">Claude access <span className="chip ml-2">API key</span></h2>
               <p className="muted text-xs">

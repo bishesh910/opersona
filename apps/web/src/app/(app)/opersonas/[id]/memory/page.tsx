@@ -41,7 +41,7 @@ export default async function MemoryPage({ params }: { params: Promise<{ id: str
       <section className="space-y-5">
         <div>
           <h2 className="font-medium">What the interview has learned {hasKnowledge && <span className="muted text-sm">({lifeMemories.length + traitRows.length + ruleRows.length})</span>}</h2>
-          <p className="muted mt-0.5 text-sm">Built from your own answers on the Interview tab. Every item opens to show the exact words behind it.</p>
+          <p className="muted mt-0.5 text-sm">Built from your interview — say Built from your own answers on the Interview tab. Every item opens to show the exact words behind it.ldquo;opersona meBuilt from your own answers on the Interview tab. Every item opens to show the exact words behind it.rdquo; to your Claude on claude.ai to continue it. Every item opens to show the exact words behind it.</p>
         </div>
         <div>
           <h3 className="mb-1.5 text-sm font-medium">Values &amp; leanings {traitRows.length > 0 && <span className="muted">({traitRows.length})</span>}</h3>

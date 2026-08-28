@@ -12,7 +12,7 @@ import { SignOutLink } from '@/components/shell/SignOutLink';
 export default async function Setup2FAPage() {
   const s = await requireSession();
   const [own] = await db.select({ id: schema.clones.id }).from(schema.clones).where(eq(schema.clones.ownerUserId, s.userId)).limit(1);
-  const dest = own ? '/chat' : '/onboarding'; // persona not built yet → straight back to the builder
+  const dest = own ? '/me' : '/onboarding'; // persona not built yet → straight back to the builder
   if (s.twoFactorEnabled) redirect(dest);
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 p-6">

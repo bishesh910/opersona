@@ -3,7 +3,7 @@
  * Interview-learned knowledge: life memories, traits (values / beliefs /
  * preferences / behaviours / decision patterns) and IF/THEN rules.
  * Every item shows its epistemic tier in plain words, expands to the verbatim
- * quotes behind it (each linking to the exact interview answer), and takes an
+ * quotes behind it (verbatim from the interview), and takes an
  * owner verdict — "That's me" confirms, "Not me" disputes, tap again to reset.
  */
 import { useState } from 'react';
@@ -43,7 +43,7 @@ function Quotes({ evidence }: { evidence: KnowledgeEvidence[] }) {
         return (
           <li key={i} className="muted text-xs italic">
             {answerId
-              ? <a className="hover:underline" href={`/me/interview?answer=${answerId}#a-${answerId}`} title="see the answer this came from">{quote}</a>
+              ? <span title="your verbatim words from the interview (the full answer is in your export)">{quote}</span>
               : quote}
           </li>
         );
@@ -90,7 +90,7 @@ export interface MemoryRowData {
 }
 
 export function MemoryList({ cloneId, rows, readOnly }: { cloneId: string; rows: MemoryRowData[]; readOnly?: boolean }) {
-  if (!rows.length) return <p className="muted text-sm">Nothing here yet — the Interview tab fills this in.</p>;
+  if (!rows.length) return <p className="muted text-sm">Nothing here yet — say &ldquo;opersona me&rdquo; on claude.ai (connector attached) and the interview fills this in.</p>;
   return (
     <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
       {rows.map((m) => (
@@ -126,7 +126,7 @@ const KIND_LABEL: Record<TraitKind, string> = {
 const KIND_ORDER: TraitKind[] = ['value', 'belief', 'preference', 'behaviour', 'decision_pattern'];
 
 export function TraitList({ cloneId, rows, readOnly }: { cloneId: string; rows: TraitRowData[]; readOnly?: boolean }) {
-  if (!rows.length) return <p className="muted text-sm">Nothing here yet — the Interview tab fills this in.</p>;
+  if (!rows.length) return <p className="muted text-sm">Nothing here yet — say &ldquo;opersona me&rdquo; on claude.ai (connector attached) and the interview fills this in.</p>;
   const groups = KIND_ORDER.map((k) => ({ kind: k, items: rows.filter((r) => r.kind === k) })).filter((g) => g.items.length);
   return (
     <div className="space-y-4">

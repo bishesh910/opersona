@@ -22,7 +22,7 @@ export function SocialButtons({ google, apple, label = 'Continue' }: { google: b
   if (!google && !apple) return null;
   const go = async (provider: 'google' | 'apple') => {
     setBusy(provider);
-    await signIn.social({ provider, callbackURL: '/chat' }).catch(() => setBusy(null));
+    await signIn.social({ provider, callbackURL: '/me' }).catch(() => setBusy(null));
   };
   return (
     <div className="space-y-2">

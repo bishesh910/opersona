@@ -18,11 +18,10 @@ const ITEMS: NavItem[] = [
   { href: '/me', label: 'Me', icon: I.persona },
   { href: '/opersonas', label: 'Opersonas', icon: I.users },
   { href: '/explore', label: 'Explore', icon: I.compass },
-  { href: '/approvals', label: 'Approvals', icon: I.check },
   { href: '/settings', label: 'Settings', icon: I.gear },
 ];
 
-const LEAN = new Set(['/me', '/opersonas', '/approvals']); // desktop sidebar: the rest live in the account menu
+const LEAN = new Set(['/me', '/opersonas']); // desktop sidebar: the rest live in the account menu
 
 export function SideNav({ horizontal = false, include }: { horizontal?: boolean; include?: string[] }) {
   const path = usePathname();

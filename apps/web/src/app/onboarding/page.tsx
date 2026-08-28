@@ -40,7 +40,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   const hasStep = Number.isInteger(requested) && requested >= 1 && requested <= 5;
   const doneEnough = !!clone?.avatarRecipe && !!(brief?.briefMd ?? '').trim();
   // Persona already built (face + story done) and not mid-flow → nothing to do here.
-  if (doneEnough && !hasStep) redirect('/chat');
+  if (doneEnough && !hasStep) redirect('/me');
   // Mid-flow the URL's ?step= wins outright (clamping back to the first missing
   // piece made every refresh yank people out of the step they were on).
   const initialStep = hasStep ? Math.min(Math.max(requested, 1), 5) : derived;

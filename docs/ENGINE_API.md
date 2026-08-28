@@ -8,51 +8,15 @@ ownership and input shapes on its side.
 
 All JSON unless noted. Errors: `{ error: string }` with 4xx/5xx.
 
-## Conversations / chat
+## Where chat went
 
-### `POST /conversations/:id/messages`
-Body: `{ orgId, userId, cloneId, text, attachments? }` — attachments are
-`[{ name, mime, dataBase64 }]` (≤8, ≤10 MB each). Images become vision blocks; PDFs are
-text-extracted; text/code is inlined; zips are unpacked in-memory to a tree + contents.
-Attachments are also written into the conversation's working directory for sandboxed code.
-Starts (or resumes) the session and enqueues the user turn → `202 { ok: true }`. The reply
-streams on the events endpoint.
-
-### `GET /conversations/:id/events?orgId=…`
-Server-Sent Events; each event is `data: <EngineEvent JSON>` (the union in
-`packages/shared/src/events.ts`):
-`session | text_delta | assistant_message | tool_use | tool_result | approval_request |
-approval_resolved | result | files | status | error`.
-`assistant_message` carries `turn_id`; `files` lists workdir files produced by the turn;
-`status` surfaces SDK retry states. `Last-Event-ID` replay from a per-conversation ring
-buffer; `: ping` comments every 15 s. **Served only to the conversation's author or the
-persona's owner.**
-
-### `GET /conversations/:id/files?orgId=…&path=…`
-Streams one file the chat produced in its working directory. The path is validated to stay
-inside that conversation's own folder. Same access rule as events.
-
-### `POST /conversations/:id/settings`
-`{ orgId, model?: string|null, effort?: 'low'|'medium'|'high'|'xhigh'|'max'|null }` —
-per-conversation override (null = org default). Ends the live session; the next message
-resumes under the new settings.
-
-### `POST /conversations/:id/end`
-`{ orgId }` → closes the live session and enqueues extraction. `{ ok: true }`.
-
-### `POST /conversations/:id/extract`
-`{ orgId, cloneId }` → 202. The manual "learn from this chat now": ends the live session (if
-any) and re-runs the reasoning extractor.
-
-### `POST /conversations/:id/feedback`
-`{ orgId, userId, cloneId, turnId, verdict: 'me'|'not_me', comment? }` → `{ ok, observations }`.
-"That's me / Not me" on an assistant turn; a comment produces counter-observations.
-
-## Approvals (HITL)
-
-### `POST /approvals/:id`
-`{ orgId, userId, behavior: 'allow'|'deny', updatedInput?, answer?, message? }` — resolves a
-pending `canUseTool` / `ask_human` wait. `404` if unknown or expired.
+There are no conversation endpoints. All TALKING — the persona chat and the
+cognitive interview — happens on **claude.ai through the opersona connector**
+(MCP tools served by apps/web: `my_persona`, `use_persona`, `recall_memory`,
+`save_insight`, `learn_from_this_chat`, `opersona_me`,
+`submit_interview_answer`, `search_community`, `list_my_roster`). The engine
+keeps the deterministic core (interview picker, extraction, predictions,
+simulation) and runs inference through org keys or bridge jobs.
 
 ## Avatar
 
@@ -83,7 +47,7 @@ call (the live editor renders client-side; this is for cached PNGs).
   batch answered by the persona.
 - `POST /clones/:id/self-test/:testId/rate` `{ orgId, verdict: 'me'|'not_me', comment? }`.
 - `POST /clones/:id/episodes/backfill` `{ orgId, userId, cloneId }` → write episodes for
-  finished conversations that don't have one yet.
+  finished conversations from the chat era that don't have one yet.
 - `POST /imports/:id/start` `{ orgId }` → 202. Web saves the export file (claude.ai zip,
   ChatGPT/Codex export) under the org's uploads and inserts an `import_jobs` row first;
   progress lives in that row.
@@ -102,8 +66,10 @@ chunks, writes `document_chunks`. `{ chunks: n }`.
 - `GET /health` → `{ ok, version, learningQueue }`.
 - `GET /bridge/status?orgId=` → `{ connected, host?, since? }` — is an opersona bridge online for this workspace.
 - `WS /bridge/ws` (public path, proxied by Caddy; `Authorization: Bearer obr_…`) — the opersona
-  bridge socket: user machines run chat sessions locally on their own Claude subscription and
-  stream SDK messages back; persona tools and approvals RPC to the engine over the same socket.
+  bridge socket. Two frame families matter now: **jobs** (the engine sends structured/text
+  inference jobs — extraction, drafting, simulation — to run on the user's subscription, with
+  warm session reuse) and **ingest** (the watcher streams finished Claude Code / Codex sessions
+  up for learning). Chat-session frames from older bridges are parsed and ignored.
 - `POST /keys/validate` `{ apiKey }` → `{ ok, model }` or `{ ok: false, status, error }`
   (always HTTP 200). Called before storing an org key — a bad key otherwise looks like a hang
   (the SDK retries 401s ~11× with backoff; `status` SSE events surface those retries).
@@ -116,28 +82,6 @@ All owner-only through the web proxy (`access.canWrite`); the engine re-checks t
   (resume-safe) or next question. The picker is deterministic: coverage gap × uncertainty ×
   info gain + follow-up/contradiction bonuses − rotation/skip penalties; the ~50-question
   authored bank needs no LLM, so this always answers fast.
-- `POST /clones/:id/interview/answer` `{ orgId, userId, questionId, text? | skipped }` →
-  `{ answerId, ack, question, progress }` — the original single-shot path (kept for API
-  completeness; the chat + MCP surfaces below are what the product uses): stores the answer,
-  runs sync triage on the condense model (≤6s ceiling, `INTERVIEW_TRIAGE=false` disables),
-  queues the async extraction (`interview_extract` job, restart-resumable), returns the next
-  question in the same round-trip. Extraction writes memories / traits / contextual_rules with
-  verbatim-quote evidence (`ref: interview:<answerId>`), detects tensions → `contradictions` +
-  a ready probe question, then refreshes `interview_coverage` and republishes the snapshot.
-- **In-app interview chat** — the persona-messages-you surface behind `/me/interview`:
-  - `POST /clones/:id/interview/chat/state` `{ orgId, userId }` → `{ messages, question,
-    progress, awaitingReply }` — resume-safe: opens the current thread (greeting + question as
-    interviewer messages) or replays its history.
-  - `POST /clones/:id/interview/chat/send` `{ orgId, userId, text }` → returns immediately with
-    `awaitingReply: true`; the interviewer's reply computes in a BACKGROUND worker
-    (single-flight per clone; double-texts coalesce into one reply that answers both) and the
-    client polls `state` like a messenger. A flaky rail keeps the thread open with at most one
-    honest apology; no rail at all says so plainly instead of pretending. A thread wraps once
-    it holds a concrete story plus the why (≤5 user messages), materializes into
-    `interview_answers` (user's verbatim words quotable, full dialogue as context) and rides
-    the same extraction pipeline; every third wrap within 2h offers a natural break.
-  - `POST /clones/:id/interview/chat/skip` `{ orgId, userId }` — skip the current question
-    mid-conversation.
 - `POST /clones/:id/interview/submit-thread` `{ orgId, questionId, userText, dialogue? }` — the
   MCP path: the interview CONVERSATION runs inside claude.ai (the user's own fast Claude plays
   the interviewer via the `opersona_me` / `submit_interview_answer` connector tools); a
@@ -145,9 +89,6 @@ All owner-only through the web proxy (`access.canWrite`); the engine re-checks t
   context) and rides the same extraction pipeline. Returns the next question. This is the
   recommended free-tier interview: conversation latency lives where a warm Claude already runs;
   only the async extraction touches the bridge, where slowness costs nobody anything.
-- `POST /clones/:id/interview/answers/:answerId/edit` `{ orgId, userId, text }` — revision-
-  preserving edit: old text is kept in `revisions`, knowledge items whose ONLY evidence was this
-  answer retire, extraction reruns.
 - `POST /clones/:id/knowledge/{trait|memory|rule}/:itemId/verdict` `{ orgId, userId, verdict:
   'confirm'|'dispute'|null }` — owner verdict ("that's me" / "not me" / reset); logged to
   `learning_events`, snapshot republished.

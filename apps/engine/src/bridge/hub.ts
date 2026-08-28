@@ -1,29 +1,22 @@
 /**
  * Bridge hub — the engine side of the opersona bridge. One authenticated
- * outbound WebSocket per user machine; the hub multiplexes chat sessions over
- * it and services the two RPCs a remote session needs from the cloud:
- * persona tools (DB) and human approvals. Registry is keyed by orgId
- * (workspace = person after the pivot); a second connection for the same
- * workspace replaces the first (laptop wins over the forgotten desktop).
+ * outbound WebSocket per user machine. Since all TALKING moved to the
+ * claude.ai connector, the bridge carries exactly two things: inference JOBS
+ * (structured/text calls on the user's subscription — extraction, drafting,
+ * simulation) and watcher INGEST (finished Claude Code / Codex sessions to
+ * learn from). Registry is keyed by orgId (workspace = person); a second
+ * connection for the same workspace replaces the first. Chat frames from
+ * older bridges are parsed and ignored.
  */
 import { randomUUID, createHash } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import { eq, and, isNull } from 'drizzle-orm';
 import { db, bridgeTokens } from '@opersona/db';
-import { bridgeFrame, type BridgeToEngine, type EngineToBridge, type SDKishMessage } from './types.js';
-import { executePersonaTool, type ToolContext } from '../persona/mcp.js';
-import { requestApproval } from '../sessions/approvals.js';
+import { bridgeFrame, type BridgeToEngine, type EngineToBridge } from './types.js';
 
 export interface BridgeJobResult { ok: boolean; output?: unknown; text?: string; error?: string; usage?: { input: number; output: number; cacheRead?: number } }
 interface PendingJob { resolve: (r: BridgeJobResult) => void; timer: NodeJS.Timeout }
 const pendingJobs = new Map<string, PendingJob>();
-
-interface BridgeSessionSink {
-  ctx: ToolContext;
-  onMessage: (m: SDKishMessage) => void;
-  onEnd: (error?: string) => void;
-  onOpened?: (mode: 'power' | 'sandbox', cwd?: string, reason?: string) => void;
-}
 
 export interface BridgeWorkspace { path: string; label: string; bash: 'ask' }
 export interface BridgeConn {
@@ -34,7 +27,6 @@ export interface BridgeConn {
   claude?: string;
   since: Date;
   ws: WebSocket;
-  sessions: Map<string, BridgeSessionSink>;
   alive: boolean;
   /** true when the bridge advertised caps.workspaces (>=0.3.0) — gates power. */
   supportsPower: boolean;
@@ -68,9 +60,9 @@ export async function authBridgeToken(token: string): Promise<{ orgId: string; u
 
 /** Wire up one authenticated socket. */
 export function register(ws: WebSocket, auth: { orgId: string; userId: string; tokenId: string }): void {
-  const conn: BridgeConn = { ...auth, host: 'unknown', since: new Date(), ws, sessions: new Map(), alive: true, supportsPower: false, supportsJobSessions: false, workspaces: [] };
+  const conn: BridgeConn = { ...auth, host: 'unknown', since: new Date(), ws, alive: true, supportsPower: false, supportsJobSessions: false, workspaces: [] };
   const prev = conns.get(auth.orgId);
-  if (prev) { try { prev.ws.close(4001, 'replaced by a newer bridge connection'); } catch { /* gone */ } failAll(prev, 'bridge reconnected elsewhere'); }
+  if (prev) { try { prev.ws.close(4001, 'replaced by a newer bridge connection'); } catch { /* gone */ } }
   conns.set(auth.orgId, conn);
   console.log('[bridge] connected org=%s', auth.orgId);
 
@@ -78,14 +70,9 @@ export function register(ws: WebSocket, auth: { orgId: string; userId: string; t
   ws.on('pong', () => { conn.alive = true; });
   ws.on('close', () => {
     if (conns.get(conn.orgId) === conn) conns.delete(conn.orgId);
-    failAll(conn, 'bridge disconnected');
     console.log('[bridge] disconnected org=%s', conn.orgId);
   });
   ws.on('error', (e) => console.error('[bridge] ws error', conn.orgId, e.message));
-}
-
-function failAll(conn: BridgeConn, reason: string): void {
-  for (const [sid, sink] of conn.sessions) { conn.sessions.delete(sid); sink.onEnd(reason); }
 }
 
 async function handleFrame(conn: BridgeConn, raw: Buffer): Promise<void> {
@@ -104,32 +91,6 @@ async function handleFrame(conn: BridgeConn, raw: Buffer): Promise<void> {
     case 'pong':
       conn.alive = true;
       break;
-    case 'opened': {
-      const sink = conn.sessions.get(frame.sid);
-      sink?.onOpened?.(frame.mode, frame.cwd, frame.reason);
-      break;
-    }
-    case 'ev': {
-      const sink = conn.sessions.get(frame.sid);
-      sink?.onMessage(frame.message as SDKishMessage);
-      break;
-    }
-    case 'end': {
-      const sink = conn.sessions.get(frame.sid);
-      if (sink) { conn.sessions.delete(frame.sid); sink.onEnd(frame.error); }
-      break;
-    }
-    case 'tool': {
-      const sink = conn.sessions.get(frame.sid);
-      if (!sink) { send(conn, { t: 'toolResult', id: frame.id, error: 'unknown session' }); return; }
-      try {
-        const result = await executePersonaTool(sink.ctx, frame.name, frame.args);
-        send(conn, { t: 'toolResult', id: frame.id, result });
-      } catch (e) {
-        send(conn, { t: 'toolResult', id: frame.id, error: e instanceof Error ? e.message : String(e) });
-      }
-      break;
-    }
     case 'jobResult': {
       const p = pendingJobs.get(frame.id);
       if (p) { pendingJobs.delete(frame.id); clearTimeout(p.timer); p.resolve({ ok: frame.ok, output: frame.output, text: frame.text, error: frame.error, usage: frame.usage }); }
@@ -151,84 +112,7 @@ async function handleFrame(conn: BridgeConn, raw: Buffer): Promise<void> {
       }
       break;
     }
-    case 'approval': {
-      const sink = conn.sessions.get(frame.sid);
-      if (!sink) { send(conn, { t: 'approvalResult', id: frame.id, behavior: 'deny', message: 'unknown session' }); return; }
-      try {
-        const r = await requestApproval({ orgId: sink.ctx.orgId, cloneId: sink.ctx.cloneId, conversationId: sink.ctx.conversationId, kind: 'tool', tool: frame.tool, input: frame.input });
-        send(conn, r.behavior === 'allow'
-          ? { t: 'approvalResult', id: frame.id, behavior: 'allow', updatedInput: r.updatedInput ?? frame.input }
-          : { t: 'approvalResult', id: frame.id, behavior: 'deny', message: r.message ?? 'denied by owner' });
-      } catch (e) {
-        send(conn, { t: 'approvalResult', id: frame.id, behavior: 'deny', message: e instanceof Error ? e.message : String(e) });
-      }
-      break;
-    }
   }
-}
-
-/** Open a session on the bridge: returns the SDKMessage stream + input push. */
-export function openBridgeSession(conn: BridgeConn, params: {
-  ctx: ToolContext;
-  conversationId: string;
-  systemPrompt: string;
-  model: string;
-  effort?: string;
-  resume?: string;
-  tools: string[];
-  builtinTools: string[];
-  maxTurns: number;
-  cwd?: string;
-  power?: boolean;
-  onOpened?: (mode: 'power' | 'sandbox', cwd?: string, reason?: string) => void;
-}): { sid: string; messages: AsyncIterable<SDKishMessage>; push: (m: unknown) => void; interrupt: () => void } {
-  const sid = randomUUID();
-  const queue: SDKishMessage[] = [];
-  const waiters: { resolve: (r: IteratorResult<SDKishMessage>) => void; reject: (e: Error) => void }[] = [];
-  let ended = false; let endError: string | undefined;
-
-  const sink: BridgeSessionSink = {
-    ctx: params.ctx,
-    onOpened: params.onOpened,
-    onMessage: (m) => { const w = waiters.shift(); if (w) w.resolve({ value: m, done: false }); else queue.push(m); },
-    onEnd: (error) => {
-      if (ended) return;
-      ended = true; endError = error;
-      // A waiter blocked in next() at disconnect time must see the ERROR — resolving
-      // it as done made the UI sit on "Thinking…" forever after a bridge crash.
-      for (const w of waiters.splice(0)) {
-        if (error) w.reject(new Error(error)); else w.resolve({ value: undefined as never, done: true });
-      }
-    },
-  };
-  conn.sessions.set(sid, sink);
-  send(conn, {
-    t: 'start', sid, conversationId: params.conversationId, systemPrompt: params.systemPrompt,
-    model: params.model, effort: params.effort, resume: params.resume,
-    tools: params.tools, builtinTools: params.builtinTools, maxTurns: params.maxTurns,
-    ...(params.cwd ? { cwd: params.cwd } : {}), ...(params.power ? { power: true } : {}),
-  });
-
-  const messages: AsyncIterable<SDKishMessage> = {
-    [Symbol.asyncIterator]() {
-      return {
-        next: (): Promise<IteratorResult<SDKishMessage>> => {
-          if (queue.length) return Promise.resolve({ value: queue.shift()!, done: false });
-          if (ended) {
-            if (endError) { const err = endError; endError = undefined; return Promise.reject(new Error(err)); }
-            return Promise.resolve({ value: undefined as never, done: true });
-          }
-          return new Promise((resolve, reject) => waiters.push({ resolve, reject }));
-        },
-      };
-    },
-  };
-  return {
-    sid,
-    messages,
-    push: (m) => send(conn, { t: 'msg', sid, message: m }),
-    interrupt: () => { send(conn, { t: 'cancel', sid }); conn.sessions.delete(sid); sink.onEnd(); },
-  };
 }
 
 /** Run one inference job on the user's bridge (their subscription). 10-minute ceiling. */

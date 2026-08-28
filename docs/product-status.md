@@ -1,8 +1,17 @@
 # Product status
 
-*Last updated 2026-08-28 evening (commits `9c7cf63…d1f95a4`). This page changes when the software changes.*
+*Last updated 2026-08-28 night, after the MCP pivot (commits `9c7cf63…`). This page changes when the software changes.*
 
-**Since the morning edition:** the interview became a CHAT (your persona
+**The MCP pivot (evening):** all TALKING now lives on claude.ai through the
+connector — the on-site chat (/chat, /c/*, sealed conversations, attachments,
+sandboxed exec, tool approvals) and the on-site interview UI are REMOVED
+(archived on the `old-chat` branch). opersona.me is the dashboard: model
+review, blind tests, corrections, simulate, share. The engine dropped its
+whole session layer; the bridge now carries only inference jobs + coding-
+session ingest. Privacy story got stronger: no conversations are stored at
+all.
+
+**Earlier that day:** the interview became a CHAT (your persona
 messages you) and moved its recommended home into claude.ai — say
 **"opersona me"** with the connector attached and your own fast Claude
 conducts it (`opersona_me` / `submit_interview_answer` tools; extraction stays
@@ -30,7 +39,7 @@ phase plan:
 | Spec phase | Status |
 | --- | --- |
 | **1 — foundations** (auth, persona creation, dashboard, chat, Claude integration, DB, extraction) | ✅ shipped (predates this cycle) + repaired: migration system squash-baselined, 2FA enrollment fixed, security audit findings closed, real landing page, error surfaces |
-| **2 — adaptive interview, memory system, behaviour patterns, evidence, retrieval** | ✅ shipped. 10 categories × 5 facets, deterministic picker, chat-style interview (in-app + claude.ai "opersona me"), contradiction probes, memories/traits/rules with epistemic tiers + verbatim-quote evidence, wired into the persona prompt and `recall_memory` (Postgres FTS; embedding seam ready, vendor-free) |
+| **2 — adaptive interview, memory system, behaviour patterns, evidence, retrieval** | ✅ shipped. 10 categories × 5 facets, deterministic picker, conversational interview on claude.ai ("opersona me"), contradiction probes, memories/traits/rules with epistemic tiers + verbatim-quote evidence, wired into the persona prompt and `recall_memory` (Postgres FTS; embedding seam ready, vendor-free) |
 | **3 — scenario testing, human-vs-AI prediction, accuracy metrics, correction loop** | ✅ shipped. Blind-at-creation predictions (enforced in the schema and every code path, not the UI), LLM judge across 4 dimensions + code-computed calibration, similarity metric gated below 5 samples, structured correction loop that writes back into the model |
 | **4 — versioning, voice, export/import, advanced privacy** | ◐ partial. Versioning (numbered snapshots + layer deltas) ✅ · full export `persona-full@2` ✅ · self-serve persona & account deletion ✅ · publish/import ✅ · **voice interview: not built** (the interview UI is transport-agnostic by design) |
 
@@ -73,17 +82,16 @@ phase plan:
 3. **Shareable interview knowledge** — traits/memories/rules carry a
    `shareable` flag (default off) but the publish flow doesn't surface
    toggles for them yet; published personas currently exclude them entirely.
-4. **Bridge rail per-turn floor** — even with 0.4.0's warm job sessions (the
-   CLI boot is gone), the subscription rail costs ~5-9s per reply at interview
-   prompt sizes vs ~2s on a direct API key. Mitigated by the claude.ai
-   interview path (conversation latency lives where a warm Claude already
-   runs) and by honest typing-dot UX in the in-app chat.
+4. **Bridge rail per-call floor** — even with warm job sessions (the CLI boot
+   is gone), the subscription rail costs ~5-9s per inference call vs ~2s on a
+   direct API key. Since the pivot this touches only work where latency is
+   mostly invisible (async extraction, judging) — the dashboard's simulate and
+   scenario generation still feel it; an API key removes it.
 5. **Fold self-tests into scenarios** — two coexisting gauges ("sounds like
    me" and "behavioural similarity") is deliberate for now; revisit after ~50
    scored scenarios of real usage.
-6. **Horizontal scale** — rate limits and the SSE ring buffer are
-   per-process, documented and fine for the single-box deploy; revisit before
-   any second web process.
+6. **Horizontal scale** — rate limits are per-process, documented and fine
+   for the single-box deploy; revisit before any second web process.
 
 ## Operational notes
 

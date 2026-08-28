@@ -18,7 +18,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
         .where(and(eq(authSchema.invitation.id, invId), eq(authSchema.invitation.status, 'pending'), gt(authSchema.invitation.expiresAt, new Date()))).limit(1)
     : [];
   const invited = !!inv;
-  if (await getSessionCtx()) redirect(next ?? '/chat');
+  if (await getSessionCtx()) redirect(next ?? '/me');
   if (!SIGNUP_OPEN && !invited) {
     return (
       <div className="space-y-2 text-sm">

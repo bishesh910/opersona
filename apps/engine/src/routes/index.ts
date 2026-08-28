@@ -1,15 +1,10 @@
 import { Hono } from 'hono';
-import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
-import { db, conversations, clones } from '@opersona/db';
+import { db, clones } from '@opersona/db';
 import { portraitPNG, spriteSheetPNG } from '@opersona/pixel-avatar';
 import { AvatarRecipe } from '@opersona/shared';
 import { config } from '../config.js';
-import { sendMessage, endSession } from '../sessions/manager.js';
-import { registerDownloads } from './downloads.js';
-import { subscribe, turnStartId } from '../sessions/events.js';
-import { resolveApproval } from '../sessions/approvals.js';
 import { publishSnapshot, activePrompt } from '../persona/assemble.js';
 import { promptAudience } from '../persona/audience.js';
 import { recallMemory } from '../persona/retrieval.js';
@@ -32,7 +27,6 @@ import { createSelfTestBatch, regenerateSelfTests, rateSelfTest, accuracy } from
 import Anthropic from '@anthropic-ai/sdk';
 
 export const routes = new Hono();
-registerDownloads(routes);
 import { scenarioRoutes } from './scenarios.js';
 routes.route('/', scenarioRoutes);
 
@@ -66,82 +60,6 @@ routes.get('/bridge/status', async (c) => {
   const [tok] = await db.select({ id: bridgeTokens.id }).from(bridgeTokens)
     .where(and(eq(bridgeTokens.orgId, orgId), isNull(bridgeTokens.revokedAt))).limit(1);
   return c.json({ ...bridgeStatus(orgId), paired: !!tok });
-});
-
-// ─── chat ───────────────────────────────────────────────────────────────────
-/** Fire-and-forget session prewarm from the chat page. Always 200 — a cold rail
- *  (bridge offline / no key) just means the first send pays the boot instead. */
-routes.post('/conversations/:id/prewarm', async (c) => {
-  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), cloneId: z.string().uuid() }));
-  const id = c.req.param('id');
-  const [conv] = await db.select().from(conversations).where(and(eq(conversations.id, id), eq(conversations.orgId, body.orgId), eq(conversations.cloneId, body.cloneId))).limit(1);
-  if (!conv) return c.json({ error: 'conversation not found' }, 404);
-  const { prewarm } = await import('../sessions/manager.js');
-  try {
-    await prewarm({ conversationId: id, ...body });
-    return c.json({ warmed: true });
-  } catch (e) {
-    return c.json({ warmed: false, note: e instanceof Error ? e.message.slice(0, 200) : 'cold' });
-  }
-});
-
-routes.post('/conversations/:id/messages', async (c) => {
-  const body = await parse(c, z.object({
-    orgId: z.string(), userId: z.string(), cloneId: z.string().uuid(), text: z.string().max(50_000),
-    attachments: z.array(z.object({ name: z.string().max(200), mime: z.string().max(100), dataBase64: z.string().max(14_000_000) })).max(8).optional(),
-  }));
-  if (!body.text.trim() && !body.attachments?.length) return c.json({ error: 'empty message' }, 400);
-  const id = c.req.param('id');
-  const [conv] = await db.select().from(conversations).where(and(eq(conversations.id, id), eq(conversations.orgId, body.orgId), eq(conversations.cloneId, body.cloneId))).limit(1);
-  if (!conv) return c.json({ error: 'conversation not found' }, 404);
-  await sendMessage({ conversationId: id, ...body, text: body.text.trim() || '(see attachment)' });
-  return c.json({ ok: true }, 202);
-});
-
-routes.get('/conversations/:id/events', async (c) => {
-  const id = c.req.param('id');
-  const orgId = c.req.query('orgId') ?? '';
-  const [conv] = await db.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.id, id), eq(conversations.orgId, orgId))).limit(1);
-  if (!conv) return c.json({ error: 'conversation not found' }, 404);
-  // Reconnects resume via the Last-Event-ID header; fresh mounts may ask for
-  // ?after=turn (replay only the in-flight turn) or a numeric cursor.
-  const header = c.req.header('last-event-id');
-  const afterQ = c.req.query('after');
-  const after = header ? (Number(header) || 0)
-    : afterQ === 'turn' ? turnStartId(id)
-    : Number(afterQ ?? 0) || 0;
-  return streamSSE(c, async (stream) => {
-    let alive = true;
-    const unsub = subscribe(id, (s) => { if (alive) void stream.writeSSE({ id: String(s.id), data: JSON.stringify(s.ev) }); }, after);
-    stream.onAbort(() => { alive = false; unsub(); });
-    while (alive) { await stream.writeSSE({ event: 'ping', data: '' }); await stream.sleep(15_000); }
-  });
-});
-
-routes.post('/conversations/:id/settings', async (c) => {
-  const body = await parse(c, z.object({ orgId: z.string(), model: z.string().max(80).nullable().optional(), effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().optional() }));
-  const id = c.req.param('id');
-  const set: Record<string, unknown> = {}; if ('model' in body) set.model = body.model ?? null; if ('effort' in body) set.effort = body.effort ?? null;
-  await db.update(conversations).set(set).where(and(eq(conversations.id, id), eq(conversations.orgId, body.orgId)));
-  await endSession(id); // next message resumes the transcript under the new model
-  return c.json({ ok: true });
-});
-
-routes.post('/conversations/:id/end', async (c) => {
-  await endSession(c.req.param('id'));
-  return c.json({ ok: true });
-});
-
-// ─── approvals ──────────────────────────────────────────────────────────────
-routes.post('/approvals/:id', async (c) => {
-  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), behavior: z.enum(['allow', 'deny']), updatedInput: z.record(z.string(), z.unknown()).optional(), answer: z.string().optional(), message: z.string().optional() }));
-  // Belt-and-braces org check (the web proxy verifies too, but this endpoint must
-  // not rely on it): the approval row has to belong to the caller's org.
-  const { approvals } = await import('@opersona/db');
-  const [row] = await db.select({ id: approvals.id }).from(approvals).where(and(eq(approvals.id, c.req.param('id')), eq(approvals.orgId, body.orgId))).limit(1);
-  if (!row) return c.json({ error: 'approval not pending' }, 404);
-  const ok = await resolveApproval(c.req.param('id'), { behavior: body.behavior, updatedInput: body.updatedInput, answer: body.answer, message: body.message, resolvedBy: body.userId });
-  return ok ? c.json({ ok: true }) : c.json({ error: 'approval not pending' }, 404);
 });
 
 // ─── avatar ─────────────────────────────────────────────────────────────────
@@ -213,48 +131,6 @@ routes.post('/clones/:id/interview/next', async (c) => {
   return c.json(await nextQuestionFor(body.orgId, clone.id));
 });
 
-/** Store an answer (or skip), queue the async extraction, return the next question. */
-routes.post('/clones/:id/interview/answer', async (c) => {
-  const body = await parse(c, z.object({
-    orgId: z.string(), userId: z.string(), questionId: z.string().uuid(),
-    text: z.string().max(20_000).optional(), skipped: z.boolean().optional(),
-  }));
-  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
-  if (!clone) return c.json({ error: 'clone not found' }, 404);
-  const { submitAnswer } = await import('../interview/service.js');
-  try {
-    return c.json(await submitAnswer({ orgId: body.orgId, cloneId: clone.id, questionId: body.questionId, text: body.text, skipped: body.skipped }));
-  } catch (e) {
-    return c.json({ error: e instanceof Error ? e.message : 'could not save the answer' }, 409);
-  }
-});
-
-/** Chat-style interview: current thread + stream (opens a question when none is live). */
-routes.post('/clones/:id/interview/chat/state', async (c) => {
-  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string() }));
-  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
-  if (!clone) return c.json({ error: 'clone not found' }, 404);
-  const { interviewChatState } = await import('../interview/chat.js');
-  return c.json(await interviewChatState(body.orgId, clone.id));
-});
-
-/** One user chat message in → interviewer reaction (or a wrap + the next question). */
-routes.post('/clones/:id/interview/chat/send', async (c) => {
-  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), text: z.string().min(1).max(8000) }));
-  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
-  if (!clone) return c.json({ error: 'clone not found' }, 404);
-  const { sendInterviewChat } = await import('../interview/chat.js');
-  return c.json(await sendInterviewChat({ orgId: body.orgId, cloneId: clone.id, text: body.text }));
-});
-
-routes.post('/clones/:id/interview/chat/skip', async (c) => {
-  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string() }));
-  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
-  if (!clone) return c.json({ error: 'clone not found' }, 404);
-  const { skipInterviewChat } = await import('../interview/chat.js');
-  return c.json(await skipInterviewChat(body.orgId, clone.id));
-});
-
 /** MCP path: a whole exchange conducted on claude.ai lands as one answer (server-to-server only). */
 routes.post('/clones/:id/interview/submit-thread', async (c) => {
   const body = await parse(c, z.object({
@@ -269,19 +145,6 @@ routes.post('/clones/:id/interview/submit-thread', async (c) => {
     return c.json(await submitThread({ orgId: body.orgId, cloneId: clone.id, questionId: body.questionId, userText: body.userText, dialogue: body.dialogue }));
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : 'could not save the answer' }, 409);
-  }
-});
-
-/** Revision-preserving edit of an earlier answer; sole-source derived items retire and extraction reruns. */
-routes.post('/clones/:id/interview/answers/:answerId/edit', async (c) => {
-  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), text: z.string().min(1).max(20_000) }));
-  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
-  if (!clone) return c.json({ error: 'clone not found' }, 404);
-  const { editAnswer } = await import('../interview/service.js');
-  try {
-    return c.json(await editAnswer({ orgId: body.orgId, cloneId: clone.id, answerId: c.req.param('answerId'), text: body.text }));
-  } catch (e) {
-    return c.json({ error: e instanceof Error ? e.message : 'could not edit the answer' }, 404);
   }
 });
 
@@ -373,16 +236,7 @@ routes.post('/clones/:id/recall', async (c) => {
   return c.json({ hits });
 });
 
-// ─── learning: fingerprint, feedback, import ────────────────────────────────
-/** Extract now from one conversation (usually automatic on session end). */
-routes.post('/conversations/:id/extract', async (c) => {
-  const body = await parse(c, z.object({ orgId: z.string(), cloneId: z.string().uuid() }));
-  await endSession(c.req.param('id'));
-  await db.update(conversations).set({ extractedAt: null }).where(and(eq(conversations.id, c.req.param('id')), eq(conversations.orgId, body.orgId)));
-  enqueue({ kind: 'extract', orgId: body.orgId, cloneId: body.cloneId, conversationId: c.req.param('id') });
-  return c.json({ ok: true, queued: queueSize() }, 202);
-});
-
+// ─── learning: fingerprint, import ──────────────────────────────────────────
 routes.post('/clones/:id/fingerprint/recompute', async (c) => {
   const body = await parse(c, z.object({ orgId: z.string() }));
   const patterns = await recomputeFingerprint(body.orgId, c.req.param('id'));
@@ -396,12 +250,6 @@ routes.post('/clones/:id/patterns/:key', async (c) => {
   await recomputeFingerprint(body.orgId, c.req.param('id'));
   await publishSnapshot(body.orgId, c.req.param('id'));
   return c.json({ ok: true });
-});
-
-routes.post('/conversations/:id/feedback', async (c) => {
-  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), cloneId: z.string().uuid(), turnId: z.string().uuid(), verdict: z.enum(['me', 'not_me']), comment: z.string().max(2000).optional() }));
-  const r = await recordFeedback({ ...body, conversationId: c.req.param('id') });
-  return c.json({ ok: true, ...r });
 });
 
 /** Web saves the export file to uploads/import-<importId> then calls this. */

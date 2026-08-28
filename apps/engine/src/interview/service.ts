@@ -1,11 +1,9 @@
 /**
- * Interview orchestration — what the routes call.
- *
- * The conversation never stalls: `next` is resume-safe (an already-asked,
- * unanswered question is returned again), and `submitAnswer` stores the answer,
- * queues the async extraction, and picks the next question in one round-trip.
- * All LLM work happens off this path (the queue) in P2; sync triage arrives in
- * a later phase behind a flag.
+ * Interview orchestration — what the routes call. The interview CONVERSATION
+ * runs on claude.ai (the connector's `opersona_me` tools); this module serves
+ * the deterministic side: `nextQuestionFor` is resume-safe (an already-asked,
+ * unanswered question is returned again) and `submitThread` lands a completed
+ * exchange, queues the async extraction, and returns the next question.
  */
 import { and, asc, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { db, interviewAnswers, interviewQuestions, traits, memories, contextualRules } from '@opersona/db';
@@ -103,68 +101,6 @@ export async function nextQuestionFor(orgId: string, cloneId: string): Promise<{
   return { question: serve(ins), progress: await progressFor(state, cloneId) };
 }
 
-/** Store an answer (or skip), run sync triage, queue extraction, return the next question — one round-trip. */
-export async function submitAnswer(a: {
-  orgId: string; cloneId: string; questionId: string; text?: string; skipped?: boolean;
-}): Promise<{ answerId: string | null; ack: string | null; question: ServedQuestion | null; progress: Progress }> {
-  const [q] = await db.select().from(interviewQuestions)
-    .where(and(eq(interviewQuestions.id, a.questionId), eq(interviewQuestions.cloneId, a.cloneId), eq(interviewQuestions.orgId, a.orgId))).limit(1);
-  if (!q) throw new Error('question not found');
-  if (q.status === 'answered') throw new Error('already answered — refresh for the next question');
-
-  const skipped = a.skipped === true || !a.text?.trim();
-  const parentDepth = q.parentAnswerId
-    ? ((await db.select({ context: interviewAnswers.context }).from(interviewAnswers).where(eq(interviewAnswers.id, q.parentAnswerId)).limit(1))[0]?.context?.threadDepth ?? 0)
-    : -1;
-  const threadDepth = q.kind === 'follow_up' ? parentDepth + 1 : 0;
-  const [ans] = await db.insert(interviewAnswers).values({
-    orgId: a.orgId, cloneId: a.cloneId, questionId: q.id, category: q.category, questionText: q.text,
-    text: a.text?.trim() ?? '', skipped,
-    context: { threadDepth, intent: q.intent },
-    extractionStatus: skipped ? 'skipped' : 'pending',
-    ...(skipped ? { extractedAt: new Date() } : {}),
-  }).returning({ id: interviewAnswers.id });
-  await db.update(interviewQuestions).set({ status: skipped ? 'skipped' : 'answered' }).where(eq(interviewQuestions.id, q.id));
-
-  let ack: string | null = null;
-  if (!skipped) {
-    enqueue({ kind: 'interview_extract', orgId: a.orgId, cloneId: a.cloneId, answerId: ans!.id });
-
-    // Sync triage (≤6s, never throws): conversational steering only — follow-up
-    // hooks and an early tension probe become question rows; ack goes to the UI.
-    const { triageAnswer } = await import('./triage.js');
-    const t = await triageAnswer({ orgId: a.orgId, cloneId: a.cloneId, questionText: q.text, answerText: a.text!.trim() });
-    if (t) {
-      ack = t.ack;
-      if (threadDepth < 2) {
-        for (const f of t.followups) {
-          await db.insert(interviewQuestions).values({
-            orgId: a.orgId, cloneId: a.cloneId, category: q.category, facet: q.facet,
-            text: f.question, kind: 'follow_up', source: 'triage', intent: f.intent,
-            parentAnswerId: ans!.id, priority: f.hook_strength, status: 'pending',
-          });
-        }
-      }
-      if (t.tension) {
-        const { contradictions } = await import('@opersona/db');
-        const [contra] = await db.insert(contradictions).values({
-          orgId: a.orgId, cloneId: a.cloneId, answerId: ans!.id, description: t.tension.description,
-        }).returning({ id: contradictions.id });
-        const [probe] = await db.insert(interviewQuestions).values({
-          orgId: a.orgId, cloneId: a.cloneId, category: q.category, facet: q.facet,
-          text: t.tension.probe_question, kind: 'contradiction', source: 'triage',
-          contradictionId: contra!.id, status: 'pending',
-        }).returning({ id: interviewQuestions.id });
-        await db.update(contradictions).set({ probeQuestionId: probe!.id }).where(eq(contradictions.id, contra!.id));
-      }
-    }
-  }
-  await storeCoverage(a.orgId, a.cloneId); // answered counts move instantly; item counts follow extraction
-
-  const next = await nextQuestionFor(a.orgId, a.cloneId);
-  return { answerId: skipped ? null : ans!.id, ack, ...next };
-}
-
 /**
  * Submit a whole interview exchange conducted ELSEWHERE (claude.ai over MCP:
  * their own fast Claude plays the interviewer). The user's verbatim words are
@@ -193,34 +129,4 @@ export async function submitThread(a: {
   await storeCoverage(a.orgId, a.cloneId);
   const next = await nextQuestionFor(a.orgId, a.cloneId);
   return { answerId: skipped ? null : ans!.id, ...next };
-}
-
-/** Revision-preserving edit: old text is kept, derived sole-source items retire, extraction reruns. */
-export async function editAnswer(a: { orgId: string; cloneId: string; answerId: string; text: string }): Promise<{ requeued: boolean }> {
-  const [row] = await db.select().from(interviewAnswers)
-    .where(and(eq(interviewAnswers.id, a.answerId), eq(interviewAnswers.cloneId, a.cloneId), eq(interviewAnswers.orgId, a.orgId))).limit(1);
-  if (!row) throw new Error('answer not found');
-  const text = a.text.trim();
-  if (!text) throw new Error('answer text required');
-  const ref = `interview:${a.answerId}`;
-
-  await db.transaction(async (tx) => {
-    // Items whose ONLY evidence came from this answer are no longer supported — retire them.
-    for (const table of [traits, memories, contextualRules] as const) {
-      const rows = await tx.select({ id: table.id, evidence: table.evidence }).from(table)
-        .where(and(eq(table.cloneId, a.cloneId), eq(table.sourceRef, ref), inArray(table.status, ['candidate', 'confirmed'])));
-      for (const r of rows) {
-        if (r.evidence.every((e) => e.ref === ref)) {
-          await tx.update(table).set({ status: 'retired', updatedAt: new Date() }).where(eq(table.id, r.id));
-        }
-      }
-    }
-    await tx.update(interviewAnswers).set({
-      revisions: [...row.revisions, { text: row.text, at: new Date().toISOString() }],
-      text, skipped: false, editedAt: new Date(), extraction: null, extractionStatus: 'pending',
-    }).where(eq(interviewAnswers.id, a.answerId));
-  });
-
-  enqueue({ kind: 'interview_extract', orgId: a.orgId, cloneId: a.cloneId, answerId: a.answerId });
-  return { requeued: true };
 }

@@ -3,7 +3,6 @@ import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { db, schema, authSchema } from '@opersona/db';
 import { requireOrg, isOrgAdmin } from '@/lib/session';
 import { createMyCloneAction } from '@/actions/clones';
-import { askPersonaAction } from '@/actions/conversations';
 import { AvatarThumb } from '@/components/avatar/AvatarThumb';
 import { InviteButton } from '@/components/clones/InviteButton';
 import { ImportFileButton } from '@/components/community/ImportFileButton';
@@ -81,10 +80,9 @@ export default async function ClonesPage({ searchParams }: { searchParams: Promi
                   ? <Link href={isMine && c.kind === 'member' ? '/me' : `/opersonas/${c.id}`} className="-m-1 block rounded p-1 hover:bg-neutral-50 dark:hover:bg-neutral-900">{body}</Link>
                   : body}
                 {!isMine && (
-                  <form action={askPersonaAction}>
-                    <input type="hidden" name="cloneId" value={c.id} />
-                    <button className="btn-secondary btn-sm w-full" data-ask-persona title={`Ask ${c.name}'s persona a question — it answers the way they would`}>Ask their persona</button>
-                  </form>
+                  <p className="muted text-xs" title={`Ask ${c.name}'s persona on claude.ai — it answers the way they would`}>
+                    Ask their persona on claude.ai: attach the opersona connector and use <code className="text-[11px]">use_persona</code>.
+                  </p>
                 )}
               </li>
             );

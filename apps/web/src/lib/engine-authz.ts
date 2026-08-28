@@ -4,7 +4,7 @@
  * (Next route modules may only export handlers).
  *
  * Ownership rules: owners may do everything on their clone; org owner/admin
- * read-only (+ org owner may resolve approvals). Unknown paths 404.
+ * read-only. Unknown paths 404.
  */
 import { and, eq } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
@@ -24,52 +24,8 @@ export async function authorize(ctx: OrgCtx, method: string, path: string[]): Pr
 
   if (root === 'avatar' && method === 'POST' && (id === 'from-selfie' || id === 'render') && path.length === 2) return { ok: true };
 
-  if (root === 'conversations' && id && UUID.test(id) && path.length === 3) {
-    const [conv] = await db.select().from(schema.conversations)
-      .where(and(eq(schema.conversations.id, id), eq(schema.conversations.orgId, ctx.orgId))).limit(1);
-    if (!conv) return deny(404, 'conversation not found');
-    // "Ask their persona": a same-org member who CREATED this conversation may use it even
-    // without clone access (the engine serves them the shareable-only persona).
-    const mine = conv.userId === ctx.userId;
-    const access = await getCloneAccess(ctx, conv.cloneId);
-    if (!access && !mine) return deny(403, 'not your conversation');
-    // Chat content is private: only the conversation's author, or the persona's owner
-    // reviewing a visitor conversation with THEIR persona. Org admins get no content.
-    const contentOk = mine || !!access?.isOwner;
-    if (leaf === 'events' && method === 'GET') return contentOk ? { ok: true, cloneId: conv.cloneId, conversationId: conv.id } : deny(403, 'private conversation');
-    if (leaf === 'files' && method === 'GET') return contentOk ? { ok: true, cloneId: conv.cloneId, conversationId: conv.id } : deny(403, 'private conversation');
-    // Prewarm: boot the session early (no content, no stored turn). Creator only.
-    if (leaf === 'prewarm' && method === 'POST') {
-      if (!mine) return deny(403, 'not your conversation');
-      return { ok: true, cloneId: conv.cloneId, conversationId: conv.id };
-    }
-    if ((leaf === 'messages' || leaf === 'end') && method === 'POST') {
-      // Only the conversation's creator writes into it: the owner in their own chats, a visitor
-      // in theirs. The owner reviews visitor conversations read-only; org admins stay read-only.
-      if (!mine) return deny(403, access ? 'read-only: not your conversation' : 'only the persona owner can chat');
-      return { ok: true, cloneId: conv.cloneId, conversationId: conv.id, conversationTitle: conv.title };
-    }
-    if (leaf === 'settings' && method === 'POST') {
-      // Visitors use the org default model — no per-conversation overrides for them.
-      if (!access?.canWrite || !mine) return deny(403, 'only the persona owner can change chat settings');
-      return { ok: true, cloneId: conv.cloneId, conversationId: conv.id, conversationTitle: conv.title };
-    }
-    // Learning: "that's me / not me" on a turn, and "learn from this chat now". Owner, own chats only.
-    if ((leaf === 'feedback' || leaf === 'extract') && method === 'POST') {
-      if (!access?.canWrite || !mine) return deny(403, 'only the persona owner can teach their clone');
-      return { ok: true, cloneId: conv.cloneId, conversationId: conv.id };
-    }
-    return deny(404, 'unknown engine path');
-  }
-
-  if (root === 'approvals' && id && UUID.test(id) && method === 'POST' && path.length === 2) {
-    const [ap] = await db.select().from(schema.approvals)
-      .where(and(eq(schema.approvals.id, id), eq(schema.approvals.orgId, ctx.orgId))).limit(1);
-    if (!ap) return deny(404, 'approval not found');
-    const access = await getCloneAccess(ctx, ap.cloneId);
-    if (!access || !(access.isOwner || ctx.role === 'owner')) return deny(403, 'only the persona owner (or org owner) can resolve approvals');
-    return { ok: true, cloneId: ap.cloneId };
-  }
+  // Conversations, chat approvals, and the on-site interview are GONE: all talking
+  // moved to the claude.ai connector (MCP). The proxy no longer authorizes them.
 
   if (root === 'clones' && id && UUID.test(id) && path.length === 3) {
     const access = await getCloneAccess(ctx, id);
@@ -103,14 +59,6 @@ export async function authorize(ctx: OrgCtx, method: string, path: string[]): Pr
     return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can rate self-tests');
   }
 
-  // Chat-style interview: clones/:id/interview/chat/{state|send|skip}. Owner only.
-  if (root === 'clones' && id && UUID.test(id) && path.length === 5 && method === 'POST'
-    && path[2] === 'interview' && path[3] === 'chat' && ['state', 'send', 'skip'].includes(path[4] ?? '')) {
-    const access = await getCloneAccess(ctx, id);
-    if (!access) return deny(404, 'clone not found');
-    return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can be interviewed');
-  }
-
   // Blind scenario actions: clones/:id/scenarios/:sid/{answer|skip|correct}. Owner only.
   if (root === 'clones' && id && UUID.test(id) && path.length === 5 && method === 'POST'
     && path[2] === 'scenarios' && path[3] && UUID.test(path[3]) && ['answer', 'skip', 'correct'].includes(path[4] ?? '')) {
@@ -142,17 +90,7 @@ export async function authorize(ctx: OrgCtx, method: string, path: string[]): Pr
     if (sub === 'fingerprint' && (tail === 'recompute' || tail === 'tidy')) return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'read-only');
     // Episodic memory backfill for existing conversations. Owner only.
     if (sub === 'episodes' && tail === 'backfill') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can backfill episodes');
-    // The cognitive interview is strictly the owner teaching their own persona.
-    if (sub === 'interview' && (tail === 'next' || tail === 'answer')) return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can be interviewed');
     return deny(404, 'unknown engine path');
-  }
-
-  // Edit an earlier interview answer: clones/:id/interview/answers/:answerId/edit. Owner only.
-  if (root === 'clones' && id && UUID.test(id) && path.length === 6 && method === 'POST'
-    && path[2] === 'interview' && path[3] === 'answers' && path[4] && UUID.test(path[4]) && path[5] === 'edit') {
-    const access = await getCloneAccess(ctx, id);
-    if (!access) return deny(404, 'clone not found');
-    return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can edit their answers');
   }
 
   // Verdict on an interview-learned knowledge item: clones/:id/knowledge/:kind/:itemId/verdict. Owner only.

@@ -1,12 +1,12 @@
 'use client';
 /**
- * "Your own subscription" — pair a machine running opersona-bridge so chats on
- * this account execute there, on the user's own Claude plan. Zero API key.
+ * "Your own subscription" — pair a machine running opersona-bridge so your
+ * persona's engine work (interview extraction, learning jobs, imports) runs
+ * there, on the user's own Claude plan — and the bridge learns from every
+ * Claude Code / Codex session finished on that machine. Zero API key.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { bridgeState, mintBridgeToken, revokeBridgeToken, type BridgeState } from '@/actions/bridge';
-import { sealState, enableSealAction } from '@/actions/seal';
-import { generateSealKeyB64, sealKeyFingerprint, storeSealKey, loadSealKey } from '@/lib/seal-client';
 import { CopyButton } from '@/components/shell/CopyButton';
 
 function ago(iso: string): string {
@@ -21,8 +21,6 @@ export function BridgeCard() {
   const [state, setState] = useState<BridgeState | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [sealForLink, setSealForLink] = useState<string | null>(null);
-  const [recovery, setRecovery] = useState<string | null>(null);
   const reload = useCallback(() => { bridgeState().then(setState).catch(() => {}); }, []);
   useEffect(() => { reload(); const t = setInterval(reload, 10_000); return () => clearInterval(t); }, [reload]);
 
@@ -30,21 +28,6 @@ export function BridgeCard() {
     setBusy(true);
     try {
       const { token } = await mintBridgeToken('my machine');
-      // Sealed conversations are the default: the FIRST pairing generates the key
-      // in this browser; it reaches the bridge only inside the pairing command
-      // below (--seal-key) — it is never sent to the server.
-      try {
-        const st = await sealState();
-        if (!st.fp) {
-          const key = generateSealKeyB64();
-          const fp = await sealKeyFingerprint(key);
-          const r = await enableSealAction(fp);
-          if (r.ok) { storeSealKey(fp, key); setSealForLink(key); setRecovery(key); }
-        } else {
-          const key = loadSealKey(st.fp);
-          setSealForLink(key); // null = this device lacks the key; the command pairs without it
-        }
-      } catch { /* sealing is best-effort at pair time */ }
       setFresh(token);
       reload();
     } finally { setBusy(false); }
@@ -52,20 +35,20 @@ export function BridgeCard() {
 
   // ONE command does everything: pairs, installs as a background service (launchd /
   // systemd user unit), starts it, and reports whether it actually connected.
-  const flags = fresh ? `--token ${fresh}${sealForLink ? ` --seal-key ${sealForLink}` : ''}` : '';
-  const cmd = fresh ? `npx opersona@latest install ${flags}` : '';
-  const fgCmd = fresh ? `npx opersona@latest ${flags}` : '';
+  const cmd = fresh ? `npx opersona@latest install --token ${fresh}` : '';
+  const fgCmd = fresh ? `npx opersona@latest --token ${fresh}` : '';
 
   return (
     <section className="card space-y-3" data-bridge-card>
       <div>
         <h2 className="font-medium">
-          Chat on your own subscription <span className="chip ml-2 border-green-400 text-green-700 dark:border-green-700 dark:text-green-400">no API key</span>
+          Your machine, your subscription <span className="chip ml-2 border-green-400 text-green-700 dark:border-green-700 dark:text-green-400">no API key</span>
         </h2>
         <p className="muted mt-1 text-sm">
-          Put the <span className="font-medium text-neutral-700 dark:text-neutral-300">opersona bridge</span> on any machine where Claude Code is signed in — one command, no install.
-          Your chats here then <em>think</em> on that machine, on the Claude plan you already pay for. Your Anthropic login never leaves it,
-          and the web can never run code there — anything beyond reading its own scratch folder asks you first.
+          Put the <span className="font-medium text-neutral-700 dark:text-neutral-300">opersona bridge</span> on any machine where Claude Code is signed in — one command.
+          Your persona&rsquo;s learning then runs there, on the Claude plan you already pay for: interview extraction, imports,
+          and every Claude Code / Codex session you finish is picked up automatically. Your Anthropic login never leaves that machine,
+          and the web can never run code on it.
         </p>
       </div>
 
@@ -97,23 +80,6 @@ export function BridgeCard() {
               Prefer to watch it run first? Same flags without <code>install</code> run it in the foreground:{' '}
               <code className="break-all">{fgCmd}</code> <CopyButton text={fgCmd} />
             </p>
-          {recovery && (
-            <div className="space-y-1.5 rounded-lg border border-emerald-300 bg-emerald-50 p-2.5 dark:border-emerald-800 dark:bg-emerald-950/40" data-seal-recovery>
-              <p className="text-xs font-medium">🔑 Your conversations are now SEALED — save this key like a password.</p>
-              <div className="flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">{recovery}</code>
-                <CopyButton text={recovery} />
-              </div>
-              <p className="muted text-[11px]">Chats are encrypted with it before they are stored — we keep only ciphertext and can never read them. Lose the key on all your devices = chat history unreadable forever. Derived persona memory stays readable so recall and sharing keep working.</p>
-            </div>
-          )}
-          </div>
-          <div className="space-y-1.5 border-t border-amber-200 pt-2 dark:border-amber-900">
-            <p className="muted text-xs">Any other machine with Node 20+ (terminal):</p>
-            <div className="flex items-center gap-2">
-              <pre className="min-w-0 flex-1 overflow-x-auto rounded bg-white p-2 font-mono text-[11px] leading-snug dark:bg-neutral-900">{cmd}</pre>
-              <CopyButton text={cmd} />
-            </div>
           </div>
         </div>
       )}

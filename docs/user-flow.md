@@ -36,32 +36,29 @@ Five short steps, no AI settings to configure:
 | **Pixie** | An avatar — from a selfie (never stored), a dice roll, or by hand. |
 | **Story** | Four one-line questions → an AI-drafted first-person brief you edit. |
 | **Mind** | A 12-question personality quick take (or the full 24). Flavour, never authority. |
-| **Ready** | The persona exists. Primary CTA: **Start your interview.** |
+| **Ready** | The persona exists. The next step it teaches: say **"opersona me"** on claude.ai. |
 
-## 4 · The cognitive interview — a chat, in two places
+## 4 · The cognitive interview — on claude.ai, by saying "opersona me"
 
-The core teaching surface is a CONVERSATION: your persona *messages you*
-("Tell me about the last time…", never "are you a risk taker?") and you answer
-like you'd text a friend — short is fine, probing is its job. Two ways in:
+The core teaching surface is a CONVERSATION, and it happens where conversations
+are best: on claude.ai, with the opersona connector attached. Say
+**"opersona me"** and your own Claude becomes the interviewer (via the
+`opersona_me` / `submit_interview_answer` tools): it asks about real moments
+("Tell me about the last time…", never "are you a risk taker?"), follows the
+threads your answers open, keeps your verbatim words, and lands each completed
+exchange in opersona. Replies are instant — the conversation runs on the Claude
+you already use — and there is deliberately no finish line: a few exchanges per
+question, a natural break every few questions, come back any time.
 
-- **claude.ai (recommended)** — with the opersona connector attached, say
-  **"opersona me"**: your own fast Claude conducts the interview via the
-  `opersona_me` / `submit_interview_answer` tools and completed exchanges land
-  in opersona verbatim. Replies are instant; extraction runs asynchronously on
-  your bridge, where its slowness costs nobody a second.
-- **opersona.me → `/me/interview`** — the in-app chat with your pixie: ~2s
-  replies with an API key; on the bridge rail the reply computes in the
-  background while the page polls like a messenger (typing dots, keep typing).
+The site itself has NO interview UI (and no chat): opersona.me is the dashboard
+where you review what the interview learned.
 
-Threads wrap once they hold a concrete story plus the why (capped at five of
-your messages); every third finished thread offers a natural break — there is
-deliberately no finish line. Pause by leaving; it resumes exactly there.
-
-Behind each wrapped thread:
+Behind each submitted exchange:
 
 - an instant next question from a deterministic picker (coverage gap ×
   uncertainty × info gain; a ~50-question authored bank means zero cold-start),
-- an async extraction into **memories** (what happened), **traits**
+- an async extraction — on your bridge or key, where slowness costs nothing —
+  into **memories** (what happened), **traits**
   (values / beliefs / preferences / behaviours / decision patterns) and
   **contextual rules** (IF situation AND condition THEN tendency) — every item
   tiered *you said this / observed / hunch* with verbatim quotes, and
@@ -78,16 +75,18 @@ getting started"), never "37/1000 questions".
 The dashboard (`/me`) shows honest numbers: patterns, interview answers,
 sounds-like-me, behavioural similarity — every metric renders **"Not enough
 data yet"** until it is real. `/me/memory` is the transparency surface: traits,
-memories and rules with tier chips, confidence bars, and evidence quotes that
-click through to the exact interview answer. **That's me / Not me** on every
+memories and rules with tier chips, confidence bars, and the verbatim evidence
+quotes behind every item. **That's me / Not me** on every
 item; edits to old answers keep the old wording as a revision and withdraw
 anything that only stood on it.
 
-## 6 · Use it — `/chat` and `/me/simulate`
+## 6 · Use it — the connector and `/me/simulate`
 
-- **Chat** (`/c/<slug>`): full conversation with your persona (or plain
-  Claude), streaming, tools, sandboxed code exec. Every finished conversation
-  feeds the reasoning fingerprint. Per-turn *That's me / Not me*.
+- **Talk as/with your persona on claude.ai**: `my_persona` loads your own
+  persona into the conversation; teammates and adopters load yours with
+  `use_persona` (shareable material only); `recall_memory` serves its memory
+  mid-chat; `learn_from_this_chat` turns any conversation into lessons. Your
+  claude.ai conversations never stream to opersona — only the tool calls do.
 - **Simulate** (`/me/simulate`): one structured behavioural prediction —
   *What would I do? · How would I reply? · What would I choose? · A or B? ·
   What factors would weigh?* — with your ranked factors, honest confidence,
@@ -130,12 +129,12 @@ as a new version, and the next prediction is better. Misses teach it the most.
 
 | Concept | Surface |
 | --- | --- |
-| Adaptive interview, follow-ups, contradictions | claude.ai ("opersona me") or `/me/interview` |
+| Adaptive interview, follow-ups, contradictions | claude.ai — say "opersona me" (connector) |
 | Memories vs behaviour patterns, evidence, tiers | `/me/memory` |
 | Explicit / inferred / hypothesis | tier chips everywhere; hypothesis never enters a prompt |
-| Contextual rules & exceptions | `/me/memory` → "Rules & exceptions"; consulted by chat + simulate |
+| Contextual rules & exceptions | `/me/memory` → "Rules & exceptions"; consulted by the connector + simulate |
 | Blind prediction tests, accuracy dimensions | `/me/survey` |
 | Correction loop | scenario reveal → "It got me wrong" |
-| Simulation modes | `/me/simulate` (+ roleplay in `/chat`) |
+| Simulation modes | `/me/simulate` · persona chat via the connector |
 | Versioning | `/me/memory` → "Version history" (numbered snapshots, layer deltas) |
 | Export / deletion | Patterns header buttons · Settings → Account |

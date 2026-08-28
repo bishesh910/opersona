@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Markdown } from '@/components/chat/Markdown';
+import { Markdown } from '@/components/ui/Markdown';
 
 export interface SelfTestItem {
   id: string;

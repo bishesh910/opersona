@@ -24,7 +24,7 @@ export function SignInForm({ social = { google: false, apple: false }, next, can
   useEffect(() => { setMood(busy || twoFactor ? 'thinking' : 'idle'); }, [busy, twoFactor, setMood]);
 
   function done() {
-    router.push(next ?? '/chat');
+    router.push(next ?? '/me');
     router.refresh();
   }
 

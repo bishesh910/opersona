@@ -7,19 +7,6 @@ export const config = {
   platformApiKey: process.env.ANTHROPIC_API_KEY ?? '',
   /** Monthly USD cap applied to workspaces running on the platform key (self-host fallback). BYO-key workspaces set their own budget in Settings. */
   defaultMonthlyBudgetUsd: Number(process.env.ENGINE_DEFAULT_MONTHLY_BUDGET_USD ?? 20),
-  /** Close an idle live session after this long. */
-  idleMs: Number(process.env.ENGINE_IDLE_MS ?? 10 * 60_000),
-  /** HITL approval wait before auto-deny. */
-  approvalTimeoutMs: Number(process.env.ENGINE_APPROVAL_TIMEOUT_MS ?? 10 * 60_000),
-  maxTurns: Number(process.env.ENGINE_MAX_TURNS ?? 40),
-  maxBudgetUsdPerSession: Number(process.env.ENGINE_MAX_BUDGET_USD ?? 5),
-  /** Sandboxed code execution in chats (bubblewrap). Off → Bash/Write/Edit are not offered at all (read-only tools + web search remain). */
-  sbxEnabled: process.env.OPERSONA_SBX_ENABLED !== 'false',
-  sbxRunner: resolve(process.env.OPERSONA_SBX_RUNNER ?? '../../sbx/run.sh'),
-  /** Default per-command wall-clock; the model may ask for less, capped at 600s in the runner. */
-  sbxTimeoutMs: Number(process.env.OPERSONA_SBX_TIMEOUT_MS ?? 120_000),
-  /** Largest single generated file offered as a download. */
-  sbxMaxFileBytes: Number(process.env.OPERSONA_SBX_MAX_FILE_BYTES ?? 25 * 1024 * 1024),
   version: '0.0.1',
 };
 

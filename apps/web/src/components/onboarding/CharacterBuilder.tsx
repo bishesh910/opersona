@@ -507,11 +507,14 @@ function ReadyStep({ displayName, roleTitle, mbtiType }: {
         {mbtiType && <><dt className="muted">Mind</dt><dd className="font-mono">{mbtiType}</dd></>}
       </dl>
       <div className="flex flex-wrap gap-2">
-        <Link href="/me/interview" className="btn-primary">Start your interview</Link>
-        <Link href="/chat" className="btn-secondary">Start chatting</Link>
+        <Link href="/me" className="btn-primary">See my persona</Link>
         <Link href="/onboarding/sources" className="btn-secondary">Add learning sources</Link>
       </div>
-      <p className="muted text-xs">The interview is the fastest way to teach it who you are — real questions, your real answers, ten minutes at a time.</p>
+      <p className="muted text-xs">
+        The fastest way to teach it who you are: open <span className="font-medium">claude.ai</span> with the
+        opersona connector attached and say <span className="font-medium">&ldquo;opersona me&rdquo;</span> — your own
+        Claude interviews you about real moments, and everything it learns lands here with receipts.
+      </p>
     </div>
   );
 }

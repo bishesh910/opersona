@@ -5,19 +5,17 @@ import { usePathname, useRouter } from 'next/navigation';
 const TABS: { key: string; label: string }[] = [
   { key: 'brief', label: 'Brief' },
   { key: 'thinking', label: 'How I think' },
-  { key: 'interview', label: 'Interview' },
   { key: 'personality', label: 'Personality' },
   { key: 'survey', label: 'Test me' },
   { key: 'simulate', label: 'Simulate' },
   { key: 'avatar', label: 'Pixie' },
-  { key: 'chat', label: 'Chat' },
   { key: 'memory', label: 'Memory' },
   { key: 'documents', label: 'Documents' },
   { key: 'share', label: 'Share' },
 ];
 
 /** Imported copies are read-mostly: no survey/memory/docs/share — they never learn. */
-const IMPORTED_TABS = new Set(['brief', 'thinking', 'personality', 'avatar', 'chat']);
+const IMPORTED_TABS = new Set(['brief', 'thinking', 'personality', 'avatar']);
 
 /** Tabs with chat/learning content are the owner's alone — colleagues and admins see
  *  only the persona-identity tabs (privacy: the system enforces it, nobody "watches"). */
@@ -37,7 +35,7 @@ export function CloneTabs({ cloneId, isOwner = false, kind = 'member' }: { clone
     const href = hrefFor(t);
     return t.key === 'thinking'
       ? path === href || path === '/me/thinking' || path === `/opersonas/${cloneId}/thinking`
-      : path === href || path.startsWith(href + '/') || (t.key === 'chat' && path.startsWith('/c/'));
+      : path === href || path.startsWith(href + '/');
   };
   const current = TABS.find(isActive)?.key ?? 'thinking';
   return (
