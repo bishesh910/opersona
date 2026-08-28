@@ -13,12 +13,11 @@ const I = {
   gear: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="3" /><path d="M12 2.8v2.4M12 18.8v2.4M4.2 12H1.8M22.2 12h-2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7" /></svg>,
 } as const;
 
-const ITEMS = [
+type NavItem = { href: string; label: string; icon: React.ReactNode; shortLabel?: string; badge?: string };
+const ITEMS: NavItem[] = [
   { href: '/me', label: 'Me', icon: I.persona },
   { href: '/opersonas', label: 'Opersonas', icon: I.users },
-  { href: '/command-center', label: 'Command Center', shortLabel: 'Center', icon: I.office, badge: 'beta' },
   { href: '/explore', label: 'Explore', icon: I.compass },
-  { href: '/download', label: 'Download app', icon: I.download },
   { href: '/approvals', label: 'Approvals', icon: I.check },
   { href: '/settings', label: 'Settings', icon: I.gear },
 ];
@@ -43,7 +42,7 @@ export function SideNav({ horizontal = false, include }: { horizontal?: boolean;
                   : 'text-neutral-700 hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800/60')
               }
             >
-              <span className="opacity-70">{it.icon}</span>{horizontal && 'shortLabel' in it && it.shortLabel ? it.shortLabel : it.label}{'badge' in it && it.badge ? <span className="ml-1 rounded bg-amber-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">{it.badge}</span> : null}
+              <span className="opacity-70">{it.icon}</span>{horizontal && it.shortLabel ? it.shortLabel : it.label}{it.badge ? <span className="ml-1 rounded bg-amber-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">{it.badge}</span> : null}
             </Link>
           </li>
         );

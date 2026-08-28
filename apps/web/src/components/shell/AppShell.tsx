@@ -25,8 +25,6 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         <SideNav include={['/me']} />
         <SideNav include={['/opersonas']} />
         <SideNav include={['/explore']} />
-        <SideNav include={['/download']} />
-        <SideNav include={['/command-center']} />
         <div className="mt-auto border-t border-neutral-200 py-2 dark:border-neutral-800">
           <SideNav include={['/approvals']} />
         </div>
@@ -40,12 +38,6 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-12 items-center justify-between border-b border-neutral-200 px-4 md:hidden dark:border-neutral-800">
           <Link href="/me" className="text-base font-semibold tracking-tight">opersona.me</Link>
           <div className="flex items-center gap-2">
-            <Link
-              href="/command-center"
-              aria-label="Command Center (beta)"
-              title="Command Center (beta)"
-              className="grid h-8 w-8 place-items-center rounded-lg border border-amber-300/70 bg-amber-50 font-mono text-[11px] font-bold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/70"
-            >&gt;_</Link>
             <UserMenu name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} />
           </div>
         </header>
@@ -54,7 +46,6 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
             <SideNav horizontal include={['/me']} />
             <SideNav horizontal include={['/opersonas']} />
             <SideNav horizontal include={['/explore']} />
-            <SideNav horizontal include={['/download']} />
             <SideNav horizontal include={['/approvals']} />
           </nav>
         </div>
