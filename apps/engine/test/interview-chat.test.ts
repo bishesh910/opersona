@@ -109,6 +109,20 @@ describe('chat interview', () => {
     expect(texts).toContain('Got it — noted.');
   });
 
+  it('NO rail at all says so honestly and keeps the thread open', async () => {
+    if (!enabled) return;
+    vi.mocked(structuredCall).mockImplementation(async (args: { kind?: string }) => {
+      if (args.kind === 'interview-chat') throw new Error('no_api_key: connect your Claude in Settings');
+      return EMPTY_EXTRACTION;
+    });
+    const before = await interviewChatState(ORG, CLONE);
+    const s = await sendInterviewChat({ orgId: ORG, cloneId: CLONE, text: 'hello?' });
+    expect(s.question!.id).toBe(before.question!.id); // NOT wrapped — waiting for a rail
+    const last = s.messages[s.messages.length - 1]!;
+    expect(last.role).toBe('interviewer');
+    expect(last.text).toContain('brain isn’t connected');
+  });
+
   it('skip finalizes as skipped and serves a different question', async () => {
     if (!enabled) return;
     railMock({ reply: 'x', action: 'continue' });

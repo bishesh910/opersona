@@ -115,10 +115,22 @@ export async function sendInterviewChat(a: { orgId: string; cloneId: string; tex
   let turn: ChatTurnT | null = null;
   let fallback = false;
   if (userCount < MAX_USER_MESSAGES_PER_THREAD) {
-    turn = await interviewerTurn(a.orgId, a.cloneId, question, thread).catch(() => null);
+    try {
+      turn = await interviewerTurn(a.orgId, a.cloneId, question, thread);
+    } catch (e) {
+      if (e instanceof Error && e.message.startsWith('no_api_key')) {
+        // No rail at all: don't pretend to converse — say so, keep the thread
+        // open, and the person's message is waiting when they connect.
+        await say(a.orgId, a.cloneId, question.id,
+          'I heard you — but my brain isn’t connected yet, so I can’t really talk back. Pair the bridge or add an API key in Settings → Models, then message me again and we’ll pick this right up.');
+        const next = await nextQuestionFor(a.orgId, a.cloneId); // still 'asked' → resumes this question
+        return { question: next.question, messages: await recentMessages(a.cloneId), progress: next.progress };
+      }
+      turn = null;
+    }
   }
   if (!turn) {
-    // Cap reached, model slow, or rail down: close warmly and keep moving.
+    // Cap reached or the model was slow/flaky: close warmly and keep moving.
     fallback = userCount < MAX_USER_MESSAGES_PER_THREAD;
     turn = { reply: 'Got it — noted.', action: 'wrap_up' };
   }
