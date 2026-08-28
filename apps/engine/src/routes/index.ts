@@ -229,6 +229,32 @@ routes.post('/clones/:id/interview/answer', async (c) => {
   }
 });
 
+/** Chat-style interview: current thread + stream (opens a question when none is live). */
+routes.post('/clones/:id/interview/chat/state', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string() }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { interviewChatState } = await import('../interview/chat.js');
+  return c.json(await interviewChatState(body.orgId, clone.id));
+});
+
+/** One user chat message in → interviewer reaction (or a wrap + the next question). */
+routes.post('/clones/:id/interview/chat/send', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), text: z.string().min(1).max(8000) }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { sendInterviewChat } = await import('../interview/chat.js');
+  return c.json(await sendInterviewChat({ orgId: body.orgId, cloneId: clone.id, text: body.text }));
+});
+
+routes.post('/clones/:id/interview/chat/skip', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string() }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { skipInterviewChat } = await import('../interview/chat.js');
+  return c.json(await skipInterviewChat(body.orgId, clone.id));
+});
+
 /** Revision-preserving edit of an earlier answer; sole-source derived items retire and extraction reruns. */
 routes.post('/clones/:id/interview/answers/:answerId/edit', async (c) => {
   const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), text: z.string().min(1).max(20_000) }));

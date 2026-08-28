@@ -683,7 +683,7 @@ export const interviewAnswers = pgTable('interview_answers', {
   questionText: text('question_text').notNull(),
   text: text('text').notNull().default(''),
   skipped: boolean('skipped').notNull().default(false),
-  context: jsonb('context').$type<{ threadDepth?: number; intent?: string | null }>().notNull().default({}),
+  context: jsonb('context').$type<{ threadDepth?: number; intent?: string | null; dialogue?: { role: string; text: string }[] }>().notNull().default({}),
   /** Edits never erase: prior versions pushed here. */
   revisions: jsonb('revisions').$type<{ text: string; at: string }[]>().notNull().default([]),
   /** Summary of what the async pass extracted (for the answer history UI). */
@@ -887,3 +887,17 @@ export const simulations = pgTable('simulations', {
   model: text('model'),
   createdAt: now(),
 }, (t) => [index('simulations_clone_idx').on(t.cloneId, t.createdAt)]);
+
+/** Chat-style interview: the persona messages its human; short exchanges per
+ *  question. When a thread wraps, the user side materializes into an
+ *  interview_answers row (same extraction pipeline; quotes stay verifiable
+ *  against the person's own words). */
+export const interviewMessages = pgTable('interview_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: text('org_id').notNull(),
+  cloneId: uuid('clone_id').notNull(),
+  questionId: uuid('question_id').notNull(),
+  role: text('role').$type<'interviewer' | 'user'>().notNull(),
+  text: text('text').notNull(),
+  createdAt: now(),
+}, (t) => [index('interview_messages_thread_idx').on(t.cloneId, t.questionId, t.createdAt)]);

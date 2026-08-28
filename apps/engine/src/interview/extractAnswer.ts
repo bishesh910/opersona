@@ -154,10 +154,16 @@ export async function extractInterviewAnswer(orgId: string, cloneId: string, ans
       const [contra] = await db.select().from(contradictions).where(eq(contradictions.id, question.contradictionId)).limit(1);
       if (contra) probeContext = `\n\nTHIS ANSWER RESPONDS TO AN OPEN TENSION:\n${contra.description}\nJudge contradiction_resolution: did this answer explain what makes the situations different? A good resolution usually becomes a RULE.`;
     }
+    // Chat-captured answers carry the dialogue: the interviewer's probes make
+    // short replies interpretable. Quotes are still verified against the
+    // person's own words only (row.text = their side of the thread).
+    const dialogue = row.context?.dialogue?.length
+      ? `\n\nHOW IT WAS SAID (a chat with the interviewer — quote ONLY the person's lines):\n${row.context.dialogue.map((m) => `${m.role === 'user' ? 'PERSON' : 'INTERVIEWER'}: ${redactSecrets(m.text).slice(0, 1200)}`).join('\n')}`
+      : '';
     const raw = await structuredCall({
       orgId, cloneId, kind: 'interview-extract', apiKey: cfg.apiKey, model: cfg.extractModel, effort: 'medium',
       schema: AnswerExtraction, system: EXTRACT_ANSWER_SYSTEM,
-      user: `${digest}\n\nCATEGORY: ${row.category}\nFACETS in this category: ${(CATEGORY_FACETS[row.category as keyof typeof CATEGORY_FACETS] ?? []).join(', ')}\n\nQUESTION:\n${row.questionText}\n\nANSWER (verbatim):\n${redactSecrets(row.text).slice(0, 8000)}${probeContext}`,
+      user: `${digest}\n\nCATEGORY: ${row.category}\nFACETS in this category: ${(CATEGORY_FACETS[row.category as keyof typeof CATEGORY_FACETS] ?? []).join(', ')}\n\nQUESTION:\n${row.questionText}\n\nANSWER (verbatim, the person's words only):\n${redactSecrets(row.text).slice(0, 8000)}${dialogue}${probeContext}`,
     });
     const { out, dropped, demoted } = sanitizeExtraction(raw, row.text);
 

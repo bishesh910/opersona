@@ -84,6 +84,14 @@ export function BridgeCard() {
               <CopyButton text={cmd} />
             </div>
             <p className="muted text-xs">Needs Node and the <code>claude</code> CLI signed in. The status above flips to <span className="font-medium">● online</span> within seconds.</p>
+            <div className="space-y-1.5 pt-1">
+              <p className="text-xs font-medium">Then set it free of the terminal — install it as a background service:</p>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">npx opersona@latest install</code>
+                <CopyButton text="npx opersona@latest install" />
+              </div>
+              <p className="muted text-xs">Runs invisibly from then on — starts at login, restarts if it crashes, no window to keep open. Remove any time with <code>npx opersona uninstall</code>.</p>
+            </div>
           {recovery && (
             <div className="space-y-1.5 rounded-lg border border-emerald-300 bg-emerald-50 p-2.5 dark:border-emerald-800 dark:bg-emerald-950/40" data-seal-recovery>
               <p className="text-xs font-medium">🔑 Your conversations are now SEALED — save this key like a password.</p>

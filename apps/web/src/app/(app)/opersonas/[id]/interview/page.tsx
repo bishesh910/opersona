@@ -20,7 +20,7 @@ export default async function InterviewPage({ params }: { params: Promise<{ id: 
     .orderBy(desc(schema.interviewAnswers.createdAt)).limit(100);
   return (
     <div className="mx-auto max-w-2xl space-y-10">
-      <InterviewRoom cloneId={access.clone.id} />
+      <InterviewRoom cloneId={access.clone.id} personaName={access.clone.name} avatar={access.clone.avatarRecipe ?? null} />
       <AnswerHistory
         cloneId={access.clone.id}
         rows={answers.map((a) => ({

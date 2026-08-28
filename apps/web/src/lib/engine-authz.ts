@@ -103,6 +103,14 @@ export async function authorize(ctx: OrgCtx, method: string, path: string[]): Pr
     return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can rate self-tests');
   }
 
+  // Chat-style interview: clones/:id/interview/chat/{state|send|skip}. Owner only.
+  if (root === 'clones' && id && UUID.test(id) && path.length === 5 && method === 'POST'
+    && path[2] === 'interview' && path[3] === 'chat' && ['state', 'send', 'skip'].includes(path[4] ?? '')) {
+    const access = await getCloneAccess(ctx, id);
+    if (!access) return deny(404, 'clone not found');
+    return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can be interviewed');
+  }
+
   // Blind scenario actions: clones/:id/scenarios/:sid/{answer|skip|correct}. Owner only.
   if (root === 'clones' && id && UUID.test(id) && path.length === 5 && method === 'POST'
     && path[2] === 'scenarios' && path[3] && UUID.test(path[3]) && ['answer', 'skip', 'correct'].includes(path[4] ?? '')) {

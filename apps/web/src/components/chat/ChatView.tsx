@@ -809,10 +809,13 @@ function BridgeToggle() {
           <p className="text-sm font-medium">{on ? 'Your machine is connected.' : 'Your machine is not connected.'}</p>
           <p className="muted mt-1 text-xs">{on ? 'Stop the bridge from its terminal (Ctrl-C) to disconnect.' : 'Start the bridge in a terminal on your paired machine:'}</p>
           {!on && (
-            <div className="mt-2 flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] dark:bg-neutral-800">npx opersona@latest</code>
-              <CopyButton text="npx opersona@latest" />
-            </div>
+            <>
+              <div className="mt-2 flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] dark:bg-neutral-800">npx opersona@latest</code>
+                <CopyButton text="npx opersona@latest" />
+              </div>
+              <p className="muted mt-1.5 text-[11px]">Tired of the terminal? <code>npx opersona@latest install</code> runs it invisibly in the background, at every login.</p>
+            </>
           )}
         </div>
       )}
