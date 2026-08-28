@@ -167,3 +167,11 @@ non-owner audiences see only rows marked `shareable` (default false).
 - `POST /clones/:id/purge-files` `{ orgId, documentIds? }` — remove one clone's dirs + its
   upload files (persona deletion). DB truth never depends on these; they are best-effort
   filesystem cleanup after the information_schema-driven row sweep in the web tier.
+
+- `POST /clones/:id/interview/submit-thread` `{ orgId, questionId, userText, dialogue? }` — the
+  MCP path: the interview CONVERSATION runs inside claude.ai (the user's own fast Claude plays
+  the interviewer via the `interview_me` / `submit_interview_answer` connector tools); a
+  completed exchange lands here as one answer (user's verbatim words quotable, dialogue as
+  context) and rides the same extraction pipeline. Returns the next question. This is the
+  recommended free-tier interview: conversation latency lives where a warm Claude already runs;
+  only the async extraction touches the bridge, where slowness costs nobody anything.

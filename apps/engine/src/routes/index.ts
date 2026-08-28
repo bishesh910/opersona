@@ -255,6 +255,23 @@ routes.post('/clones/:id/interview/chat/skip', async (c) => {
   return c.json(await skipInterviewChat(body.orgId, clone.id));
 });
 
+/** MCP path: a whole exchange conducted on claude.ai lands as one answer (server-to-server only). */
+routes.post('/clones/:id/interview/submit-thread', async (c) => {
+  const body = await parse(c, z.object({
+    orgId: z.string(), userId: z.string().optional(), questionId: z.string().uuid(),
+    userText: z.string().max(20_000),
+    dialogue: z.array(z.object({ role: z.string().max(20), text: z.string().max(4000) })).max(24).optional(),
+  }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { submitThread } = await import('../interview/service.js');
+  try {
+    return c.json(await submitThread({ orgId: body.orgId, cloneId: clone.id, questionId: body.questionId, userText: body.userText, dialogue: body.dialogue }));
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : 'could not save the answer' }, 409);
+  }
+});
+
 /** Revision-preserving edit of an earlier answer; sole-source derived items retire and extraction reruns. */
 routes.post('/clones/:id/interview/answers/:answerId/edit', async (c) => {
   const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), text: z.string().min(1).max(20_000) }));

@@ -192,6 +192,32 @@ describe('chat interview', () => {
     expect(last.text).toContain('brain isn’t connected');
   });
 
+  it('submitThread (MCP path) lands a whole claude.ai exchange as one answer', async () => {
+    if (!enabled) return;
+    railMock({ reply: 'x', action: 'continue' });
+    const { submitThread } = await import('../src/interview/service.js');
+    const before = await interviewChatState(ORG, CLONE);
+    const r = await submitThread({
+      orgId: ORG, cloneId: CLONE, questionId: before.question!.id,
+      userText: 'I always test the waters with a small version first.\nBig commitments scare me until I have proof.',
+      dialogue: [
+        { role: 'interviewer', text: 'How do you usually start something new?' },
+        { role: 'user', text: 'I always test the waters with a small version first.' },
+        { role: 'interviewer', text: 'And when you cannot do a small version?' },
+        { role: 'user', text: 'Big commitments scare me until I have proof.' },
+      ],
+    });
+    await flushQueue();
+    expect(r.answerId).toBeTruthy();
+    expect(r.question!.id).not.toBe(before.question!.id); // next question returned for the interviewer to flow into
+    const [ans] = await db.select().from(interviewAnswers)
+      .where(and(eq(interviewAnswers.cloneId, CLONE), eq(interviewAnswers.questionId, before.question!.id))).limit(1);
+    expect(ans!.text).toContain('test the waters');
+    expect(ans!.context.dialogue!.filter((m) => m.role === 'interviewer')).toHaveLength(2);
+    // Double-submit refuses.
+    await expect(submitThread({ orgId: ORG, cloneId: CLONE, questionId: before.question!.id, userText: 'again' })).rejects.toThrow(/already answered/);
+  });
+
   it('skip finalizes as skipped and serves a different question', async () => {
     if (!enabled) return;
     railMock({ reply: 'x', action: 'continue' });

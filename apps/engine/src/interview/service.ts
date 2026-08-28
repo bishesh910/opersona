@@ -165,6 +165,36 @@ export async function submitAnswer(a: {
   return { answerId: skipped ? null : ans!.id, ack, ...next };
 }
 
+/**
+ * Submit a whole interview exchange conducted ELSEWHERE (claude.ai over MCP:
+ * their own fast Claude plays the interviewer). The user's verbatim words are
+ * the quotable answer; the dialogue rides as context. Same materialization,
+ * same extraction pipeline, next question returned so the interviewer flows on.
+ */
+export async function submitThread(a: {
+  orgId: string; cloneId: string; questionId: string; userText: string;
+  dialogue?: { role: string; text: string }[];
+}): Promise<{ answerId: string | null; question: ServedQuestion | null; progress: Progress }> {
+  const [q] = await db.select().from(interviewQuestions)
+    .where(and(eq(interviewQuestions.id, a.questionId), eq(interviewQuestions.cloneId, a.cloneId), eq(interviewQuestions.orgId, a.orgId))).limit(1);
+  if (!q) throw new Error('question not found');
+  if (q.status === 'answered' || q.status === 'skipped') throw new Error('already answered — ask for the next question');
+  const text = a.userText.trim();
+  const skipped = !text;
+  const [ans] = await db.insert(interviewAnswers).values({
+    orgId: a.orgId, cloneId: a.cloneId, questionId: q.id, category: q.category, questionText: q.text,
+    text, skipped,
+    context: { intent: q.intent, ...(a.dialogue?.length ? { dialogue: a.dialogue.map((m) => ({ role: m.role === 'user' ? 'user' : 'interviewer', text: m.text.slice(0, 2000) })).slice(0, 24) } : {}) },
+    extractionStatus: skipped ? 'skipped' : 'pending',
+    ...(skipped ? { extractedAt: new Date() } : {}),
+  }).returning({ id: interviewAnswers.id });
+  await db.update(interviewQuestions).set({ status: skipped ? 'skipped' : 'answered' }).where(eq(interviewQuestions.id, q.id));
+  if (!skipped) enqueue({ kind: 'interview_extract', orgId: a.orgId, cloneId: a.cloneId, answerId: ans!.id });
+  await storeCoverage(a.orgId, a.cloneId);
+  const next = await nextQuestionFor(a.orgId, a.cloneId);
+  return { answerId: skipped ? null : ans!.id, ...next };
+}
+
 /** Revision-preserving edit: old text is kept, derived sole-source items retire, extraction reruns. */
 export async function editAnswer(a: { orgId: string; cloneId: string; answerId: string; text: string }): Promise<{ requeued: boolean }> {
   const [row] = await db.select().from(interviewAnswers)

@@ -189,6 +189,78 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
     },
   );
 
+  const INTERVIEWER_BRIEF = `HOW TO CONDUCT THIS (you are the interviewer now):
+- Ask the question conversationally in your own words — you're a curious friend, never a form or a therapist. One question at a time.
+- Probe over 2-4 exchanges when it earns its place: the why, what they weighed, what they feared, whether they'd do it again, whether there's an exception, whether it changes when someone close is involved.
+- If they share something heavy or unresolved, be a person FIRST — name the weight simply ("that's a lot to carry") and stay on that thread; never change the subject away from something raw. If they ask what YOU think they should do, be honest that their persona is still learning them, then ask what each option would actually mean for them.
+- When the thread has a concrete story plus the reason underneath, call submit_interview_answer with the question_id, their words VERBATIM (their phrasing is what their persona learns from — never paraphrase), and the exchange. Then flow into the next question it returns.
+- After ~3 completed questions, offer a natural break ("that's plenty for one sitting") — they can always continue.`;
+
+  server.tool(
+    'interview_me',
+    "Interview the user to build their opersona, right here in this chat — YOU conduct it. Fetches the next question from their persona's adaptive interview (10 life areas, contradiction probes included) with instructions for running it conversationally. Call when the user asks to be interviewed, to 'teach my persona about me', or to continue their interview. Their answers are extracted server-side into evidence-backed memories, traits and rules they review at opersona.me.",
+    {},
+    async () => {
+      const me = await resolveWorkspace(userId);
+      if (!me) return errText('Account not found.');
+      const clone = await myPersona(me);
+      if (!clone) return errText(NO_PERSONA);
+      try {
+        const r = await engineFetch<{ question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null; progress: { answered: number; categories: { label: string; coverage: number; justStarted: boolean }[] } }>(
+          `/clones/${clone.id}/interview/next`, { body: { orgId: me.orgId, userId: me.userId } });
+        if (!r.question) return text('Nothing pending right now — new questions appear as the persona studies recent answers. Try again after the next few.');
+        const started = r.progress.categories.filter((c) => !c.justStarted);
+        const coverage = started.length
+          ? `So far: ${r.progress.answered} answers · knows them ≈ ${Math.round((started.reduce((s, c) => s + c.coverage, 0) / r.progress.categories.length) * 100)}% overall.`
+          : 'This is early days — first answers teach it the most.';
+        return text([
+          `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn’t quite add up' : r.question.kind === 'follow_up' ? ' · digging deeper on an earlier thread' : ''}`,
+          `"${r.question.text}"${r.question.hint ? `\n(${r.question.hint})` : ''}`,
+          '',
+          coverage,
+          '',
+          INTERVIEWER_BRIEF,
+        ].join('\n'));
+      } catch (e) {
+        return errText(`The interview backend is unreachable right now (${e instanceof Error ? e.message : 'engine error'}).`);
+      }
+    },
+  );
+
+  server.tool(
+    'submit_interview_answer',
+    "Save one completed interview exchange to the user's opersona and get the next question. Call after interview_me once a question's thread is complete (a concrete story + the why). their_words must be the user's own words VERBATIM — their phrasing is what the persona learns from.",
+    {
+      question_id: z.string().uuid().describe('the id from interview_me / the previous submit'),
+      their_words: z.string().min(1).max(20_000).describe("the user's own messages from this thread, verbatim, joined by newlines — never paraphrased, never yours"),
+      exchange: z.array(z.object({ role: z.enum(['user', 'interviewer']), text: z.string().max(4000) })).max(24).optional()
+        .describe('the full back-and-forth in order (your questions included) so short answers stay interpretable'),
+    },
+    async ({ question_id, their_words, exchange }) => {
+      const me = await resolveWorkspace(userId);
+      if (!me) return errText('Account not found.');
+      const clone = await myPersona(me);
+      if (!clone) return errText(NO_PERSONA);
+      try {
+        const r = await engineFetch<{ answerId: string | null; question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null; progress: { answered: number } }>(
+          `/clones/${clone.id}/interview/submit-thread`, { body: { orgId: me.orgId, questionId: question_id, userText: their_words, dialogue: exchange } });
+        const pace = r.progress.answered > 0 && r.progress.answered % 3 === 0
+          ? '\n\nPACING: that makes three this sitting — offer them a natural break before continuing.'
+          : '';
+        if (!r.question) return text(`Saved (${r.progress.answered} answers so far) — the persona is folding it in. No more questions pending right now.${pace}`);
+        return text([
+          `Saved — the persona is folding it in (answer ${r.progress.answered}). Flow naturally into the next one:`,
+          '',
+          `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn’t quite add up' : ''}`,
+          `"${r.question.text}"${r.question.hint ? `\n(${r.question.hint})` : ''}`,
+          pace,
+        ].join('\n'));
+      } catch (e) {
+        return errText(`Could not save that exchange (${e instanceof Error ? e.message : 'engine error'}) — their words are still in this chat; try again.`);
+      }
+    },
+  );
+
   server.tool(
     'list_my_roster',
     "List the personas in the user's opersona workspace (their own plus any hired specialists), with roles.",
