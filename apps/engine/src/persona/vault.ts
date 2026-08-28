@@ -9,7 +9,7 @@
 import AdmZip from 'adm-zip';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { db, clones, personaBriefs, personalityTests, reasoningPatterns, reasoningObservations, episodes } from '@opersona/db';
-import { describeMbti, type Axis } from '@opersona/shared';
+import { describeMbti, describeStatedMbti, type Axis } from '@opersona/shared';
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -94,7 +94,13 @@ export async function exportVault(orgId: string, cloneId: string): Promise<{ buf
     add('Brief.md', lines.join('\n'));
   }
   if (personality) {
-    add('Personality.md', [
+    add('Personality.md', personality.source === 'stated' ? [
+      `# Personality (self-reported): ${personality.type}`,
+      '',
+      describeStatedMbti(personality.type),
+      '',
+      `_Stated directly ${day(personality.createdAt)} — no per-axis strengths were measured. Self-report is flavour; observed patterns win._`,
+    ].join('\n') : [
       `# Personality (self-reported): ${personality.type}`,
       '',
       describeMbti({ type: personality.type, scores: personality.scores }),

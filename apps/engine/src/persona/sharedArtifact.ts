@@ -51,7 +51,8 @@ export async function exportSharedPersona(orgId: string, cloneId: string, opts: 
       roleTitle: brief?.roleTitle ?? null,
       bio: opts.bio?.trim().slice(0, 500) || null,
       avatarRecipe: clone.avatarRecipe ?? null,
-      personality: personality ? { type: personality.type, scores: personality.scores } : null,
+      // Stated types export the letters only — ±1 direction sentinels are not strengths.
+      personality: personality ? { type: personality.type, scores: personality.source === 'stated' ? {} : personality.scores } : null,
     },
     author: { name: opts.author.name, slug: opts.author.slug ?? null, site: opts.author.site },
     stats: { patterns: patterns.length, facts: fs.length, playbooks: pbs.length, accuracy: acc },

@@ -36,6 +36,13 @@
       "when": 1787922429260,
       "tag": "0004_interview_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787929092766,
+      "tag": "0005_personality_source",
+      "breakpoints": true
     }
   ]
 }

@@ -1,8 +1,9 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AXIS_POLES, type MbtiResult, type Axis } from '@opersona/shared';
+import { AXIS_POLES, statedScores, type MbtiResult, type Axis } from '@opersona/shared';
 import { MbtiTest } from './MbtiTest';
+import { TypeEntry } from './TypeEntry';
 
 const AXES: Axis[] = ['EI', 'SN', 'TF', 'JP'];
 
@@ -54,14 +55,16 @@ function AxesChart({ scores }: { scores: Record<Axis, number> }) {
 export function PersonalityCard({ cloneId, readOnly, latest }: {
   cloneId: string;
   readOnly: boolean;
-  latest: { type: string; scores: Record<Axis, number> } | null;
+  latest: { type: string; scores: Record<Axis, number>; source: 'test' | 'stated' } | null;
 }) {
   const router = useRouter();
-  const [view, setView] = useState<'intro' | 'test' | 'result'>(latest ? 'result' : 'intro');
+  const [view, setView] = useState<'intro' | 'test' | 'stated' | 'result'>(latest ? 'result' : 'intro');
   const [warning, setWarning] = useState<string | null>(null);
   const [saved, setSaved] = useState<MbtiResult | null>(null);
+  const [savedSource, setSavedSource] = useState<'test' | 'stated' | null>(null);
 
   const result: MbtiResult | null = saved ?? latest;
+  const source: 'test' | 'stated' = savedSource ?? latest?.source ?? 'test';
 
   function startTest() {
     setWarning(null);
@@ -80,13 +83,26 @@ export function PersonalityCard({ cloneId, readOnly, latest }: {
       {view === 'intro' && (
         readOnly
           ? <p className="muted text-sm">No test taken yet.</p>
-          : <button type="button" className="btn-primary" onClick={startTest}>Take the test</button>
+          : (
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" className="btn-primary" onClick={startTest}>Take the test</button>
+              <button type="button" className="btn-secondary" onClick={() => setView('stated')}>I already know my type</button>
+            </div>
+          )
       )}
 
       {view === 'test' && (
         <MbtiTest
           cloneId={cloneId}
-          onDone={(r, w) => { setSaved(r); setWarning(w); setView('result'); router.refresh(); }}
+          onDone={(r, w) => { setSaved(r); setSavedSource('test'); setWarning(w); setView('result'); router.refresh(); }}
+        />
+      )}
+
+      {view === 'stated' && (
+        <TypeEntry
+          cloneId={cloneId}
+          initial={result?.type}
+          onDone={(t) => { setSaved({ type: t, scores: statedScores(t) }); setSavedSource('stated'); setWarning(null); setView('result'); router.refresh(); }}
         />
       )}
 
@@ -95,12 +111,24 @@ export function PersonalityCard({ cloneId, readOnly, latest }: {
           <div className="flex items-baseline gap-3">
             <span className="text-[32px] font-semibold leading-none">{result.type}</span>
             {!readOnly && (
-              <button type="button" className="muted text-xs underline underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200" onClick={startTest}>
-                Retake
-              </button>
+              <>
+                <button type="button" className="muted text-xs underline underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200" onClick={startTest}>
+                  {source === 'stated' ? 'Measure it — take the test' : 'Retake'}
+                </button>
+                <button type="button" className="muted text-xs underline underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200" onClick={() => setView('stated')}>
+                  {source === 'stated' ? 'Change type' : 'Type it in instead'}
+                </button>
+              </>
             )}
           </div>
-          <AxesChart scores={result.scores} />
+          {source === 'stated' ? (
+            <p className="muted text-sm">
+              You stated this type directly, so there are no per-axis strengths to show —
+              honest bars need measured answers. Take the test to see how strong each lean is.
+            </p>
+          ) : (
+            <AxesChart scores={result.scores} />
+          )}
           {warning && <p className="text-sm text-amber-600">{warning}</p>}
         </div>
       )}

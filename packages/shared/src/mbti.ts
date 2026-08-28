@@ -70,6 +70,35 @@ export function scoreMbti(answers: Record<string, number>): MbtiResult {
 
 export const AXIS_POLES: Record<Axis, [string, string]> = { EI: ['Extraversion', 'Introversion'], SN: ['Sensing', 'Intuition'], TF: ['Thinking', 'Feeling'], JP: ['Judging', 'Perceiving'] };
 
+/** All 16 four-letter types — for people who already know theirs and just type it in. */
+export const MBTI_TYPES = [
+  'ISTJ', 'ISFJ', 'INFJ', 'INTJ', 'ISTP', 'ISFP', 'INFP', 'INTP',
+  'ESTP', 'ESFP', 'ENFP', 'ENTP', 'ESTJ', 'ESFJ', 'ENFJ', 'ENTJ',
+] as const;
+
+/** Direction-only sentinel scores (±1) for a STATED type: the pole is known, the
+ *  strength is not. Renderers must branch on `source === 'stated'` and never show
+ *  these as percentages — inventing strengths would break the no-fake-numbers rule. */
+export function statedScores(type: string): Record<Axis, number> {
+  return {
+    EI: type[0] === 'E' ? -1 : 1,
+    SN: type[1] === 'S' ? -1 : 1,
+    TF: type[2] === 'T' ? -1 : 1,
+    JP: type[3] === 'J' ? -1 : 1,
+  };
+}
+
+/** Prompt/export line for a stated type: poles spelled out, no invented strengths. */
+export function describeStatedMbti(type: string): string {
+  const poles = [
+    AXIS_POLES.EI[type[0] === 'E' ? 0 : 1],
+    AXIS_POLES.SN[type[1] === 'S' ? 0 : 1],
+    AXIS_POLES.TF[type[2] === 'T' ? 0 : 1],
+    AXIS_POLES.JP[type[3] === 'J' ? 0 : 1],
+  ];
+  return `${type} — ${poles.join(', ')} (stated directly; per-axis strengths not measured)`;
+}
+
 /** Short prompt-facing description; strength wording scales with |score|. */
 export function describeMbti(r: MbtiResult): string {
   const strength = (v: number) => (Math.abs(v) >= 60 ? 'strongly' : Math.abs(v) >= 25 ? 'moderately' : 'slightly');

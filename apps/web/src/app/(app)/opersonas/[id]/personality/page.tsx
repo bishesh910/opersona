@@ -23,7 +23,7 @@ export default async function PersonalityPage({ params }: { params: Promise<{ id
     <PersonalityCard
       cloneId={id}
       readOnly={!access.canWrite}
-      latest={personality ? { type: personality.type, scores: personality.scores } : null}
+      latest={personality ? { type: personality.type, scores: personality.scores, source: personality.source } : null}
     />
   );
 }

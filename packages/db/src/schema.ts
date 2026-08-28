@@ -564,6 +564,9 @@ export const personalityTests = pgTable('personality_tests', {
   answers: jsonb('answers').$type<Record<string, number>>().notNull(),
   scores: jsonb('scores').$type<Record<'EI' | 'SN' | 'TF' | 'JP', number>>().notNull(),
   type: text('type').notNull(),
+  // 'test' = scored from Likert answers; 'stated' = the owner typed their four
+  // letters in directly (scores are ±1 direction sentinels — never render as %).
+  source: text('source').$type<'test' | 'stated'>().notNull().default('test'),
   createdAt: now(),
 }, (t) => [index('personality_clone_idx').on(t.cloneId, t.createdAt)]);
 

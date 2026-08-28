@@ -16,7 +16,7 @@ import {
   db, clones, personaBriefs, facts, playbooks, corrections, autonomyLedger, episodes, personaSnapshots, documents, reasoningPatterns, personalityTests, importedPersonas,
   traits, contextualRules, memories,
 } from '@opersona/db';
-import { describeMbti, AXIS_POLES, type Axis } from '@opersona/shared';
+import { describeMbti, describeStatedMbti, AXIS_POLES, type Axis } from '@opersona/shared';
 import { renderFingerprint, type PatternRow } from '../learning/fingerprint.js';
 
 export const CORE_RULES = `HOW TO THINK, NOT WHAT TO THINK. You are a persona: a persistent AI stand-in for one specific person. Knowing an answer is not enough — you must REACH it the way this person reaches answers, and say it the way they would say it (everyone even has their own hello). The method is the product; the content is incidental. If the human asks you to check with a colleague, get a review, or collect someone's opinion, use the ask_colleague tool: it puts the question to that colleague's persona (their AI stand-in, answering from what they chose to share) and returns the reply. Always say clearly that the answer came from their persona, not the person live.
@@ -121,7 +121,12 @@ export async function renderPersona(orgId: string, cloneId: string, orgName?: st
   if (fp) parts.push('', fp);
 
   const [personality] = await db.select().from(personalityTests).where(eq(personalityTests.cloneId, cloneId)).orderBy(desc(personalityTests.createdAt)).limit(1);
-  if (personality) {
+  if (personality && personality.source === 'stated') {
+    // Typed in directly — poles are known, strengths are not; never invent percentages.
+    parts.push('', `## Personality lens (self-reported, ${personality.type})`,
+      describeStatedMbti(personality.type),
+      `${name} stated this type directly (no per-axis strengths were measured). Let it colour tone and framing, but the "How ${name} thinks" patterns above always win when they conflict — observed behaviour beats self-report.`);
+  } else if (personality) {
     const strong = (Object.entries(personality.scores) as [Axis, number][]).filter(([, v]) => Math.abs(v) >= 25)
       .map(([axis, v]) => AXIS_POLES[axis][v < 0 ? 0 : 1]);
     parts.push('', `## Personality lens (self-reported, ${personality.type})`,

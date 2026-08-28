@@ -1,0 +1,1 @@
+ALTER TABLE "personality_tests" ADD COLUMN "source" text DEFAULT 'test' NOT NULL;

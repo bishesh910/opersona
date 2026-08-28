@@ -12,7 +12,8 @@ import { AvatarCanvas } from '@/components/avatar/AvatarCanvas';
 import { RecipeEditor } from '@/components/avatar/RecipeEditor';
 import { SelfieUpload } from '@/components/avatar/SelfieUpload';
 import { MbtiTest } from '@/components/brief/MbtiTest';
-import { MBTI_QUICK_ITEMS } from '@opersona/shared';
+import { TypeEntry } from '@/components/brief/TypeEntry';
+import { MBTI_QUICK_ITEMS, statedScores } from '@opersona/shared';
 import { ApiKeyForm } from '@/components/settings/ApiKeyForm';
 import { ConnectorCard } from '@/components/settings/ConnectorCard';
 import { BridgeCard } from '@/components/settings/BridgeCard';
@@ -424,8 +425,9 @@ function MindStep({ cloneId, existingType, onType, onNext }: {
   onType: (t: string) => void;
   onNext: () => void;
 }) {
-  const [view, setView] = useState<'intro' | 'test' | 'result'>(existingType ? 'result' : 'intro');
+  const [view, setView] = useState<'intro' | 'test' | 'stated' | 'result'>(existingType ? 'result' : 'intro');
   const [quick, setQuick] = useState(true);
+  const [stated, setStated] = useState(false);
   const [result, setResult] = useState<MbtiResult | null>(null);
   const type = result?.type ?? existingType;
 
@@ -441,6 +443,7 @@ function MindStep({ cloneId, existingType, onType, onNext }: {
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" className="btn-primary" onClick={() => { setQuick(true); setView('test'); }}>Quick take — 12 questions, ~90s</button>
             <button type="button" className="btn-secondary" onClick={() => { setQuick(false); setView('test'); }}>Full precision — 24</button>
+            <button type="button" className="btn-secondary" onClick={() => setView('stated')}>I already know my type</button>
             <button type="button" className="muted text-sm underline underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200" onClick={onNext}>
               Skip for now
             </button>
@@ -450,8 +453,17 @@ function MindStep({ cloneId, existingType, onType, onNext }: {
 
       {view === 'test' && (
         <div className="card">
-          <MbtiTest cloneId={cloneId} items={quick ? MBTI_QUICK_ITEMS : undefined} onDone={(r) => { setResult(r); onType(r.type); setView('result'); }} />
+          <MbtiTest cloneId={cloneId} items={quick ? MBTI_QUICK_ITEMS : undefined} onDone={(r) => { setResult(r); setStated(false); onType(r.type); setView('result'); }} />
           <button type="button" className="muted mt-3 text-xs underline underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200" onClick={onNext}>
+            Skip for now
+          </button>
+        </div>
+      )}
+
+      {view === 'stated' && (
+        <div className="card space-y-3">
+          <TypeEntry cloneId={cloneId} initial={type} onDone={(t) => { setResult({ type: t, scores: statedScores(t) }); setStated(true); onType(t); setView('result'); }} />
+          <button type="button" className="muted text-xs underline underline-offset-2 hover:text-neutral-800 dark:hover:text-neutral-200" onClick={onNext}>
             Skip for now
           </button>
         </div>
@@ -461,7 +473,7 @@ function MindStep({ cloneId, existingType, onType, onNext }: {
         <div className="card space-y-3">
           <p className="muted text-sm">Your persona’s lens:</p>
           <p className="text-[40px] font-semibold leading-none">{type}</p>
-          <p className="muted text-xs">{quick ? 'Quick take — sharpen it with the full 24 questions any time under your persona’s Personality tab.' : 'You can retake or inspect the full breakdown any time under your persona’s Personality tab.'}</p>
+          <p className="muted text-xs">{stated ? 'Typed in directly — take the test any time under your persona’s Personality tab to measure how strong each lean is.' : quick ? 'Quick take — sharpen it with the full 24 questions any time under your persona’s Personality tab.' : 'You can retake or inspect the full breakdown any time under your persona’s Personality tab.'}</p>
           <button type="button" className="btn-primary" onClick={onNext}>Continue</button>
         </div>
       )}
