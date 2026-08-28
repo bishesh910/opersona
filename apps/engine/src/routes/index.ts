@@ -186,6 +186,23 @@ routes.get('/clones/:id/prompt', async (c) => {
   return c.json(await activePrompt(orgId, clone.id, promptAudience(clone.kind, c.req.query('audience'))));
 });
 
+// ─── simulation ─────────────────────────────────────────────────────────────
+/** One-shot behavioural prediction. Context is assembled server-side; output is
+ *  contract-enforced (evidence filtering, forced abstention). Never a conversation. */
+routes.post('/clones/:id/simulate', async (c) => {
+  const body = await parse(c, z.object({
+    orgId: z.string(), userId: z.string(),
+    mode: z.enum(['ask', 'respond', 'decide', 'compare', 'explain']),
+    text: z.string().min(5).max(4000),
+    options: z.array(z.string().min(1).max(200)).min(2).max(4).optional(),
+    context: z.string().max(2000).optional(),
+  }).refine((b) => b.mode !== 'compare' || (b.options?.length ?? 0) >= 2, { message: 'compare mode needs 2-4 options' }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { simulate } = await import('../persona/simulate.js');
+  return c.json(await simulate({ orgId: body.orgId, cloneId: clone.id, userId: body.userId, mode: body.mode, text: body.text, options: body.options, context: body.context }));
+});
+
 // ─── cognitive interview ────────────────────────────────────────────────────
 /** Current (or next) interview question + per-category progress. Resume-safe. */
 routes.post('/clones/:id/interview/next', async (c) => {

@@ -8,6 +8,7 @@ const TABS: { key: string; label: string }[] = [
   { key: 'interview', label: 'Interview' },
   { key: 'personality', label: 'Personality' },
   { key: 'survey', label: 'Test me' },
+  { key: 'simulate', label: 'Simulate' },
   { key: 'avatar', label: 'Pixie' },
   { key: 'chat', label: 'Chat' },
   { key: 'memory', label: 'Memory' },

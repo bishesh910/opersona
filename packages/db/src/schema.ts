@@ -858,3 +858,32 @@ export const predictionScenarios = pgTable('prediction_scenarios', {
   index('pred_scenarios_clone_status_idx').on(t.cloneId, t.status),
   index('pred_scenarios_clone_idx').on(t.cloneId, t.createdAt),
 ]);
+
+// ─── simulations (P5) ───────────────────────────────────────────────────────
+// One-shot behavioural predictions ("what would I do?"). Deliberately NOT
+// conversations: server-assembled context, structured output, and the learning
+// queue never mines them (they are the persona talking, not the human).
+
+export interface SimulationOutput {
+  answer: string;
+  factors: { factor: string; weight: 'major' | 'minor' }[];
+  confidence: number;
+  uncertainty: string[];
+  evidence_used: string[];
+  enough_information: boolean;
+  comparison?: { option: string; verdict: string; lean: number }[];
+}
+
+export const simulations = pgTable('simulations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: text('org_id').notNull(),
+  cloneId: uuid('clone_id').notNull(),
+  userId: text('user_id').notNull(),
+  mode: text('mode').$type<'ask' | 'respond' | 'decide' | 'compare' | 'explain'>().notNull(),
+  input: jsonb('input').$type<{ text: string; options?: string[]; context?: string }>().notNull(),
+  output: jsonb('output').$type<SimulationOutput>().notNull(),
+  /** The retrieval hits that were OFFERED to the model (evidence_used ⊆ these ids). */
+  evidence: jsonb('evidence').$type<{ layer: string; id: string; text: string }[]>().notNull().default([]),
+  model: text('model'),
+  createdAt: now(),
+}, (t) => [index('simulations_clone_idx').on(t.cloneId, t.createdAt)]);

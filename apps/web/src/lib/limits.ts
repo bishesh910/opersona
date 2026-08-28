@@ -17,6 +17,7 @@ const RULES = {
   scenarioGen: { limit: 4, windowMs: 3_600_000, label: 'up to 4 scenario batches per hour' },
   scenarioAnswer: { limit: 30, windowMs: 3_600_000, label: 'up to 30 scenario answers per hour' },
   scenarioCorrect: { limit: 20, windowMs: 3_600_000, label: 'up to 20 corrections per hour' },
+  simulate: { limit: 20, windowMs: 3_600_000, label: 'up to 20 simulations per hour' },
 } satisfies Record<string, Rule>;
 
 const hits = new Map<string, number[]>();
@@ -56,5 +57,6 @@ export function engineLimitFor(method: string, path: string[]): { bucket: string
   if (path[0] === 'clones' && path[2] === 'scenarios' && path.length === 3) return { bucket: 'scenarioGen', rule: RULES.scenarioGen };
   if (path[0] === 'clones' && path[2] === 'scenarios' && path[4] === 'answer') return { bucket: 'scenarioAnswer', rule: RULES.scenarioAnswer };
   if (path[0] === 'clones' && path[2] === 'scenarios' && path[4] === 'correct') return { bucket: 'scenarioCorrect', rule: RULES.scenarioCorrect };
+  if (path[0] === 'clones' && path[2] === 'simulate') return { bucket: 'simulate', rule: RULES.simulate };
   return null;
 }
