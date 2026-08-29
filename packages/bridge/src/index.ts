@@ -23,7 +23,7 @@ import { runJob } from './jobs.js';
 import { startWatcher } from './watcher.js';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
-const VERSION = '0.4.2';
+const VERSION = '0.4.3';
 
 // Subcommands: `opersona install` / `opersona uninstall` (background service).
 const sub = process.argv[2];

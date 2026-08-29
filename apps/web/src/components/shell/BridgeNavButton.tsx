@@ -88,7 +88,20 @@ export function BridgeNavButton({ variant = 'sidebar', waiting = 0 }: { variant?
               </p>
             )}
 
-            {!connected && !fresh && (
+            {!connected && !fresh && (state?.tokens.length ?? 0) > 0 && (
+              <div className="space-y-1.5 rounded-lg border border-neutral-200 bg-neutral-50 p-2.5 text-xs dark:border-neutral-800 dark:bg-neutral-900/60">
+                <p className="font-medium text-neutral-700 dark:text-neutral-300">Get it running again — on the paired machine, run:</p>
+                <div className="flex items-center gap-2">
+                  <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">npx opersona@latest install</code>
+                  <CopyButton text="npx opersona@latest install" />
+                </div>
+                <p className="muted">
+                  Safe to re-run any time: it reuses the saved pairing, reinstalls + restarts the service, and reports whether
+                  it actually connected. Still stuck? <code>cat ~/.opersona-bridge/bridge.log</code> on that machine says why.
+                </p>
+              </div>
+            )}
+            {!connected && !fresh && (state?.tokens.length ?? 0) === 0 && (
               <button type="button" className="btn-primary btn-sm" onClick={() => void pair()} disabled={busy}>
                 {busy ? 'Creating…' : 'Pair this machine'}
               </button>

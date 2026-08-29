@@ -87,6 +87,7 @@ export async function install(version: string): Promise<void> {
   <key>ProgramArguments</key><array><string>${node}</string><string>${ENTRY}</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Interactive</string>
   <key>StandardOutPath</key><string>${LOG}</string>
   <key>StandardErrorPath</key><string>${LOG}</string>
 </dict></plist>
