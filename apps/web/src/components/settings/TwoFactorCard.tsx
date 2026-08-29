@@ -142,6 +142,7 @@ export function TwoFactorCard({ enabled, redirectTo, email }: { enabled: boolean
         <form onSubmit={onPasswordSubmit} className="space-y-2">
           <div>
             <label className="label" htmlFor="tf-enable-password">Confirm your password to continue</label>
+            <p className="muted mb-1 text-xs">Your sign-in was a while ago. Security changes need a fresh password so an open laptop can&apos;t change your 2FA behind your back — normally this is reused from sign-in and never asked.</p>
             {email && <input type="email" autoComplete="username" value={email} readOnly tabIndex={-1} aria-hidden className="sr-only" />}
             <input id="tf-enable-password" className="input" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
