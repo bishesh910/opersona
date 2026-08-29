@@ -77,7 +77,7 @@ export async function nextQuestionFor(orgId: string, cloneId: string): Promise<{
     })),
     ...BANK.filter((b) => !usedBankKeys.has(b.bankKey)).map((b) => ({
       bankKey: b.bankKey, category: b.category, facet: b.facet,
-      kind: 'behavioural' as const, priority: 0, text: b.text,
+      kind: 'behavioural' as const, priority: 0, text: b.text, intensity: b.intensity,
     })),
   ];
   const winner = pickNext(candidates, state);

@@ -21,6 +21,8 @@ export interface Candidate {
   /** follow-up hook strength 0..1 (stored in the row's priority column). */
   priority: number;
   text: string;
+  /** disclosure weight of bank questions (see bank.ts); follow-ups/probes are exempt from gating. */
+  intensity?: 'low' | 'medium' | 'high';
 }
 
 export interface PickerState {
@@ -54,10 +56,24 @@ export function scoreCandidate(c: Candidate, s: PickerState): number {
 
 const keyOf = (c: Candidate) => c.bankKey ?? c.id ?? c.text;
 
+/** Gradual escalation (McAdams-style): the interview earns the right to ask
+ *  heavy questions. Behavioural candidates are gated by total answers so far —
+ *  high (regret/loss/shame) waits for 10, medium for 2; follow-ups and
+ *  contradiction probes continue existing threads and are never gated. If the
+ *  gate would empty the pool, it opens (the interview must never stall). */
+function escalationPool(candidates: Candidate[], s: PickerState): Candidate[] {
+  const answeredTotal = Object.values(s.coverage).reduce((a, c) => a + (c?.answered ?? 0), 0);
+  const eligible = candidates.filter((c) => c.kind !== 'behavioural'
+    || ((c.intensity ?? 'medium') === 'high' ? answeredTotal >= 10
+      : (c.intensity ?? 'medium') === 'medium' ? answeredTotal >= 2
+      : true));
+  return eligible.length ? eligible : candidates;
+}
+
 /** Highest score wins; ties break to the category with fewer answers, then lexicographically — never randomly. */
 export function pickNext(candidates: Candidate[], s: PickerState): Candidate | null {
   if (!candidates.length) return null;
-  const scored = candidates.map((c) => ({ c, score: scoreCandidate(c, s) }));
+  const scored = escalationPool(candidates, s).map((c) => ({ c, score: scoreCandidate(c, s) }));
   scored.sort((a, b) =>
     b.score - a.score
     || (s.coverage[a.c.category]?.answered ?? 0) - (s.coverage[b.c.category]?.answered ?? 0)

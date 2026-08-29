@@ -15,6 +15,10 @@ export interface BankQuestion {
   facet: string;
   text: string;
   hint?: string;
+  /** Disclosure weight — the picker escalates gradually (McAdams-style): low
+   *  opens the interview, high (regret/loss/shame/fear) waits until trust is
+   *  earned (~10 answers). Default medium. */
+  intensity?: 'low' | 'medium' | 'high';
 }
 
 export const CATEGORY_FACETS: Record<InterviewCategory, string[]> = {
@@ -33,7 +37,7 @@ export const CATEGORY_FACETS: Record<InterviewCategory, string[]> = {
 const q = (bankKey: string, category: InterviewCategory, facet: string, text: string, hint?: string): BankQuestion =>
   ({ bankKey, category, facet, text, hint });
 
-export const BANK: BankQuestion[] = [
+const RAW: BankQuestion[] = [
   // ── identity ──────────────────────────────────────────────────────────────
   q('identity.self_image.1', 'identity', 'self_image',
     'How would the people closest to you describe you in a few sentences — and where would they be slightly wrong?',
@@ -160,7 +164,53 @@ export const BANK: BankQuestion[] = [
     'Tell me about the last big change you chose on purpose — new place, new path, new person gone or arrived. What tipped you from thinking to doing?'),
   q('future.legacy.1', 'future', 'legacy',
     'When people who knew you talk about you years from now, what do you hope they say — and what are you doing now that supports it?'),
+
+  // ── warm-ups + narrative identity (McAdams reference) ─────────────────────
+  q('identity.self_image.2', 'identity', 'self_image',
+    'Walk me through your last ordinary day, roughly hour by hour — what did you actually do, and which part did you quietly look forward to?',
+    'The boring version is the revealing one.'),
+  q('emotional.coping.2', 'emotional', 'coping',
+    'What do you do when you’re bored and nothing is scheduled? Tell me about the last time that actually happened.'),
+  q('work.motivation.2', 'work', 'motivation',
+    'What’s the last thing you finished that nobody made you finish? What kept you going past the point where quitting was free?'),
+  q('emotional.joy.2', 'emotional', 'joy',
+    'Tell me about a genuine high point — a specific scene you’d point to if asked when life felt most right. Where were you, who was there?'),
+  q('identity.origins.2', 'identity', 'origins',
+    'Tell me one vivid scene from your childhood — a specific moment you can still see. Where were you, who was there, what happened?'),
+  q('identity.turning_points.2', 'identity', 'turning_points',
+    'If your life so far were a book, what would the chapters be called? Just the titles — then tell me which chapter surprised you most to live through.'),
 ];
+
+/** Disclosure weights: low = safe openers, high = regret / loss / shame / fear
+ *  territory the picker holds back until ~10 answers. Unlisted = medium. */
+const INTENSITY: Record<string, 'low' | 'high'> = {
+  // low — warm-up-safe
+  'identity.self_image.2': 'low',
+  'emotional.coping.2': 'low',
+  'work.motivation.2': 'low',
+  'emotional.joy.2': 'low',
+  'emotional.joy.1': 'low',
+  'work.motivation.1': 'low',
+  'social.group_role.1': 'low',
+  'social.social_battery.1': 'low',
+  'social.strangers.1': 'low',
+  'decision_making.information_gathering.1': 'low',
+  'money.spending.1': 'low',
+  'future.planning_horizon.1': 'low',
+  // high — heavy disclosure
+  'decision_making.regret_and_revision.1': 'high',
+  'ethics.dilemmas.1': 'high',
+  'emotional.anger.1': 'high',
+  'emotional.stress_response.1': 'high',
+  'emotional.expression.1': 'high',
+  'future.fears.1': 'high',
+  'work.failure_recovery.1': 'high',
+  'identity.turning_points.1': 'high',
+  'money.generosity_dependence.1': 'high',
+  'values.sacrifices.1': 'high',
+};
+
+export const BANK: BankQuestion[] = RAW.map((b) => ({ ...b, intensity: INTENSITY[b.bankKey] ?? 'medium' }));
 
 /** Fast lookups. */
 export const BANK_BY_KEY: ReadonlyMap<string, BankQuestion> = new Map(BANK.map((b) => [b.bankKey, b]));

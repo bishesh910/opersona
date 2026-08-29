@@ -193,3 +193,39 @@ describe('reinforceConfidence', () => {
     expect(reinforceConfidence(0.59, 0.9, 'hypothesis')).toBeLessThanOrEqual(0.6);
   });
 });
+
+// ── escalation gate (McAdams pacing: low-stakes first, heavy after trust) ────
+describe('escalation gate', () => {
+  const coldState = (answeredInIdentity = 0): PickerState => {
+    const s = state();
+    for (const c of INTERVIEW_CATEGORIES) {
+      s.coverage[c] = { ...s.coverage[c], coverage: 0, answered: 0, justStarted: true,
+        facets: Object.fromEntries(CATEGORY_FACETS[c].map((f) => [f, 0])) };
+    }
+    s.coverage.identity = { ...s.coverage.identity, answered: answeredInIdentity };
+    return s;
+  };
+  const heavy: Candidate = { ...bankC('ethics', 'dilemmas'), intensity: 'high' };
+  const mid: Candidate = { ...bankC('values', 'named_values'), intensity: 'medium' };
+  const light: Candidate = { ...bankC('emotional', 'joy'), intensity: 'low' };
+
+  it('a brand-new interview opens low-stakes — never with heavy disclosure', () => {
+    expect(pickNext([heavy, mid, light], coldState(0))?.bankKey).toBe(light.bankKey);
+  });
+  it('medium unlocks after 2 answers; high stays gated', () => {
+    expect(pickNext([heavy, mid], coldState(3))?.bankKey).toBe(mid.bankKey);
+  });
+  it('high-intensity competes normally once 10 answers are in', () => {
+    const s = state(); // 50 answered; give ethics the biggest coverage gap
+    s.coverage.ethics = { ...s.coverage.ethics, coverage: 0,
+      facets: Object.fromEntries(CATEGORY_FACETS.ethics.map((f) => [f, 0])) };
+    expect(pickNext([heavy, light], s)?.bankKey).toBe(heavy.bankKey);
+  });
+  it('never stalls: if only gated questions remain, the gate opens', () => {
+    expect(pickNext([heavy], coldState(0))?.bankKey).toBe(heavy.bankKey);
+  });
+  it('follow-ups and contradiction probes are never gated', () => {
+    const probe: Candidate = { id: 'c1', category: 'ethics', facet: null, kind: 'contradiction', priority: 0, text: 'What makes those different?' };
+    expect(pickNext([probe, light], coldState(0))?.id).toBe('c1');
+  });
+});
