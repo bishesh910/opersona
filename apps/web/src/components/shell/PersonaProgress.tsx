@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CopyButton } from '@/components/shell/CopyButton';
 import { connectorState } from '@/actions/bridge';
-import type { ProgressData } from '@/lib/persona-progress';
+import { progressParts, PART_MAX, type ProgressData } from '@/lib/persona-progress-math';
 
 function StepChip({ done, n }: { done: boolean; n: number }) {
   return (
@@ -42,7 +42,8 @@ export function PersonaProgress({ data, variant = 'sidebar' }: { data: ProgressD
     return () => { stop = true; clearInterval(t); };
   }, [open, connector]);
 
-  const pct = connector && !data.connector ? Math.min(100, data.pct + 20) : data.pct;
+  const parts = progressParts({ connector, answered: data.answered, coveragePct: data.coveragePct, patterns: data.patterns, scored: data.scored });
+  const pct = parts.pct;
   const url = `${origin}/mcp`;
 
   const trigger = variant === 'pill' ? (
@@ -134,10 +135,20 @@ export function PersonaProgress({ data, variant = 'sidebar' }: { data: ProgressD
               </li>
             </ol>
 
-            <p className="muted border-t border-neutral-200 pt-3 text-[11px] dark:border-neutral-800">
-              The % is a build heuristic (connector · interview coverage · learned patterns · blind tests) — not a score.
-              Your conversations on claude.ai never stream here; only the tool calls your own Claude makes do.
-            </p>
+            <div className="border-t border-neutral-200 pt-3 dark:border-neutral-800">
+              <p className="muted mb-1.5 text-[11px] font-medium">Where the {pct}% comes from — a build meter, not an accuracy score:</p>
+              <dl className="muted grid grid-cols-[1fr_auto] gap-x-4 gap-y-0.5 text-[11px] tabular-nums">
+                <dt>Connector added</dt><dd>{Math.round(parts.connector)} / {PART_MAX.connector}</dd>
+                <dt>Interview started</dt><dd>{Math.round(parts.started)} / {PART_MAX.started}</dd>
+                <dt>Interview coverage ({data.coveragePct}% of ten areas)</dt><dd>{Math.round(parts.coverage)} / {PART_MAX.coverage}</dd>
+                <dt>Thinking patterns confirmed ({data.patterns}; full at 3)</dt><dd>{Math.round(parts.patterns)} / {PART_MAX.patterns}</dd>
+                <dt>Blind tests scored ({data.scored}; full at 5)</dt><dd>{Math.round(parts.scored)} / {PART_MAX.scored}</dd>
+              </dl>
+              <p className="muted mt-1.5 text-[11px]">
+                How ACCURATE the persona is lives elsewhere: behavioural similarity from blind tests, which shows no number until 5 are scored.
+                Your claude.ai conversations never stream here; only the tool calls your own Claude makes do.
+              </p>
+            </div>
           </div>
         </div>
       )}

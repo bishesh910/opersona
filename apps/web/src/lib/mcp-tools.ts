@@ -70,6 +70,8 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
         '5. Teach it from THIS conversation → learn_from_this_chat (or save_insight for a single fact)',
         '',
         'When they answer with a number or a phrase, call the mapped tool immediately — no re-confirmation. Dashboard: https://opersona.me/me',
+        '',
+        `If they ask what the ${build.pct}% means: it is a BUILD meter, not an accuracy score — connector added (20) + interview started (10) + interview coverage (${build.coveragePct}% of ten areas → ${Math.round(0.45 * build.coveragePct)}/45) + confirmed patterns (10, full at 3) + blind tests scored (15, full at 5). Accuracy is measured separately by blind tests at opersona.me/me/survey, which shows no number until 5 are scored.`,
       ].join('\n'));
     },
   );

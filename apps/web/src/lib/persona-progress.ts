@@ -1,25 +1,14 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db, schema, authSchema } from '@opersona/db';
 import { INTERVIEW_CATEGORIES } from '@opersona/shared';
+import { progressParts, type ProgressData } from '@/lib/persona-progress-math';
 
-/** One progress number, everywhere. The nav bar and the claude.ai interview
- *  greeting MUST show the same figure — two different "your opersona is at X%"
- *  claims read as a bug (and were one). */
-export interface ProgressData {
-  pct: number;
-  connector: boolean;
-  answered: number;
-  coveragePct: number;   // 0..100, interview coverage average over ALL ten areas
-  patterns: number;      // confirmed reasoning patterns
-  scored: number;        // scored blind scenarios
-  bridgePaired: boolean;
-}
+export type { ProgressData } from '@/lib/persona-progress-math';
 
-/** Build-progress heuristic. Honest about being a heuristic (the nav guide
- *  panel itemizes it): connector 20 · interview started 10 · interview
- *  coverage 45 · confirmed patterns 10 (full at 3) · scored blind scenarios
- *  15 (full at 5). Untouched interview categories count as zero coverage —
- *  the average is over ALL categories, not just visited ones. */
+/** One progress number, everywhere: the nav bar, its guide panel, and the
+ *  claude.ai menu/interview greeting all show THIS figure, computed by the
+ *  shared arithmetic in persona-progress-math.ts. Untouched interview
+ *  categories count as zero coverage — the average is over ALL ten. */
 export async function buildProgress(userId: string, orgId: string, cloneId: string | undefined): Promise<ProgressData> {
   const [consent] = await db.select({ id: authSchema.oauthConsent.id }).from(authSchema.oauthConsent)
     .where(eq(authSchema.oauthConsent.userId, userId)).limit(1);
@@ -39,9 +28,7 @@ export async function buildProgress(userId: string, orgId: string, cloneId: stri
   const answered = cov?.answered ?? 0;
   const patterns = pat?.n ?? 0;
   const scored = sc?.n ?? 0;
-  const pct = Math.round(
-    (connector ? 20 : 0) + (answered > 0 ? 10 : 0) + 45 * coverage
-    + 10 * Math.min(patterns / 3, 1) + 15 * Math.min(scored / 5, 1),
-  );
-  return { pct: Math.min(100, pct), connector, answered, coveragePct: Math.round(coverage * 100), patterns, scored, bridgePaired: !!btok };
+  const coveragePct = Math.round(coverage * 100);
+  const { pct } = progressParts({ connector, answered, coveragePct: coverage * 100, patterns, scored });
+  return { pct, connector, answered, coveragePct, patterns, scored, bridgePaired: !!btok };
 }
