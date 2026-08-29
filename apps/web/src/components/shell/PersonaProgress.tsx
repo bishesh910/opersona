@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { CopyButton } from '@/components/shell/CopyButton';
 import { connectorState } from '@/actions/bridge';
+import { failedExtractionCount } from '@/actions/progress';
 import { progressParts, PART_MAX, type ProgressData } from '@/lib/persona-progress-math';
 
 function StepChip({ done, n }: { done: boolean; n: number }) {
@@ -32,7 +33,17 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
   const [mounted, setMounted] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(data.failedExtractions);
   useEffect(() => setMounted(true), []);
+  useEffect(() => setWaiting(data.failedExtractions), [data.failedExtractions]);
+
+  // While the panel is open with a backlog, poll so the number counts DOWN in
+  // place as the bridge works through it (a frozen count reads as "stuck").
+  useEffect(() => {
+    if (!open || waiting === 0) return;
+    const t = setInterval(() => { void failedExtractionCount().then(setWaiting).catch(() => {}); }, 4000);
+    return () => clearInterval(t);
+  }, [open, waiting === 0]);
 
   /** "Sync now": requeue failed extractions and report which rail will run them.
    *  (The same drain fires automatically whenever the bridge connects.) */
@@ -109,11 +120,16 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
             </div>
 
             {data.failedExtractions > 0 && (
+              waiting === 0 ? (
+                <p className="rounded-lg border border-emerald-300 bg-emerald-50 p-2.5 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  All caught up — every waiting answer has been processed. Check <Link href="/me/memory" className="underline underline-offset-2" onClick={() => setOpen(false)}>Memory</Link> to see what it learned.
+                </p>
+              ) : (
               <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
                 <p>
-                  <span className="font-medium">{data.failedExtractions} interview answer{data.failedExtractions === 1 ? '' : 's'} couldn&rsquo;t be processed</span> — no Claude was
-                  reachable when they were tried (bridge offline, no API key). Your answers are safe and retry automatically
-                  the moment your bridge reconnects.
+                  <span className="font-medium">{waiting} interview answer{waiting === 1 ? '' : 's'} still waiting to be processed</span> — they
+                  failed earlier while no Claude was reachable. Your answers are safe: they retry on their own whenever your
+                  bridge is connected, and this number counts down live as it works through them.
                 </p>
                 {cloneId && (
                   <button type="button" className="btn-secondary btn-sm !text-xs" disabled={syncBusy} onClick={() => void retryNow()}>
@@ -122,6 +138,7 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
                 )}
                 {syncMsg && <p>{syncMsg}</p>}
               </div>
+              )
             )}
             <ol className="space-y-3.5 text-sm">
               <li className="flex gap-2.5">
