@@ -13,8 +13,8 @@ All JSON unless noted. Errors: `{ error: string }` with 4xx/5xx.
 There are no conversation endpoints. All TALKING — the persona chat and the
 cognitive interview — happens on **claude.ai through the opersona connector**
 (MCP tools served by apps/web: `my_persona`, `use_persona`, `recall_memory`,
-`save_insight`, `learn_from_this_chat`, `opersona_me`,
-`submit_interview_answer`, `search_community`, `list_my_roster`). The engine
+`save_insight`, `learn_from_this_chat`, `opersona_me` (the menu),
+`interview_me`, `submit_interview_answer`, `search_community`, `list_my_roster`). The engine
 keeps the deterministic core (interview picker, extraction, predictions,
 simulation) and runs inference through org keys or bridge jobs.
 
@@ -84,7 +84,7 @@ All owner-only through the web proxy (`access.canWrite`); the engine re-checks t
   authored bank needs no LLM, so this always answers fast.
 - `POST /clones/:id/interview/submit-thread` `{ orgId, questionId, userText, dialogue? }` — the
   MCP path: the interview CONVERSATION runs inside claude.ai (the user's own fast Claude plays
-  the interviewer via the `opersona_me` / `submit_interview_answer` connector tools); a
+  the interviewer via the `interview_me` / `submit_interview_answer` connector tools); a
   completed exchange lands here as one answer (user's verbatim words quotable, dialogue as
   context) and rides the same extraction pipeline. Returns the next question. This is the
   recommended free-tier interview: conversation latency lives where a warm Claude already runs;

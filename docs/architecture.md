@@ -8,8 +8,8 @@ simulate, share), and the engine is the deterministic core plus async learning.
 
 ```
 claude.ai ── MCP (OAuth) ──> apps/web /mcp  (my_persona, use_persona, recall_memory,
-                              save_insight, learn_from_this_chat, opersona_me,
-                              submit_interview_answer, search_community, list_my_roster)
+                              save_insight, learn_from_this_chat, opersona_me (menu),
+                              interview_me, submit_interview_answer, search_community, list_my_roster)
 browser ──── https ────────> apps/web (Next.js 15)
                                 │  authenticated proxy (/api/engine/*): session + org +
                                 │  ownership checks, then an internal bearer token

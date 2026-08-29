@@ -43,7 +43,7 @@ Five short steps, no AI settings to configure:
 The core teaching surface is a CONVERSATION, and it happens where conversations
 are best: on claude.ai, with the opersona connector attached. Say
 **"opersona me"** and your own Claude becomes the interviewer (via the
-`opersona_me` / `submit_interview_answer` tools): it asks about real moments
+`interview_me` / `submit_interview_answer` tools): it asks about real moments
 ("Tell me about the last time…", never "are you a risk taker?"), follows the
 threads your answers open, keeps your verbatim words, and lands each completed
 exchange in opersona. Replies are instant — the conversation runs on the Claude

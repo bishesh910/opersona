@@ -44,8 +44,8 @@ const NO_PERSONA = 'No persona yet — build one at https://opersona.me/onboardi
 /** Register the v1 tool set for one authenticated user. */
 export function registerOpersonaTools(server: McpServer, userId: string): void {
   server.tool(
-    'opersona_menu',
-    "THE front door. Call when the user says 'opersona' or 'opersona me' WITHOUT a more specific ask, or asks what opersona can do. Returns their live status plus the option menu — present it as a short numbered list in your own words and WAIT for their pick, then call the matching tool. If their message already named a specific action ('interview me', 'load my persona', 'use X's persona'), skip the menu and call that tool directly.",
+    'opersona_me',
+    "THE front door — the 'opersona me' entry point. Call when the user says 'opersona' or 'opersona me' (without a more specific ask), or asks what opersona can do. Returns their live status plus the option menu — present it as a short numbered list in your own words and WAIT for their pick, then call the matching tool. If their message already named a specific action ('interview me', 'load my persona', 'use X's persona'), skip the menu and call that tool directly.",
     {},
     async () => {
       const me = await resolveWorkspace(userId);
@@ -63,7 +63,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
         `Status: build ${build.pct}% · ${build.answered} interview answers · ${build.patterns} confirmed thinking patterns${build.scored ? ` · ${build.scored} blind tests scored` : ''}.`,
         '',
         `MENU — show these as a short numbered list (your own words, one line each, mention the ${build.pct}% somewhere) and wait for their choice:`,
-        `1. ${build.answered > 0 ? 'Continue the interview — teach it who you are (resumes exactly where you left off)' : 'Start the interview — the fastest way to teach it who you are'} → call opersona_me`,
+        `1. ${build.answered > 0 ? 'Continue the interview — teach it who you are (resumes exactly where you left off)' : 'Start the interview — the fastest way to teach it who you are'} → call interview_me`,
         '2. Talk as/with my persona — it answers as the user for the rest of this chat → call my_persona',
         "3. Use someone else's persona — a teammate or a community one → list_my_roster (theirs) or search_community (public), then use_persona with the slug",
         "4. Search my persona's memory — facts, decisions, past work → recall_memory",
@@ -76,18 +76,18 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
 
   // Slash-style entries in claude.ai's prompt picker — same flows, one click.
   server.prompt('interview-me', 'Continue building your opersona: your own Claude interviews you about real moments.', () => ({
-    messages: [{ role: 'user' as const, content: { type: 'text' as const, text: 'opersona: continue my interview (call opersona_me and conduct it per its instructions).' } }],
+    messages: [{ role: 'user' as const, content: { type: 'text' as const, text: 'opersona: continue my interview (call interview_me and conduct it per its instructions).' } }],
   }));
   server.prompt('chat-as-me', 'Load your opersona and have Claude answer as you for the rest of this chat.', () => ({
     messages: [{ role: 'user' as const, content: { type: 'text' as const, text: 'Load my opersona with my_persona and answer as me for the rest of this conversation.' } }],
   }));
   server.prompt('opersona', 'See your opersona status and everything you can do with it.', () => ({
-    messages: [{ role: 'user' as const, content: { type: 'text' as const, text: 'opersona me — show me the menu (call opersona_menu).' } }],
+    messages: [{ role: 'user' as const, content: { type: 'text' as const, text: 'opersona me — show me the menu (call opersona_me).' } }],
   }));
 
   server.tool(
     'my_persona',
-    "Load the user's opersona: their complete persona character sheet (story, role, thinking patterns, confirmed facts, playbooks). Call this when asked to answer AS the user, imitate their thinking, or apply 'my persona' to a task — then follow the returned instructions for the rest of the conversation. (To INTERVIEW the user and build the persona instead, use opersona_me.)",
+    "Load the user's opersona: their complete persona character sheet (story, role, thinking patterns, confirmed facts, playbooks). Call this when asked to answer AS the user, imitate their thinking, or apply 'my persona' to a task — then follow the returned instructions for the rest of the conversation. (To INTERVIEW the user and build the persona instead, use interview_me.)",
     {},
     async () => {
       const me = await resolveWorkspace(userId);
@@ -246,8 +246,8 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
 - RETURNING USERS: the interview always RESUMES server-side — never say "let's start over", never re-explain the process. Greet with ONE light line (their progress % + "picking up where we left off"), then straight into the question. Their earlier answers are PRIVATE BACKGROUND: use them silently to avoid re-asking — never as a recap of what they shared.`;
 
   server.tool(
-    'opersona_me',
-    "Interview the user to BUILD their opersona, right here in this chat, with YOU conducting it. Fetches the next question from their persona's adaptive interview (10 life areas, contradiction probes included) plus instructions for running it conversationally. Call when the user asks to be interviewed, to 'teach my persona about me', to continue their interview, or picks Interview from the opersona_menu options. (A bare 'opersona me' with no specific ask goes to opersona_menu first; to ACT AS their already-built persona instead, use my_persona.) Their answers are extracted server-side into evidence-backed memories, traits and rules they review at opersona.me.",
+    'interview_me',
+    "Interview the user to BUILD their opersona, right here in this chat, with YOU conducting it. Fetches the next question from their persona's adaptive interview (10 life areas, contradiction probes included) plus instructions for running it conversationally. Call when the user asks to be interviewed, to 'teach my persona about me', to continue their interview, or picks Interview from the opersona_me menu. (A bare 'opersona me' with no specific ask is the menu, not this; to ACT AS their already-built persona instead, use my_persona.) Their answers are extracted server-side into evidence-backed memories, traits and rules they review at opersona.me.",
     {},
     async () => {
       const me = await resolveWorkspace(userId);
@@ -305,9 +305,9 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
 
   server.tool(
     'submit_interview_answer',
-    "Save one completed interview exchange to the user's opersona and get the next question — or SKIP a question the user doesn't want (skip: true; it never comes back). Call after opersona_me once a question's thread is complete (a concrete story + the why). their_words must be the user's own words VERBATIM — their phrasing is what the persona learns from.",
+    "Save one completed interview exchange to the user's opersona and get the next question — or SKIP a question the user doesn't want (skip: true; it never comes back). Call after interview_me once a question's thread is complete (a concrete story + the why). their_words must be the user's own words VERBATIM — their phrasing is what the persona learns from.",
     {
-      question_id: z.string().uuid().describe('the id from opersona_me / the previous submit'),
+      question_id: z.string().uuid().describe('the id from interview_me / the previous submit'),
       their_words: z.string().max(20_000).optional().describe("the user's own messages from this thread, verbatim, joined by newlines — never paraphrased, never yours. Omit when skipping."),
       skip: z.boolean().optional().describe("true = the user doesn't want this question (bored, too personal, feels repetitive) — retire it permanently and move to the next"),
       exchange: z.array(z.object({ role: z.enum(['user', 'interviewer']), text: z.string().max(4000) })).max(24).optional()
