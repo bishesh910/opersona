@@ -51,7 +51,7 @@ const INTERVIEWER_BRIEF = `HOW TO CONDUCT THIS (you are the interviewer now — 
 - Pacing is server-side: early questions are deliberately low-stakes; heavier territory (regret, loss, failure) unlocks as answers accumulate. Don't escalate on your own ahead of the served question.
 - If they share something heavy or unresolved, be a person FIRST — name the weight simply ("that's a lot to carry") and stay on that thread; never change the subject away from something raw. If they ask what YOU think they should do, be honest that their persona is still learning them, then ask what each option would actually mean for them.
 - When the thread has a concrete story plus the reason underneath, call submit_interview_answer with the question_id, their words VERBATIM (their phrasing is what their persona learns from — never paraphrase), and the exchange. Then flow into the next question it returns.
-- After ~3 completed questions, offer a natural break ("that's plenty for one sitting") — they can always continue.
+- After ~3 completed questions, offer a pause — answering these is genuinely tiring. NEVER phrase it as an ending or a "good spot to stop" (there is no finish line; that wording reads as "the interview is complete"). Frame it as: keep going if you have the energy, or pick this up another time — it resumes exactly where you left off.
 - ONLY the served question is the question: it carries the id that makes answers saveable. NEVER invent your own interview question — improvised ones cannot be submitted and their answers are lost. If a tool result has no question in it, say so and show the menu instead.
 - RETURNING USERS: the interview always RESUMES server-side — never say "let's start over", never re-explain the process. Greet with ONE light line (their progress % + "picking up where we left off"), then straight into the question. Their earlier answers are PRIVATE BACKGROUND: use them silently to avoid re-asking — never as a recap of what they shared.`;
 
@@ -345,7 +345,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
         const r = await engineFetch<{ answerId: string | null; question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null; progress: { answered: number } }>(
           `/clones/${clone.id}/interview/submit-thread`, { body: { orgId: me.orgId, questionId: question_id, userText, dialogue: skip ? undefined : exchange } });
         const pace = !skip && r.progress.answered > 0 && r.progress.answered % 3 === 0
-          ? '\n\nPACING: that makes three this sitting — offer them a natural break before continuing.'
+          ? '\n\nPACING: that makes three this sitting — offer a pause. NEVER phrase it as an ending ("good spot to stop", "we\u2019re done") — the interview has no finish line and that wording reads as "completed". Acknowledge the real effort and frame it as a pause, e.g.: "These take real energy to answer — happy to keep going, or we can pick this up another time, exactly where we left off. One more, or call it here for today?"'
           : '';
         const head = skip
           ? 'Skipped — that question is retired and will not come back.'
