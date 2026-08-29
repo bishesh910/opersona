@@ -88,8 +88,9 @@ anything that only stood on it.
 - **Talk as/with your persona on claude.ai**: `my_persona` loads your own
   persona into the conversation; teammates and adopters load yours with
   `use_persona` (shareable material only); `recall_memory` serves its memory
-  mid-chat; `learn_from_this_chat` turns any conversation into lessons. Your
-  claude.ai conversations never stream to opersona — only the tool calls do.
+  mid-chat; `learn_from_this_chat` turns any conversation into lessons — your own
+  Claude distills the reasoning moves in place and sends only the distillate
+  (short verbatim quotes included); the transcript never leaves claude.ai.
 - **Simulate** (`/me/simulate`): one structured behavioural prediction —
   *What would I do? · How would I reply? · What would I choose? · A or B? ·
   What factors would weigh?* — with your ranked factors, honest confidence,

@@ -135,7 +135,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
       if (choice === 'persona') return personaPayload(me, clone);
       if (choice === 'roster') return text('Call list_my_roster for their workspace personas, or search_community { query } for public ones — then use_persona { slug } to adopt one for this chat.');
       if (choice === 'memory') return text("Ask what they want to look up if they haven't said, then call recall_memory { query } with it.");
-      if (choice === 'teach') return text('Call learn_from_this_chat with the conversation turns so far (their words verbatim), or save_insight { statement } for a single fact. Only with their explicit go-ahead.');
+      if (choice === 'teach') return text('Distill THIS conversation yourself and call learn_from_this_chat with the reasoning moves the user displayed (short verbatim quotes of their words as evidence — the transcript itself never leaves this chat), or save_insight { statement } for a single fact. Only with their explicit go-ahead.');
       const build = await buildProgress(me.userId, me.orgId, clone.id);
       return text([
         `# opersona — ${clone.name}`,
@@ -230,26 +230,31 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
 
   server.tool(
     'learn_from_this_chat',
-    "Teach the user's persona from THIS conversation. Call only when the user explicitly asks to save/remember/learn from the chat. Pass the conversation so far as ordered turns (their words verbatim where possible — the persona learns from HOW they think, so their phrasing matters more than yours). The persona's memory updates within a minute; duplicates are ignored.",
+    "Teach the user's persona HOW THEY THINK from this conversation — WITHOUT the conversation leaving claude.ai. YOU do the distillation right here, since you have the chat in context: identify up to 10 domain-free reasoning moves the user actually displayed (how they decompose, what they verify, what they ask for first, how they weigh risk…), each backed by a SHORT verbatim quote of the USER's own words. Send only that distillate — NEVER the transcript, never your own words as quotes. Call only when the user explicitly asks to save/remember/learn from the chat. Duplicates are ignored.",
     {
       title: z.string().max(200).optional().describe('short name for this conversation'),
-      turns: z.array(z.object({ role: z.enum(['human', 'assistant']), text: z.string().max(50_000) })).min(2).max(200)
-        .describe("the conversation so far, in order; 'human' = the user"),
+      observations: z.array(z.object({
+        pattern_key: z.string().regex(/^[a-z][a-z0-9_]{2,79}$/).describe("snake_case id for the reasoning move, reusable across chats (e.g. 'evidence_before_hypothesis')"),
+        dimension: z.enum(['decomposition', 'starting_point', 'information', 'verification', 'explanation', 'risk', 'pace', 'other'])
+          .describe('which aspect of reasoning this move belongs to'),
+        description: z.string().min(10).max(500).describe('one domain-free sentence, present tense, about how the user reasons (never what the chat was about)'),
+        quote: z.string().min(3).max(300).describe("the user's own words, VERBATIM, that show this move — short; never paraphrased, never yours"),
+      })).min(1).max(10).describe('the distilled reasoning moves — quality over quantity; skip anything you cannot back with a real quote'),
     },
-    async ({ title, turns }) => {
+    async ({ title, observations }) => {
       const me = await resolveWorkspace(userId);
       if (!me) return errText('Account not found.');
       const clone = await myPersona(me);
       if (!clone) return errText(NO_PERSONA);
-      const sessionId = 'cc-' + createHash('sha256').update(turns.map((t) => t.role + ':' + t.text).join('\n')).digest('hex').slice(0, 40);
+      const sessionId = 'cc-dist-' + createHash('sha256').update(observations.map((o) => o.pattern_key + ':' + o.quote).join('\n')).digest('hex').slice(0, 40);
       try {
         const r = await engineFetch<{ status: string; observations: number; note: string }>(
-          `/clones/${clone.id}/learn-transcript`, { body: { orgId: me.orgId, sessionId, title, turns } });
-        if (r.status === 'done') return text(`Learned from this conversation — ${r.observations} new observation${r.observations === 1 ? '' : 's'} about how ${clone.name} thinks. Review them at opersona.me → persona → Thinking.`);
+          `/clones/${clone.id}/observations`, { body: { orgId: me.orgId, sessionId, title, observations } });
+        if (r.status === 'done') return text(`Learned ${r.observations} reasoning observation${r.observations === 1 ? '' : 's'} — distilled right here; the conversation itself never left this chat. Patterns confirm by repetition; review at opersona.me → persona → How I think.`);
         if (r.status === 'skipped') return text(`Nothing new to learn: ${r.note}.`);
-        return errText(`Could not learn from this chat: ${r.note}`);
+        return text(`Learning hit a snag: ${r.note}.`);
       } catch (e) {
-        return errText(`Learning is unreachable right now (${e instanceof Error ? e.message : 'engine error'}).`);
+        return errText(`Could not save the lessons (${e instanceof Error ? e.message : 'engine error'}) — try again.`);
       }
     },
   );

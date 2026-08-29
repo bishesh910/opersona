@@ -153,6 +153,39 @@ export type IngestResult = { status: 'done' | 'skipped' | 'failed'; sessionId: s
 /** Learn from a PLAIN turn list (the claude.ai `learn_from_this_chat` connector tool):
  *  same dedupe/extract/fingerprint/snapshot tail as coding-session ingest, but the
  *  turns arrive already structured — no JSONL parsing. Idempotent per content hash. */
+/** The privacy-max learning path: claude.ai's Claude distills the conversation
+ *  IN PLACE and sends only the distillate — reasoning observations with short
+ *  verbatim quotes of the user's words. No transcript ever reaches this server,
+ *  so quotes here are attested by the user's own Claude rather than verified by
+ *  substring; the usual hygiene still gates everything downstream (patterns
+ *  confirm only by repetition, the owner can veto, nightly tidy merges dupes). */
+export async function recordDistilledObservations(args: {
+  orgId: string; cloneId: string; sessionId: string; title?: string;
+  observations: { pattern_key: string; dimension: string; description: string; quote: string }[];
+}): Promise<IngestResult> {
+  const { sessionId } = args;
+  const [seen] = await db.select({ status: claudeCodeSessions.status }).from(claudeCodeSessions)
+    .where(and(eq(claudeCodeSessions.cloneId, args.cloneId), eq(claudeCodeSessions.sessionId, sessionId))).limit(1);
+  if (seen && seen.status !== 'failed') return { status: 'skipped', sessionId, observations: 0, note: 'this conversation was already learned' };
+  await db.insert(claudeCodeSessions).values({
+    orgId: args.orgId, cloneId: args.cloneId, sessionId, source: 'claude-chat',
+    project: args.title ?? 'claude.ai chat (distilled)', bytes: 0, humanTurns: 0, status: 'queued',
+  }).onConflictDoUpdate({ target: [claudeCodeSessions.cloneId, claudeCodeSessions.sessionId], set: { status: 'queued' } });
+  await db.insert(reasoningObservations).values(args.observations.map((o) => ({
+    orgId: args.orgId, cloneId: args.cloneId,
+    patternKey: o.pattern_key.slice(0, 80), dimension: o.dimension as never,
+    description: o.description.slice(0, 500),
+    evidence: [{ quote: o.quote.slice(0, 300) }],
+    weight: 1.0, sourceKind: 'import' as const, sourceRef: `claude-chat:${sessionId}`,
+  })));
+  const note = 'distilled on claude.ai — the conversation never left the user\u2019s chat';
+  await db.update(claudeCodeSessions).set({ status: 'done', observations: args.observations.length, note, extractedAt: new Date() })
+    .where(and(eq(claudeCodeSessions.cloneId, args.cloneId), eq(claudeCodeSessions.sessionId, sessionId)));
+  await recomputeFingerprint(args.orgId, args.cloneId);
+  await publishSnapshot(args.orgId, args.cloneId);
+  return { status: 'done', sessionId, observations: args.observations.length, note };
+}
+
 export async function learnFromPlainTranscript(args: { orgId: string; cloneId: string; sessionId: string; title?: string; transcript: TranscriptTurn[] }): Promise<IngestResult> {
   const sessionId = args.sessionId;
   const [seen] = await db.select({ status: claudeCodeSessions.status }).from(claudeCodeSessions)

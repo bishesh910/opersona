@@ -79,7 +79,7 @@ export default function PrivacyPage() {
         <ul className="muted list-disc space-y-1 pl-5 text-sm">
           <li><strong>Other people: nothing</strong>, unless you explicitly publish your persona — section by section, with a full preview of exactly what leaves, never your conversations. Unpublish any time.</li>
           <li><strong>If a teammate talks to your persona</strong>, it happens through their own claude.ai and <code className="text-xs">use_persona</code>, which serves only what you marked shareable. Their conversation is theirs; your private model never leaves.</li>
-          <li><strong>The claude.ai connector</strong> only sees the tool calls your own Claude makes: a memory search here, an insight you asked it to save there. Your claude.ai conversations never stream to us.</li>
+          <li><strong>The claude.ai connector</strong> only sees the tool calls your own Claude makes: a memory search here, an insight you asked it to save there. Even &ldquo;learn from this chat&rdquo; sends only the distilled lessons (with short quotes of your words) — your Claude does the distilling inside the chat, and the conversation itself never reaches us.</li>
           <li><strong>We (the operators)</strong>: the app gives us no page, route, or API to read anyone&apos;s content — admins get metadata only (accounts, usage totals). Like any host anywhere, we could technically query the database — which is exactly why it holds no conversations: the part you&apos;d worry about simply isn&apos;t in it. Backups are encrypted too.</li>
         </ul>
       </section>

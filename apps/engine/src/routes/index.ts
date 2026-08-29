@@ -252,6 +252,26 @@ routes.post('/clones/:id/compose-brief', async (c) => {
 });
 
 /** claude.ai connector: learn from a conversation the user explicitly saved. */
+/** Distilled learning from claude.ai (server-to-server): only observations +
+ *  short quotes arrive — the conversation itself never leaves the user's chat. */
+routes.post('/clones/:id/observations', async (c) => {
+  const body = await parse(c, z.object({
+    orgId: z.string(),
+    sessionId: z.string().min(8).max(200),
+    title: z.string().max(200).optional(),
+    observations: z.array(z.object({
+      pattern_key: z.string().regex(/^[a-z][a-z0-9_]{2,79}$/),
+      dimension: z.enum(['decomposition', 'starting_point', 'information', 'verification', 'explanation', 'risk', 'pace', 'other']),
+      description: z.string().min(10).max(500),
+      quote: z.string().min(3).max(300),
+    })).min(1).max(10),
+  }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { recordDistilledObservations } = await import('../learning/claudeCode.js');
+  return c.json(await recordDistilledObservations({ orgId: body.orgId, cloneId: clone.id, sessionId: body.sessionId, title: body.title, observations: body.observations }));
+});
+
 routes.post('/clones/:id/learn-transcript', async (c) => {
   const body = await parse(c, z.object({
     orgId: z.string(),
