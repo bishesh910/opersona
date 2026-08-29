@@ -167,6 +167,24 @@ export async function recordDistilledObservations(args: {
   const [seen] = await db.select({ status: claudeCodeSessions.status }).from(claudeCodeSessions)
     .where(and(eq(claudeCodeSessions.cloneId, args.cloneId), eq(claudeCodeSessions.sessionId, sessionId))).limit(1);
   if (seen && seen.status !== 'failed') return { status: 'skipped', sessionId, observations: 0, note: 'this conversation was already learned' };
+
+  // Hard guarantee against double-learning the interview: the server HOLDS the
+  // interview answers, so it can check where a quote came from. Any observation
+  // whose quote appears verbatim (whitespace-normalized) in an interview answer
+  // is interview material — already captured by the interview pipeline including
+  // its fingerprint batches — and is dropped regardless of client intent.
+  const { interviewAnswers } = await import('@opersona/db');
+  const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim();
+  const answerRows = await db.select({ text: interviewAnswers.text }).from(interviewAnswers)
+    .where(and(eq(interviewAnswers.cloneId, args.cloneId), eq(interviewAnswers.skipped, false)));
+  const corpus = norm(answerRows.map((r) => r.text).join('\n'));
+  const fresh = args.observations.filter((o) => !corpus.includes(norm(o.quote)));
+  const droppedInterview = args.observations.length - fresh.length;
+  if (!fresh.length) {
+    return { status: 'skipped', sessionId, observations: 0, note: 'every quote traces to interview answers — the interview already learned all of this on its own' };
+  }
+  args = { ...args, observations: fresh };
+
   await db.insert(claudeCodeSessions).values({
     orgId: args.orgId, cloneId: args.cloneId, sessionId, source: 'claude-chat',
     project: args.title ?? 'claude.ai chat (distilled)', bytes: 0, humanTurns: 0, status: 'queued',
@@ -178,7 +196,8 @@ export async function recordDistilledObservations(args: {
     evidence: [{ quote: o.quote.slice(0, 300) }],
     weight: 1.0, sourceKind: 'import' as const, sourceRef: `claude-chat:${sessionId}`,
   })));
-  const note = 'distilled on claude.ai — the conversation never left the user\u2019s chat';
+  const note = 'distilled on claude.ai — the conversation never left the user\u2019s chat'
+    + (droppedInterview > 0 ? ` (${droppedInterview} dropped: quotes traced to interview answers, already learned there)` : '');
   await db.update(claudeCodeSessions).set({ status: 'done', observations: args.observations.length, note, extractedAt: new Date() })
     .where(and(eq(claudeCodeSessions.cloneId, args.cloneId), eq(claudeCodeSessions.sessionId, sessionId)));
   await recomputeFingerprint(args.orgId, args.cloneId);
