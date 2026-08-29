@@ -30,7 +30,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         <SideNav include={['/opersonas']} />
         <SideNav include={['/explore']} />
         <div className="mt-4 space-y-0.5 border-t border-neutral-200 pt-3 dark:border-neutral-800">
-          <PersonaProgress data={progress} />
+          <PersonaProgress data={progress} cloneId={own?.id} />
           <BridgeNavButton />
         </div>
         <div className="relative mt-auto -mx-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800">
@@ -52,7 +52,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
             <SideNav horizontal include={['/me']} />
             <SideNav horizontal include={['/opersonas']} />
             <SideNav horizontal include={['/explore']} />
-            <div className="ml-auto shrink-0"><PersonaProgress data={progress} variant="pill" /></div>
+            <div className="ml-auto shrink-0"><PersonaProgress data={progress} cloneId={own?.id} variant="pill" /></div>
           </nav>
         </div>
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip overscroll-contain px-3 py-3 md:px-6 md:py-4">{children}</main>

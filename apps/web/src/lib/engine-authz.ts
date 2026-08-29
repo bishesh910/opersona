@@ -90,6 +90,8 @@ export async function authorize(ctx: OrgCtx, method: string, path: string[]): Pr
     if (sub === 'fingerprint' && (tail === 'recompute' || tail === 'tidy')) return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'read-only');
     // Episodic memory backfill for existing conversations. Owner only.
     if (sub === 'episodes' && tail === 'backfill') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can backfill episodes');
+    // Requeue failed interview extractions ("sync now"). Owner only.
+    if (sub === 'learning' && tail === 'retry-extractions') return access.canWrite ? { ok: true, cloneId: id } : deny(403, 'only the persona owner can retry learning');
     return deny(404, 'unknown engine path');
   }
 

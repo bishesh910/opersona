@@ -121,6 +121,21 @@ routes.post('/clones/:id/simulate', async (c) => {
   return c.json(await simulate({ orgId: body.orgId, cloneId: clone.id, userId: body.userId, mode: body.mode, text: body.text, options: body.options, context: body.context }));
 });
 
+/** Manual "sync now": requeue this org's failed interview extractions and say
+ *  which rail (if any) will process them. The same drain also fires
+ *  automatically whenever a bridge connects. Owner-only via the proxy. */
+routes.post('/clones/:id/learning/retry-extractions', async (c) => {
+  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string() }));
+  const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
+  if (!clone) return c.json({ error: 'clone not found' }, 404);
+  const { bridgeFor } = await import('../bridge/hub.js');
+  const cfg = await orgModelConfig(body.orgId).catch(() => null);
+  const rail = bridgeFor(body.orgId) ? 'bridge' : cfg?.apiKey ? 'key' : 'none';
+  const { retryRailFailures } = await import('../learning/queue.js');
+  const queued = await retryRailFailures(body.orgId);
+  return c.json({ queued, rail });
+});
+
 // ─── cognitive interview ────────────────────────────────────────────────────
 /** Current (or next) interview question + per-category progress. Resume-safe.
  *  Also returns session-start context for the claude.ai interviewer — a fresh

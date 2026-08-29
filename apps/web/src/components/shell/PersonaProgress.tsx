@@ -27,10 +27,29 @@ function StepChip({ done, n }: { done: boolean; n: number }) {
   );
 }
 
-export function PersonaProgress({ data, variant = 'sidebar' }: { data: ProgressData; variant?: 'sidebar' | 'pill' }) {
+export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: ProgressData; cloneId?: string; variant?: 'sidebar' | 'pill' }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   useEffect(() => setMounted(true), []);
+
+  /** "Sync now": requeue failed extractions and report which rail will run them.
+   *  (The same drain fires automatically whenever the bridge connects.) */
+  async function retryNow() {
+    if (!cloneId) return;
+    setSyncBusy(true); setSyncMsg(null);
+    try {
+      const res = await fetch(`/api/engine/clones/${cloneId}/learning/retry-extractions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const r = (await res.json()) as { queued?: number; rail?: 'bridge' | 'key' | 'none'; error?: string };
+      if (!res.ok) { setSyncMsg(r.error ?? 'Could not queue the retry.'); return; }
+      setSyncMsg(r.rail === 'none'
+        ? `Queued ${r.queued} — but no Claude is connected right now. Wake your bridge machine (or add an API key in Settings → Models); they run the moment it connects.`
+        : `Queued ${r.queued} — processing on your ${r.rail === 'bridge' ? 'bridge machine' : 'API key'} now. Give it a few minutes, then check Memory.`);
+    } catch {
+      setSyncMsg('Could not queue the retry — try again.');
+    } finally { setSyncBusy(false); }
+  }
   const [connector, setConnector] = useState(data.connector);
   const [origin, setOrigin] = useState('https://opersona.me');
   useEffect(() => { if (window.location.origin.startsWith('http')) setOrigin(window.location.origin); }, []);
@@ -90,11 +109,19 @@ export function PersonaProgress({ data, variant = 'sidebar' }: { data: ProgressD
             </div>
 
             {data.failedExtractions > 0 && (
-              <p className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                <span className="font-medium">{data.failedExtractions} interview answer{data.failedExtractions === 1 ? '' : 's'} couldn&rsquo;t be processed</span> — no Claude was
-                reachable when they were tried (bridge offline, no API key). Your answers are safe and retry automatically
-                the moment your bridge reconnects; wake the paired machine or add an API key in Settings → Models.
-              </p>
+              <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                <p>
+                  <span className="font-medium">{data.failedExtractions} interview answer{data.failedExtractions === 1 ? '' : 's'} couldn&rsquo;t be processed</span> — no Claude was
+                  reachable when they were tried (bridge offline, no API key). Your answers are safe and retry automatically
+                  the moment your bridge reconnects.
+                </p>
+                {cloneId && (
+                  <button type="button" className="btn-secondary btn-sm !text-xs" disabled={syncBusy} onClick={() => void retryNow()}>
+                    {syncBusy ? 'Queueing…' : 'Retry now'}
+                  </button>
+                )}
+                {syncMsg && <p>{syncMsg}</p>}
+              </div>
             )}
             <ol className="space-y-3.5 text-sm">
               <li className="flex gap-2.5">
