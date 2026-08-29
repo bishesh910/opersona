@@ -27,14 +27,17 @@ export async function recomputeFingerprint(orgId: string, cloneId: string, now =
   const obs = await db.select().from(reasoningObservations).where(eq(reasoningObservations.cloneId, cloneId));
   const verdicts = new Map((await db.select({ k: reasoningPatterns.patternKey, v: reasoningPatterns.userVerdict }).from(reasoningPatterns).where(eq(reasoningPatterns.cloneId, cloneId))).map((r) => [r.k, r.v]));
 
-  const acc = new Map<string, { dim: ReasoningDimension; descs: Map<string, number>; strength: number; sources: Set<string>; examples: string[]; first: Date; last: Date; fromFeedback: boolean }>();
+  const acc = new Map<string, { dim: ReasoningDimension; descs: Map<string, number>; strength: number; sources: Set<string>; examples: string[]; first: Date; last: Date; fromFeedback: boolean; fromInterview: boolean }>();
   for (const o of obs) {
     const ageDays = Math.max(0, (now.getTime() - o.createdAt.getTime()) / 86_400_000);
     const w = o.weight * Math.pow(0.5, ageDays / HALF_LIFE_DAYS);
     let a = acc.get(o.patternKey);
-    if (!a) { a = { dim: o.dimension, descs: new Map(), strength: 0, sources: new Set(), examples: [], first: o.createdAt, last: o.createdAt, fromFeedback: false }; acc.set(o.patternKey, a); }
+    if (!a) { a = { dim: o.dimension, descs: new Map(), strength: 0, sources: new Set(), examples: [], first: o.createdAt, last: o.createdAt, fromFeedback: false, fromInterview: false }; acc.set(o.patternKey, a); }
     a.strength += w;
     if (o.sourceKind === 'feedback' && o.weight > 0) a.fromFeedback = true;
+    // The owner's word confirms directly (product decision): a move shown in
+    // their own interview answers doesn't wait for two more witnesses.
+    if (o.weight > 0 && o.sourceRef.startsWith('claude-chat:interview-batch-')) a.fromInterview = true;
     a.descs.set(o.description, (a.descs.get(o.description) ?? 0) + Math.max(0, w));
     if (o.weight > 0) { a.sources.add(o.sourceRef); for (const e of o.evidence) if (a.examples.length < 6 && !a.examples.includes(e.quote)) a.examples.push(e.quote); }
     if (o.createdAt < a.first) a.first = o.createdAt;
@@ -46,7 +49,7 @@ export async function recomputeFingerprint(orgId: string, cloneId: string, now =
     const description = [...a.descs.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] ?? '';
     const verdict = verdicts.get(key) ?? null;
     const status: PatternRow['status'] = verdict === 'reject' ? 'rejected' : verdict === 'accept' ? 'confirmed'
-      : a.fromFeedback ? 'confirmed'
+      : a.fromFeedback || a.fromInterview ? 'confirmed'
       : (a.sources.size >= MIN_SOURCES && a.strength >= MIN_STRENGTH) ? 'confirmed' : 'emerging';
     rows.push({ patternKey: key, dimension: a.dim, description, strength: Math.round(a.strength * 100) / 100, nSources: a.sources.size, status, userVerdict: verdict, examples: a.examples, firstSeenAt: a.first, lastSeenAt: a.last });
   }

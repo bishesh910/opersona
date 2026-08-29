@@ -250,7 +250,7 @@ export function PatternsPanel({ cloneId, patterns, readOnly }: { cloneId: string
                 )}
               </div>
             </div>
-            <p className="muted text-xs">Seen in 3+ chats, or accepted by you. These shape every answer.</p>
+            <p className="muted text-xs">Seen in 3+ chats, shown in your interview, or accepted by you. These shape every answer.</p>
             {confirmed.length === 0 && <p className="muted text-xs">None yet.</p>}
             <div>
               {confirmedGroups.map((g) => {

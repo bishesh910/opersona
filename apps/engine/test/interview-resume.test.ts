@@ -57,3 +57,20 @@ describe('interview resume + skip (anti-circling)', () => {
       .rejects.toThrow(/already/);
   });
 });
+
+describe('interview evidence confirms patterns directly (product decision)', () => {
+  it('one interview-sourced observation → confirmed; one ordinary observation → emerging', async () => {
+    if (!enabled) return;
+    const { reasoningObservations } = await import('@opersona/db');
+    const { recomputeFingerprint } = await import('../src/learning/fingerprint.js');
+    await db.insert(reasoningObservations).values([
+      { orgId: ORG, cloneId: CLONE, patternKey: 'test_interview_move', dimension: 'risk', description: 'Builds a buffer before committing to risk.', evidence: [{ quote: 'fund first' }], weight: 1, sourceKind: 'import', sourceRef: 'claude-chat:interview-batch-abc-1' },
+      { orgId: ORG, cloneId: CLONE, patternKey: 'test_plain_move', dimension: 'pace', description: 'Explores broadly before narrowing.', evidence: [{ quote: 'looked around' }], weight: 1, sourceKind: 'import', sourceRef: 'claude-chat:cc-dist-xyz' },
+    ]);
+    const rows = await recomputeFingerprint(ORG, CLONE);
+    expect(rows.find((r) => r.patternKey === 'test_interview_move')?.status).toBe('confirmed');
+    expect(rows.find((r) => r.patternKey === 'test_plain_move')?.status).toBe('emerging');
+    await pool.query("delete from reasoning_observations where org_id = $1", [ORG]);
+    await pool.query("delete from reasoning_patterns where org_id = $1", [ORG]);
+  });
+});
