@@ -193,6 +193,8 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
   const INTERVIEWER_BRIEF = `HOW TO CONDUCT THIS (you are the interviewer now):
 - Ask the question conversationally in your own words — you're a curious friend, never a form or a therapist. One question at a time.
 - Probe over 2-4 exchanges when it earns its place: the why, what they weighed, what they feared, whether they'd do it again, whether there's an exception, whether it changes when someone close is involved.
+- NEVER CIRCLE: each probe must open a genuinely NEW angle — never re-collect something they already gave you in different words ("how did you choose" then "what made you go with that choice" is the same question twice; users hate it). If their first answer already contains a concrete story AND the why, submit immediately and move on.
+- If they seem tired of a question, find it too personal, or say it feels repetitive, offer to skip it (submit_interview_answer with skip: true) — it retires permanently. Never push a question twice.
 - If they share something heavy or unresolved, be a person FIRST — name the weight simply ("that's a lot to carry") and stay on that thread; never change the subject away from something raw. If they ask what YOU think they should do, be honest that their persona is still learning them, then ask what each option would actually mean for them.
 - When the thread has a concrete story plus the reason underneath, call submit_interview_answer with the question_id, their words VERBATIM (their phrasing is what their persona learns from — never paraphrase), and the exchange. Then flow into the next question it returns.
 - After ~3 completed questions, offer a natural break ("that's plenty for one sitting") — they can always continue.
@@ -213,6 +215,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
           progress: { answered: number; categories: { label: string; coverage: number; justStarted: boolean }[] };
           known: string | null;
           recent: { question: string; answer: string; when: string }[];
+          repeat?: boolean;
         }>(`/clones/${clone.id}/interview/next`, { body: { orgId: me.orgId, userId: me.userId } });
         if (!r.question) return text('Nothing pending right now — new questions appear as the persona studies recent answers. Try again after the next few.');
         // THE user-facing number = the build meter on their opersona.me nav bar
@@ -235,9 +238,14 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
           ] : []),
           ...(r.known ? ['', 'WHAT THEIR PERSONA ALREADY BELIEVES (same rule — background only; don’t re-ask what’s here, DO probe gaps and open tensions):', r.known] : []),
         ] : [];
+        const repeatNote = r.repeat ? [
+          '',
+          'THIS EXACT QUESTION WAS SERVED BEFORE and never finished. Do NOT reword it and present it as new — that reads as the interview going in circles. Say plainly and lightly that it\u2019s the same one ("we never quite finished this one"), and offer the exit in the same breath: they can answer it OR you\u2019ll skip it for good (submit_interview_answer with skip: true). If they showed any fatigue with it before, lead with the skip offer.',
+        ] : [];
         return text([
           `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn’t quite add up' : r.question.kind === 'follow_up' ? ' · digging deeper on an earlier thread' : ''}`,
           `"${r.question.text}"${r.question.hint ? `\n(${r.question.hint})` : ''}`,
+          ...repeatNote,
           '',
           coverage,
           ...resume,
@@ -252,27 +260,33 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
 
   server.tool(
     'submit_interview_answer',
-    "Save one completed interview exchange to the user's opersona and get the next question. Call after opersona_me once a question's thread is complete (a concrete story + the why). their_words must be the user's own words VERBATIM — their phrasing is what the persona learns from.",
+    "Save one completed interview exchange to the user's opersona and get the next question — or SKIP a question the user doesn't want (skip: true; it never comes back). Call after opersona_me once a question's thread is complete (a concrete story + the why). their_words must be the user's own words VERBATIM — their phrasing is what the persona learns from.",
     {
-      question_id: z.string().uuid().describe('the id from interview_me / the previous submit'),
-      their_words: z.string().min(1).max(20_000).describe("the user's own messages from this thread, verbatim, joined by newlines — never paraphrased, never yours"),
+      question_id: z.string().uuid().describe('the id from opersona_me / the previous submit'),
+      their_words: z.string().max(20_000).optional().describe("the user's own messages from this thread, verbatim, joined by newlines — never paraphrased, never yours. Omit when skipping."),
+      skip: z.boolean().optional().describe("true = the user doesn't want this question (bored, too personal, feels repetitive) — retire it permanently and move to the next"),
       exchange: z.array(z.object({ role: z.enum(['user', 'interviewer']), text: z.string().max(4000) })).max(24).optional()
         .describe('the full back-and-forth in order (your questions included) so short answers stay interpretable'),
     },
-    async ({ question_id, their_words, exchange }) => {
+    async ({ question_id, their_words, skip, exchange }) => {
       const me = await resolveWorkspace(userId);
       if (!me) return errText('Account not found.');
       const clone = await myPersona(me);
       if (!clone) return errText(NO_PERSONA);
+      const userText = skip ? '' : (their_words ?? '').trim();
+      if (!skip && !userText) return errText('their_words is required unless skip is true.');
       try {
         const r = await engineFetch<{ answerId: string | null; question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null; progress: { answered: number } }>(
-          `/clones/${clone.id}/interview/submit-thread`, { body: { orgId: me.orgId, questionId: question_id, userText: their_words, dialogue: exchange } });
-        const pace = r.progress.answered > 0 && r.progress.answered % 3 === 0
+          `/clones/${clone.id}/interview/submit-thread`, { body: { orgId: me.orgId, questionId: question_id, userText, dialogue: skip ? undefined : exchange } });
+        const pace = !skip && r.progress.answered > 0 && r.progress.answered % 3 === 0
           ? '\n\nPACING: that makes three this sitting — offer them a natural break before continuing.'
           : '';
-        if (!r.question) return text(`Saved (${r.progress.answered} answers so far) — the persona is folding it in. No more questions pending right now.${pace}`);
+        const head = skip
+          ? 'Skipped — that question is retired and will not come back.'
+          : `Saved — the persona is folding it in (answer ${r.progress.answered}).`;
+        if (!r.question) return text(`${head} No more questions pending right now.${pace}`);
         return text([
-          `Saved — the persona is folding it in (answer ${r.progress.answered}). Flow naturally into the next one:`,
+          `${head} Flow naturally into the next one:`,
           '',
           `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn’t quite add up' : ''}`,
           `"${r.question.text}"${r.question.hint ? `\n(${r.question.hint})` : ''}`,

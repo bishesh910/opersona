@@ -52,13 +52,15 @@ const serve = (q: { id: string; category: string; facet: string | null; kind: st
 });
 
 /** Pick (or resume) the question to show. Materializes bank questions lazily. */
-export async function nextQuestionFor(orgId: string, cloneId: string): Promise<{ question: ServedQuestion | null; progress: Progress }> {
+export async function nextQuestionFor(orgId: string, cloneId: string): Promise<{ question: ServedQuestion | null; progress: Progress; repeat?: boolean }> {
   // Resume: an asked-but-unanswered question is THE question (pause = just leave).
   const [open] = await db.select().from(interviewQuestions)
     .where(and(eq(interviewQuestions.cloneId, cloneId), eq(interviewQuestions.status, 'asked')))
     .orderBy(desc(interviewQuestions.askedAt)).limit(1);
   const state = await loadInterviewState(cloneId);
-  if (open) return { question: serve(open), progress: await progressFor(state, cloneId) };
+  // repeat: this exact question was served before and never finished — the
+  // interviewer must SAY so (and offer a skip) instead of rewording it as new.
+  if (open) return { question: serve(open), progress: await progressFor(state, cloneId), repeat: true };
 
   const pending = await db.select().from(interviewQuestions)
     .where(and(eq(interviewQuestions.cloneId, cloneId), eq(interviewQuestions.status, 'pending')))
