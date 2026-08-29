@@ -214,16 +214,17 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
           recent: { question: string; answer: string; when: string }[];
         }>(`/clones/${clone.id}/interview/next`, { body: { orgId: me.orgId, userId: me.userId } });
         if (!r.question) return text('Nothing pending right now — new questions appear as the persona studies recent answers. Try again after the next few.');
-        const started = r.progress.categories.filter((c) => !c.justStarted);
-        const pct = Math.round((started.reduce((s, c) => s + c.coverage, 0) / r.progress.categories.length) * 100);
-        const coverage = started.length
+        // Same math as the nav-bar progress: average coverage over ALL ten areas
+        // (untouched areas count as zero) — never filtered, so it's never a fake 0.
+        const pct = Math.round((r.progress.categories.reduce((s, c) => s + c.coverage, 0) / Math.max(1, r.progress.categories.length)) * 100);
+        const coverage = r.progress.answered > 0
           ? `So far: ${r.progress.answered} answers · knows them ≈ ${pct}% overall.`
           : 'This is early days — first answers teach it the most.';
         const returning = r.progress.answered > 0;
         const resume = returning ? [
           '',
-          `RESUMING: picks up exactly where they left off (${r.progress.answered} answers banked, ≈${pct}% overall) — answered questions never come back.`,
-          `GREET LIGHT, THEN THE QUESTION: one short upbeat line like "Welcome back — your opersona is at ${pct}% and we're picking up right where we left off." Do NOT recap what they told you before — being handed a summary of your own personal disclosures feels invasive, not warm. Mention a past topic only if THEY bring it up first.`,
+          `RESUMING: picks up exactly where they left off (${r.progress.answered} answers banked, ${pct}% overall) — answered questions never come back.`,
+          `GREET LIGHT, THEN THE QUESTION: one short upbeat line that INCLUDES THE NUMBER ${pct}% — e.g. "Welcome back — your opersona is at ${pct}% and we're picking up right where we left off." Say the figure verbatim; do not round it away or soften it into "building". Do NOT recap what they told you before — being handed a summary of your own personal disclosures feels invasive, not warm. Mention a past topic only if THEY bring it up first.`,
           ...(r.recent?.length ? [
             'PRIVATE BACKGROUND — for your awareness only, so you never re-ask or contradict. Never recite, quote, or summarize any of this back to them:',
             ...r.recent.map((x) => `- asked: ${x.question} → they said: "${x.answer}"`),
