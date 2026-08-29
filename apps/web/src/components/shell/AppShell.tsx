@@ -31,7 +31,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         <SideNav include={['/explore']} />
         <div className="mt-4 space-y-0.5 border-t border-neutral-200 pt-3 dark:border-neutral-800">
           <PersonaProgress data={progress} cloneId={own?.id} />
-          <BridgeNavButton />
+          <BridgeNavButton waiting={progress.failedExtractions} />
         </div>
         <div className="relative mt-auto -mx-2 border-t border-neutral-200 px-2 pt-2 dark:border-neutral-800">
           <SidebarFooter name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} />
@@ -43,7 +43,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-12 items-center justify-between border-b border-neutral-200 px-4 md:hidden dark:border-neutral-800">
           <Link href="/me" className="text-base font-semibold tracking-tight">opersona.me</Link>
           <div className="flex items-center gap-2">
-            <BridgeNavButton variant="dot" />
+            <BridgeNavButton variant="dot" waiting={progress.failedExtractions} />
             <UserMenu name={ctx.user.name} email={ctx.user.email} avatarRecipe={own?.r ?? null} />
           </div>
         </header>

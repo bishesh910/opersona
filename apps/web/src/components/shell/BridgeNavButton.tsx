@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { bridgeState, mintBridgeToken, type BridgeState } from '@/actions/bridge';
 import { CopyButton } from '@/components/shell/CopyButton';
 
-export function BridgeNavButton({ variant = 'sidebar' }: { variant?: 'sidebar' | 'dot' }) {
+export function BridgeNavButton({ variant = 'sidebar', waiting = 0 }: { variant?: 'sidebar' | 'dot'; waiting?: number }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -68,6 +68,10 @@ export function BridgeNavButton({ variant = 'sidebar' }: { variant?: 'sidebar' |
                   analysing history exports, extracting what the interview learns, drawing your pixie from a selfie,
                   nightly tidy-ups. Nothing more — and the web can never run code on your machine.
                 </p>
+                <p className="muted mt-1.5 text-xs">
+                  When this machine sleeps or goes offline, learning simply <span className="font-medium">waits</span> —
+                  nothing is lost, and it catches up on its own the moment the bridge reconnects.
+                </p>
               </div>
               <button type="button" className="btn-secondary btn-sm shrink-0" onClick={() => setOpen(false)}>Close</button>
             </div>
@@ -78,6 +82,11 @@ export function BridgeNavButton({ variant = 'sidebar' }: { variant?: 'sidebar' |
                 ? <>online — <span className="font-mono text-xs">{state.host}</span></>
                 : state.tokens.length > 0 ? 'paired, but not running right now' : 'no machine paired yet'}
             </div>
+            {waiting > 0 && !connected && (
+              <p className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                {waiting} interview answer{waiting === 1 ? '' : 's'} waiting for this machine — wake it and they process automatically.
+              </p>
+            )}
 
             {!connected && !fresh && (
               <button type="button" className="btn-primary btn-sm" onClick={() => void pair()} disabled={busy}>

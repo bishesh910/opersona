@@ -156,7 +156,8 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
                   <p className="muted text-xs">
                     Chat on claude.ai as usual (say <em>&ldquo;learn from this chat&rdquo;</em> when one was very you),{' '}
                     <Link href="/onboarding/sources" className="underline underline-offset-2" onClick={() => setOpen(false)}>import your claude.ai / ChatGPT history</Link>,
-                    and pair the bridge so finished Claude Code sessions teach it automatically.
+                    and pair the bridge so finished Claude Code sessions teach it automatically. (Everything it learns
+                    is processed through YOUR Claude — while your bridge machine sleeps, learning waits and catches up on wake.)
                     {data.patterns > 0 && <> Confirmed reasoning patterns so far: <span className="font-medium text-neutral-700 dark:text-neutral-300">{data.patterns}</span>.</>}
                   </p>
                 </div>

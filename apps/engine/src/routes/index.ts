@@ -175,7 +175,13 @@ routes.post('/clones/:id/interview/submit-thread', async (c) => {
   if (!clone) return c.json({ error: 'clone not found' }, 404);
   const { submitThread } = await import('../interview/service.js');
   try {
-    return c.json(await submitThread({ orgId: body.orgId, cloneId: clone.id, questionId: body.questionId, userText: body.userText, dialogue: body.dialogue }));
+    const out = await submitThread({ orgId: body.orgId, cloneId: clone.id, questionId: body.questionId, userText: body.userText, dialogue: body.dialogue });
+    // Honesty about what happens next: extraction needs a rail. 'none' means the
+    // answer is banked but waits for the user's bridge machine to wake up.
+    const { bridgeFor } = await import('../bridge/hub.js');
+    const cfg = await orgModelConfig(body.orgId).catch(() => null);
+    const rail = bridgeFor(body.orgId) ? 'bridge' : cfg?.apiKey ? 'key' : 'none';
+    return c.json({ ...out, rail });
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : 'could not save the answer' }, 409);
   }

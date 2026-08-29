@@ -343,14 +343,16 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
       const userText = skip ? '' : (their_words ?? '').trim();
       if (!skip && !userText) return errText('their_words is required unless skip is true.');
       try {
-        const r = await engineFetch<{ answerId: string | null; question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null; progress: { answered: number } }>(
+        const r = await engineFetch<{ answerId: string | null; question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null; progress: { answered: number }; rail?: 'bridge' | 'key' | 'none' }>(
           `/clones/${clone.id}/interview/submit-thread`, { body: { orgId: me.orgId, questionId: question_id, userText, dialogue: skip ? undefined : exchange } });
         const pace = !skip && r.progress.answered > 0 && r.progress.answered % 3 === 0
           ? '\n\nPACING: that makes three this sitting — offer a pause. NEVER phrase it as an ending ("good spot to stop", "we\u2019re done") — the interview has no finish line and that wording reads as "completed". Acknowledge the real effort and frame it as a pause, e.g.: "These take real energy to answer — happy to keep going, or we can pick this up another time, exactly where we left off. One more, or call it here for today?"'
           : '';
         const head = skip
           ? 'Skipped — that question is retired and will not come back.'
-          : `Saved — the persona is folding it in (answer ${r.progress.answered}).`;
+          : r.rail === 'none'
+            ? `Saved and banked (answer ${r.progress.answered}) — but their Claude rail is offline (bridge machine asleep, no API key), so the persona can't fold it in YET. Nothing is lost: it processes automatically the moment their bridge reconnects. Mention this briefly once per session, not every answer.`
+            : `Saved — the persona is folding it in (answer ${r.progress.answered}).`;
         if (!r.question) return text(`${head} No more questions pending right now.${pace}`);
         return text([
           `${head} Flow naturally into the next one:`,
