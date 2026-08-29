@@ -11,16 +11,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CopyButton } from '@/components/shell/CopyButton';
 import { connectorState } from '@/actions/bridge';
-
-export interface ProgressData {
-  pct: number;
-  connector: boolean;
-  answered: number;
-  coveragePct: number;   // 0..100, interview coverage average
-  patterns: number;      // confirmed reasoning patterns
-  scored: number;        // scored blind scenarios
-  bridgePaired: boolean;
-}
+import type { ProgressData } from '@/lib/persona-progress';
 
 function StepChip({ done, n }: { done: boolean; n: number }) {
   return (

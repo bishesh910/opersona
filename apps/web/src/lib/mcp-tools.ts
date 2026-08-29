@@ -13,6 +13,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { engineFetch } from '@/lib/engine';
 import { ensurePersonalWorkspace } from '@/lib/workspace';
 import { getPublishedBySlug, canViewPublished, isSlug } from '@/lib/community';
+import { buildProgress } from '@/lib/persona-progress';
 
 interface Me { userId: string; orgId: string }
 
@@ -214,17 +215,20 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
           recent: { question: string; answer: string; when: string }[];
         }>(`/clones/${clone.id}/interview/next`, { body: { orgId: me.orgId, userId: me.userId } });
         if (!r.question) return text('Nothing pending right now — new questions appear as the persona studies recent answers. Try again after the next few.');
-        // Same math as the nav-bar progress: average coverage over ALL ten areas
-        // (untouched areas count as zero) — never filtered, so it's never a fake 0.
-        const pct = Math.round((r.progress.categories.reduce((s, c) => s + c.coverage, 0) / Math.max(1, r.progress.categories.length)) * 100);
+        // THE user-facing number = the build meter on their opersona.me nav bar
+        // (connector + interview coverage + patterns + blind tests). One figure,
+        // one meaning, everywhere — the raw interview coverage is interviewer
+        // detail only, never the headline.
+        const build = await buildProgress(me.userId, me.orgId, clone.id);
+        const pct = build.pct;
         const coverage = r.progress.answered > 0
-          ? `So far: ${r.progress.answered} answers · knows them ≈ ${pct}% overall.`
+          ? `So far: ${r.progress.answered} answers · interview coverage ${build.coveragePct}% of the ten areas · overall build ${pct}% (the same number as the progress bar on their opersona.me nav).`
           : 'This is early days — first answers teach it the most.';
         const returning = r.progress.answered > 0;
         const resume = returning ? [
           '',
-          `RESUMING: picks up exactly where they left off (${r.progress.answered} answers banked, ${pct}% overall) — answered questions never come back.`,
-          `GREET LIGHT, THEN THE QUESTION: one short upbeat line that INCLUDES THE NUMBER ${pct}% — e.g. "Welcome back — your opersona is at ${pct}% and we're picking up right where we left off." Say the figure verbatim; do not round it away or soften it into "building". Do NOT recap what they told you before — being handed a summary of your own personal disclosures feels invasive, not warm. Mention a past topic only if THEY bring it up first.`,
+          `RESUMING: picks up exactly where they left off (${r.progress.answered} answers banked) — answered questions never come back.`,
+          `GREET LIGHT, THEN THE QUESTION: one short upbeat line that INCLUDES THE NUMBER ${pct}% — e.g. "Welcome back — your opersona is at ${pct}% and we're picking up right where we left off." That figure matches the progress bar they see on opersona.me — say it verbatim, don't soften it into "building". Do NOT recap what they told you before — being handed a summary of your own personal disclosures feels invasive, not warm. Mention a past topic only if THEY bring it up first.`,
           ...(r.recent?.length ? [
             'PRIVATE BACKGROUND — for your awareness only, so you never re-ask or contradict. Never recite, quote, or summarize any of this back to them:',
             ...r.recent.map((x) => `- asked: ${x.question} → they said: "${x.answer}"`),
