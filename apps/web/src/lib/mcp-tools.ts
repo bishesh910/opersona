@@ -195,7 +195,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
 - If they share something heavy or unresolved, be a person FIRST — name the weight simply ("that's a lot to carry") and stay on that thread; never change the subject away from something raw. If they ask what YOU think they should do, be honest that their persona is still learning them, then ask what each option would actually mean for them.
 - When the thread has a concrete story plus the reason underneath, call submit_interview_answer with the question_id, their words VERBATIM (their phrasing is what their persona learns from — never paraphrase), and the exchange. Then flow into the next question it returns.
 - After ~3 completed questions, offer a natural break ("that's plenty for one sitting") — they can always continue.
-- RETURNING USERS: the interview always RESUMES server-side — never say "let's start over", never re-explain the process. Greet like a colleague picking the thread back up (one line of continuity from their recent answers, e.g. "last time you told me about…"), then the question. Never ask them to repeat anything shown in the context below.`;
+- RETURNING USERS: the interview always RESUMES server-side — never say "let's start over", never re-explain the process. Greet with ONE light line (their progress % + "picking up where we left off"), then straight into the question. Their earlier answers are PRIVATE BACKGROUND: use them silently to avoid re-asking — never as a recap of what they shared.`;
 
   server.tool(
     'opersona_me',
@@ -215,18 +215,20 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
         }>(`/clones/${clone.id}/interview/next`, { body: { orgId: me.orgId, userId: me.userId } });
         if (!r.question) return text('Nothing pending right now — new questions appear as the persona studies recent answers. Try again after the next few.');
         const started = r.progress.categories.filter((c) => !c.justStarted);
+        const pct = Math.round((started.reduce((s, c) => s + c.coverage, 0) / r.progress.categories.length) * 100);
         const coverage = started.length
-          ? `So far: ${r.progress.answered} answers · knows them ≈ ${Math.round((started.reduce((s, c) => s + c.coverage, 0) / r.progress.categories.length) * 100)}% overall.`
+          ? `So far: ${r.progress.answered} answers · knows them ≈ ${pct}% overall.`
           : 'This is early days — first answers teach it the most.';
         const returning = r.progress.answered > 0;
         const resume = returning ? [
           '',
-          `RESUMING (session ${r.recent[0]?.when ? `— last answer ${r.recent[0].when}` : 'continues'}): the interview picks up exactly where it left off; answered questions never come back.`,
+          `RESUMING: picks up exactly where they left off (${r.progress.answered} answers banked, ≈${pct}% overall) — answered questions never come back.`,
+          `GREET LIGHT, THEN THE QUESTION: one short upbeat line like "Welcome back — your opersona is at ${pct}% and we're picking up right where we left off." Do NOT recap what they told you before — being handed a summary of your own personal disclosures feels invasive, not warm. Mention a past topic only if THEY bring it up first.`,
           ...(r.recent?.length ? [
-            'Their most recent answers, for continuity (reference naturally — "last time you told me about…" — never make them repeat these):',
+            'PRIVATE BACKGROUND — for your awareness only, so you never re-ask or contradict. Never recite, quote, or summarize any of this back to them:',
             ...r.recent.map((x) => `- asked: ${x.question} → they said: "${x.answer}"`),
           ] : []),
-          ...(r.known ? ['', 'WHAT THEIR PERSONA ALREADY BELIEVES (don’t re-ask what’s here; DO probe the gaps and open tensions):', r.known] : []),
+          ...(r.known ? ['', 'WHAT THEIR PERSONA ALREADY BELIEVES (same rule — background only; don’t re-ask what’s here, DO probe gaps and open tensions):', r.known] : []),
         ] : [];
         return text([
           `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn’t quite add up' : r.question.kind === 'follow_up' ? ' · digging deeper on an earlier thread' : ''}`,
