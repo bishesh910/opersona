@@ -122,13 +122,31 @@ routes.post('/clones/:id/simulate', async (c) => {
 });
 
 // ─── cognitive interview ────────────────────────────────────────────────────
-/** Current (or next) interview question + per-category progress. Resume-safe. */
+/** Current (or next) interview question + per-category progress. Resume-safe.
+ *  Also returns session-start context for the claude.ai interviewer — a fresh
+ *  conversation there has no memory of earlier sessions, so `known` (what the
+ *  persona already believes) and `recent` (the user's last answers, verbatim
+ *  heads) give it continuity: reference, don't re-ask. */
 routes.post('/clones/:id/interview/next', async (c) => {
   const body = await parse(c, z.object({ orgId: z.string(), userId: z.string() }));
   const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
   if (!clone) return c.json({ error: 'clone not found' }, 404);
   const { nextQuestionFor } = await import('../interview/service.js');
-  return c.json(await nextQuestionFor(body.orgId, clone.id));
+  const { knownDigest } = await import('../interview/state.js');
+  const { interviewAnswers } = await import('@opersona/db');
+  const next = await nextQuestionFor(body.orgId, clone.id);
+  const [known, recent] = await Promise.all([
+    knownDigest(clone.id, 1800).catch(() => ''),
+    db.select({ question: interviewAnswers.questionText, answer: interviewAnswers.text, at: interviewAnswers.createdAt })
+      .from(interviewAnswers)
+      .where(and(eq(interviewAnswers.cloneId, clone.id), eq(interviewAnswers.skipped, false)))
+      .orderBy(desc(interviewAnswers.createdAt)).limit(5),
+  ]);
+  return c.json({
+    ...next,
+    known: known || null,
+    recent: recent.map((r) => ({ question: r.question, answer: r.answer.slice(0, 240), when: r.at.toISOString().slice(0, 10) })),
+  });
 });
 
 /** MCP path: a whole exchange conducted on claude.ai lands as one answer (server-to-server only). */

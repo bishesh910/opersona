@@ -194,7 +194,8 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
 - Probe over 2-4 exchanges when it earns its place: the why, what they weighed, what they feared, whether they'd do it again, whether there's an exception, whether it changes when someone close is involved.
 - If they share something heavy or unresolved, be a person FIRST — name the weight simply ("that's a lot to carry") and stay on that thread; never change the subject away from something raw. If they ask what YOU think they should do, be honest that their persona is still learning them, then ask what each option would actually mean for them.
 - When the thread has a concrete story plus the reason underneath, call submit_interview_answer with the question_id, their words VERBATIM (their phrasing is what their persona learns from — never paraphrase), and the exchange. Then flow into the next question it returns.
-- After ~3 completed questions, offer a natural break ("that's plenty for one sitting") — they can always continue.`;
+- After ~3 completed questions, offer a natural break ("that's plenty for one sitting") — they can always continue.
+- RETURNING USERS: the interview always RESUMES server-side — never say "let's start over", never re-explain the process. Greet like a colleague picking the thread back up (one line of continuity from their recent answers, e.g. "last time you told me about…"), then the question. Never ask them to repeat anything shown in the context below.`;
 
   server.tool(
     'opersona_me',
@@ -206,18 +207,33 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
       const clone = await myPersona(me);
       if (!clone) return errText(NO_PERSONA);
       try {
-        const r = await engineFetch<{ question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null; progress: { answered: number; categories: { label: string; coverage: number; justStarted: boolean }[] } }>(
-          `/clones/${clone.id}/interview/next`, { body: { orgId: me.orgId, userId: me.userId } });
+        const r = await engineFetch<{
+          question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null;
+          progress: { answered: number; categories: { label: string; coverage: number; justStarted: boolean }[] };
+          known: string | null;
+          recent: { question: string; answer: string; when: string }[];
+        }>(`/clones/${clone.id}/interview/next`, { body: { orgId: me.orgId, userId: me.userId } });
         if (!r.question) return text('Nothing pending right now — new questions appear as the persona studies recent answers. Try again after the next few.');
         const started = r.progress.categories.filter((c) => !c.justStarted);
         const coverage = started.length
           ? `So far: ${r.progress.answered} answers · knows them ≈ ${Math.round((started.reduce((s, c) => s + c.coverage, 0) / r.progress.categories.length) * 100)}% overall.`
           : 'This is early days — first answers teach it the most.';
+        const returning = r.progress.answered > 0;
+        const resume = returning ? [
+          '',
+          `RESUMING (session ${r.recent[0]?.when ? `— last answer ${r.recent[0].when}` : 'continues'}): the interview picks up exactly where it left off; answered questions never come back.`,
+          ...(r.recent?.length ? [
+            'Their most recent answers, for continuity (reference naturally — "last time you told me about…" — never make them repeat these):',
+            ...r.recent.map((x) => `- asked: ${x.question} → they said: "${x.answer}"`),
+          ] : []),
+          ...(r.known ? ['', 'WHAT THEIR PERSONA ALREADY BELIEVES (don’t re-ask what’s here; DO probe the gaps and open tensions):', r.known] : []),
+        ] : [];
         return text([
           `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn’t quite add up' : r.question.kind === 'follow_up' ? ' · digging deeper on an earlier thread' : ''}`,
           `"${r.question.text}"${r.question.hint ? `\n(${r.question.hint})` : ''}`,
           '',
           coverage,
+          ...resume,
           '',
           INTERVIEWER_BRIEF,
         ].join('\n'));
