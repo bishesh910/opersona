@@ -6,12 +6,15 @@
  * interview learns, pixie-from-selfie, nightly tidy-ups. Nothing more.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { bridgeState, mintBridgeToken, type BridgeState } from '@/actions/bridge';
 import { CopyButton } from '@/components/shell/CopyButton';
 
 export function BridgeNavButton({ variant = 'sidebar' }: { variant?: 'sidebar' | 'dot' }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [state, setState] = useState<BridgeState | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,9 +56,10 @@ export function BridgeNavButton({ variant = 'sidebar' }: { variant?: 'sidebar' |
   return (
     <>
       {trigger}
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center" role="dialog" aria-modal="true" aria-label="Pair your machine" onClick={() => setOpen(false)}>
-          <div className="card my-6 w-full max-w-md space-y-3 p-5" onClick={(e) => e.stopPropagation()}>
+      {mounted && open && createPortal(
+        <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/50" role="dialog" aria-modal="true" aria-label="Pair your machine" onClick={() => setOpen(false)}>
+          <div className="flex min-h-full items-start justify-center sm:items-center sm:p-4">
+          <div className="card w-full space-y-3 p-4 max-sm:min-h-full max-sm:rounded-none max-sm:border-x-0 sm:my-6 sm:max-w-md sm:p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="font-medium">Your machine, your subscription</h2>
@@ -99,7 +103,9 @@ export function BridgeNavButton({ variant = 'sidebar' }: { variant?: 'sidebar' |
               Prefer an API key instead, or need to revoke a machine? <Link href="/settings" className="underline underline-offset-2" onClick={() => setOpen(false)}>Settings → Models</Link>.
             </p>
           </div>
-        </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </>
   );

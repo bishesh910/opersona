@@ -8,6 +8,7 @@
  * is still open in one tab and claude.ai in another.
  */
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { CopyButton } from '@/components/shell/CopyButton';
 import { connectorState } from '@/actions/bridge';
@@ -28,6 +29,8 @@ function StepChip({ done, n }: { done: boolean; n: number }) {
 
 export function PersonaProgress({ data, variant = 'sidebar' }: { data: ProgressData; variant?: 'sidebar' | 'pill' }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [connector, setConnector] = useState(data.connector);
   const [origin, setOrigin] = useState('https://opersona.me');
   useEffect(() => { if (window.location.origin.startsWith('http')) setOrigin(window.location.origin); }, []);
@@ -73,9 +76,11 @@ export function PersonaProgress({ data, variant = 'sidebar' }: { data: ProgressD
   return (
     <>
       {trigger}
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center" role="dialog" aria-modal="true" aria-label="How your persona gets built" onClick={() => setOpen(false)}>
-          <div className="card w-full max-w-lg space-y-4 p-5 my-6" onClick={(e) => e.stopPropagation()}>
+      {mounted && open && createPortal(
+        <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/50" role="dialog" aria-modal="true" aria-label="How your persona gets built" onClick={() => setOpen(false)}>
+          <div className="flex min-h-full items-start justify-center sm:items-center sm:p-4">
+          {/* phones: a full-screen sheet with its own scroll; sm+: a centered dialog */}
+          <div className="card w-full space-y-4 p-4 max-sm:min-h-full max-sm:rounded-none max-sm:border-x-0 sm:my-6 sm:max-w-lg sm:p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="font-medium">How your persona gets built</h2>
@@ -150,7 +155,9 @@ export function PersonaProgress({ data, variant = 'sidebar' }: { data: ProgressD
               </p>
             </div>
           </div>
-        </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </>
   );
