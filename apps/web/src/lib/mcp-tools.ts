@@ -41,13 +41,87 @@ const text = (t: string) => ({ content: [{ type: 'text' as const, text: t }] });
 const errText = (t: string) => ({ content: [{ type: 'text' as const, text: t }], isError: true });
 const NO_PERSONA = 'No persona yet — build one at https://opersona.me/onboarding first (it takes about two minutes).';
 
+const INTERVIEWER_BRIEF = `HOW TO CONDUCT THIS (you are the interviewer now — building an evidence-based portrait, never flattering or typing them):
+- Ask the question conversationally in your own words — a curious friend, never a form or a therapist. ONE question at a time; never batch. Keep your own turns SHORT — they should be doing most of the talking.
+- Episodes, not self-description: never let an answer rest on a trait claim ("I'm pretty organised"). Steer to one specific incident — a time, a place, the people who were there.
+- Probe 1-3 times when it earns its place, each probe a different target: what they actually DID, what they were THINKING in the moment, what happened NEXT, what they'd do DIFFERENTLY. If they deflect or go thin twice, stop probing and submit what you have.
+- NEVER CIRCLE: each probe must open a genuinely NEW angle — never re-collect something they already gave you in different words ("how did you choose" then "what made you go with that choice" is the same question twice; users hate it). If their first answer already contains a concrete story AND the why, submit immediately and move on.
+- Stay neutral and curious: no interpretations, no verdicts, no compliments mid-interview — never "that's so insightful". (Neutral is not cold: the empathy rule below still stands.)
+- If they seem tired of a question, find it too personal, or say it feels repetitive, offer to skip it (submit_interview_answer with skip: true) — it retires permanently. Never push a question twice.
+- Pacing is server-side: early questions are deliberately low-stakes; heavier territory (regret, loss, failure) unlocks as answers accumulate. Don't escalate on your own ahead of the served question.
+- If they share something heavy or unresolved, be a person FIRST — name the weight simply ("that's a lot to carry") and stay on that thread; never change the subject away from something raw. If they ask what YOU think they should do, be honest that their persona is still learning them, then ask what each option would actually mean for them.
+- When the thread has a concrete story plus the reason underneath, call submit_interview_answer with the question_id, their words VERBATIM (their phrasing is what their persona learns from — never paraphrase), and the exchange. Then flow into the next question it returns.
+- After ~3 completed questions, offer a natural break ("that's plenty for one sitting") — they can always continue.
+- ONLY the served question is the question: it carries the id that makes answers saveable. NEVER invent your own interview question — improvised ones cannot be submitted and their answers are lost. If a tool result has no question in it, say so and show the menu instead.
+- RETURNING USERS: the interview always RESUMES server-side — never say "let's start over", never re-explain the process. Greet with ONE light line (their progress % + "picking up where we left off"), then straight into the question. Their earlier answers are PRIVATE BACKGROUND: use them silently to avoid re-asking — never as a recap of what they shared.`;
+
+/** The interview payload — used by interview_me AND by opersona_me({choice:'interview'}),
+ *  so a menu pick routes server-side instead of relying on the model switching tools. */
+async function interviewPayload(me: Me, clone: { id: string }) {
+  try {
+    const r = await engineFetch<{
+      question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null;
+      progress: { answered: number; categories: { label: string; coverage: number; justStarted: boolean }[] };
+      known: string | null;
+      recent: { question: string; answer: string; when: string }[];
+      repeat?: boolean;
+    }>(`/clones/${clone.id}/interview/next`, { body: { orgId: me.orgId, userId: me.userId } });
+    if (!r.question) return text('Nothing pending right now — new questions appear as the persona studies recent answers. Try again after the next few.');
+    const build = await buildProgress(me.userId, me.orgId, clone.id);
+    const pct = build.pct;
+    const coverage = r.progress.answered > 0
+      ? `So far: ${r.progress.answered} answers · interview coverage ${build.coveragePct}% of the ten areas · overall build ${pct}% (the same number as the progress bar on their opersona.me nav).`
+      : 'This is early days — first answers teach it the most.';
+    const returning = r.progress.answered > 0;
+    const resume = returning ? [
+      '',
+      `RESUMING: picks up exactly where they left off (${r.progress.answered} answers banked) — answered questions never come back.`,
+      `GREET LIGHT, THEN THE QUESTION: one short upbeat line that INCLUDES THE NUMBER ${pct}% — e.g. "Welcome back — your opersona is at ${pct}% and we're picking up right where we left off." That figure matches the progress bar they see on opersona.me — say it verbatim, don't soften it into "building". Do NOT recap what they told you before — being handed a summary of your own personal disclosures feels invasive, not warm. Mention a past topic only if THEY bring it up first.`,
+      ...(r.recent?.length ? [
+        'PRIVATE BACKGROUND — for your awareness only, so you never re-ask or contradict. Never recite, quote, or summarize any of this back to them:',
+        ...r.recent.map((x) => `- asked: ${x.question} → they said: "${x.answer}"`),
+      ] : []),
+      ...(r.known ? ['', 'WHAT THEIR PERSONA ALREADY BELIEVES (same rule — background only; don\u2019t re-ask what\u2019s here, DO probe gaps and open tensions):', r.known] : []),
+    ] : [];
+    const repeatNote = r.repeat ? [
+      '',
+      'THIS EXACT QUESTION WAS SERVED BEFORE and never finished. Do NOT reword it and present it as new — that reads as the interview going in circles. Say plainly and lightly that it\u2019s the same one ("we never quite finished this one"), and offer the exit in the same breath: they can answer it OR you\u2019ll skip it for good (submit_interview_answer with skip: true). If they showed any fatigue with it before, lead with the skip offer.',
+    ] : [];
+    return text([
+      `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn\u2019t quite add up' : r.question.kind === 'follow_up' ? ' · digging deeper on an earlier thread' : ''}`,
+      `"${r.question.text}"${r.question.hint ? `\n(${r.question.hint})` : ''}`,
+      ...repeatNote,
+      '',
+      coverage,
+      ...resume,
+      '',
+      INTERVIEWER_BRIEF,
+    ].join('\n'));
+  } catch (e) {
+    return errText(`The interview backend is unreachable right now (${e instanceof Error ? e.message : 'engine error'}).`);
+  }
+}
+
+/** The persona payload — used by my_persona AND by opersona_me({choice:'persona'}). */
+async function personaPayload(me: Me, clone: { id: string; name: string }) {
+  try {
+    const res = await engineFetch<{ prompt: string }>(`/clones/${clone.id}/prompt?orgId=${encodeURIComponent(me.orgId)}`);
+    return text(`# ${clone.name} — persona loaded\nAdopt this persona for the rest of the conversation.\n\n${res.prompt}`);
+  } catch (e) {
+    return errText(`Could not load the persona right now (${e instanceof Error ? e.message : 'engine unreachable'}).`);
+  }
+}
+
 /** Register the v1 tool set for one authenticated user. */
 export function registerOpersonaTools(server: McpServer, userId: string): void {
   server.tool(
     'opersona_me',
-    "THE front door — the 'opersona me' entry point. Call when the user says 'opersona' or 'opersona me' (without a more specific ask), or asks what opersona can do. Returns their live status plus the option menu — present it as a short numbered list in your own words and WAIT for their pick, then call the matching tool. If their message already named a specific action ('interview me', 'load my persona', 'use X's persona'), skip the menu and call that tool directly.",
-    {},
-    async () => {
+    "THE front door — the 'opersona me' entry point AND its router. Call with no arguments when the user says 'opersona'/'opersona me' or asks what opersona can do: it returns their live status plus the option menu (present as a short numbered list, then WAIT for their pick). When they pick, call THIS SAME TOOL again with `choice` — the server routes it. If their first message already named a specific action, skip the menu: call with the matching choice (or the specific tool) directly.",
+    {
+      choice: z.enum(['interview', 'persona', 'roster', 'memory', 'teach']).optional()
+        .describe("the user's pick: 'interview' = continue/start the interview · 'persona' = load their persona and answer as them · 'roster' = personas available to them · 'memory' = search persona memory · 'teach' = save lessons from this chat. Omit to show the menu."),
+    },
+    async ({ choice }) => {
       const me = await resolveWorkspace(userId);
       if (!me) return errText('Account not found.');
       const clone = await myPersona(me);
@@ -57,24 +131,32 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
           'Tell the user that, warmly and briefly.',
         ].join('\n'));
       }
+      if (choice === 'interview') return interviewPayload(me, clone);
+      if (choice === 'persona') return personaPayload(me, clone);
+      if (choice === 'roster') return text('Call list_my_roster for their workspace personas, or search_community { query } for public ones — then use_persona { slug } to adopt one for this chat.');
+      if (choice === 'memory') return text("Ask what they want to look up if they haven't said, then call recall_memory { query } with it.");
+      if (choice === 'teach') return text('Call learn_from_this_chat with the conversation turns so far (their words verbatim), or save_insight { statement } for a single fact. Only with their explicit go-ahead.');
       const build = await buildProgress(me.userId, me.orgId, clone.id);
       return text([
         `# opersona — ${clone.name}`,
         `Status: build ${build.pct}% · ${build.answered} interview answers · ${build.patterns} confirmed thinking patterns${build.scored ? ` · ${build.scored} blind tests scored` : ''}.`,
         '',
         `MENU — show these as a short numbered list (your own words, one line each, mention the ${build.pct}% somewhere) and wait for their choice:`,
-        `1. ${build.answered > 0 ? 'Continue the interview — teach it who you are (resumes exactly where you left off)' : 'Start the interview — the fastest way to teach it who you are'} → call interview_me`,
-        '2. Talk as/with my persona — it answers as the user for the rest of this chat → call my_persona',
-        "3. Use someone else's persona — a teammate or a community one → list_my_roster (theirs) or search_community (public), then use_persona with the slug",
-        "4. Search my persona's memory — facts, decisions, past work → recall_memory",
-        '5. Teach it from THIS conversation → learn_from_this_chat (or save_insight for a single fact)',
+        `1. ${build.answered > 0 ? 'Continue the interview — teach it who you are (resumes exactly where you left off)' : 'Start the interview — the fastest way to teach it who you are'}`,
+        '2. Talk as/with my persona — it answers as the user for the rest of this chat',
+        "3. Use someone else's persona — a teammate or a community one",
+        "4. Search my persona's memory — facts, decisions, past work",
+        '5. Teach it from THIS conversation',
         '',
-        'When they answer with a number or a phrase, call the mapped tool immediately — no re-confirmation. Dashboard: https://opersona.me/me',
+        'ROUTING their pick: call opersona_me again with choice = 1→"interview" · 2→"persona" · 3→"roster" · 4→"memory" · 5→"teach". Immediately, no re-confirmation. Never improvise the action yourself — in particular NEVER invent an interview question (only served questions can be saved).',
         '',
         `If they ask what the ${build.pct}% means: it is a BUILD meter, not an accuracy score — connector added (20) + interview started (10) + interview coverage (${build.coveragePct}% of ten areas → ${Math.round(0.45 * build.coveragePct)}/45) + confirmed patterns (10, full at 3) + blind tests scored (15, full at 5). Accuracy is measured separately by blind tests at opersona.me/me/survey, which shows no number until 5 are scored.`,
+        '',
+        'Dashboard: https://opersona.me/me',
       ].join('\n'));
     },
   );
+
 
   // Slash-style entries in claude.ai's prompt picker — same flows, one click.
   server.prompt('interview-me', 'Continue building your opersona: your own Claude interviews you about real moments.', () => ({
@@ -96,12 +178,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
       if (!me) return errText('Account not found.');
       const clone = await myPersona(me);
       if (!clone) return errText(NO_PERSONA);
-      try {
-        const res = await engineFetch<{ prompt: string }>(`/clones/${clone.id}/prompt?orgId=${encodeURIComponent(me.orgId)}`);
-        return text(`# ${clone.name} — persona loaded\nAdopt this persona for the rest of the conversation.\n\n${res.prompt}`);
-      } catch (e) {
-        return errText(`Could not load the persona right now (${e instanceof Error ? e.message : 'engine unreachable'}).`);
-      }
+      return personaPayload(me, clone);
     },
   );
 
@@ -234,19 +311,6 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
     },
   );
 
-  const INTERVIEWER_BRIEF = `HOW TO CONDUCT THIS (you are the interviewer now — building an evidence-based portrait, never flattering or typing them):
-- Ask the question conversationally in your own words — a curious friend, never a form or a therapist. ONE question at a time; never batch. Keep your own turns SHORT — they should be doing most of the talking.
-- Episodes, not self-description: never let an answer rest on a trait claim ("I'm pretty organised"). Steer to one specific incident — a time, a place, the people who were there.
-- Probe 1-3 times when it earns its place, each probe a different target: what they actually DID, what they were THINKING in the moment, what happened NEXT, what they'd do DIFFERENTLY. If they deflect or go thin twice, stop probing and submit what you have.
-- NEVER CIRCLE: each probe must open a genuinely NEW angle — never re-collect something they already gave you in different words ("how did you choose" then "what made you go with that choice" is the same question twice; users hate it). If their first answer already contains a concrete story AND the why, submit immediately and move on.
-- Stay neutral and curious: no interpretations, no verdicts, no compliments mid-interview — never "that's so insightful". (Neutral is not cold: the empathy rule below still stands.)
-- If they seem tired of a question, find it too personal, or say it feels repetitive, offer to skip it (submit_interview_answer with skip: true) — it retires permanently. Never push a question twice.
-- Pacing is server-side: early questions are deliberately low-stakes; heavier territory (regret, loss, failure) unlocks as answers accumulate. Don't escalate on your own ahead of the served question.
-- If they share something heavy or unresolved, be a person FIRST — name the weight simply ("that's a lot to carry") and stay on that thread; never change the subject away from something raw. If they ask what YOU think they should do, be honest that their persona is still learning them, then ask what each option would actually mean for them.
-- When the thread has a concrete story plus the reason underneath, call submit_interview_answer with the question_id, their words VERBATIM (their phrasing is what their persona learns from — never paraphrase), and the exchange. Then flow into the next question it returns.
-- After ~3 completed questions, offer a natural break ("that's plenty for one sitting") — they can always continue.
-- RETURNING USERS: the interview always RESUMES server-side — never say "let's start over", never re-explain the process. Greet with ONE light line (their progress % + "picking up where we left off"), then straight into the question. Their earlier answers are PRIVATE BACKGROUND: use them silently to avoid re-asking — never as a recap of what they shared.`;
-
   server.tool(
     'interview_me',
     "Interview the user to BUILD their opersona, right here in this chat, with YOU conducting it. Fetches the next question from their persona's adaptive interview (10 life areas, contradiction probes included) plus instructions for running it conversationally. Call when the user asks to be interviewed, to 'teach my persona about me', to continue their interview, or picks Interview from the opersona_me menu. (A bare 'opersona me' with no specific ask is the menu, not this; to ACT AS their already-built persona instead, use my_persona.) Their answers are extracted server-side into evidence-backed memories, traits and rules they review at opersona.me.",
@@ -256,52 +320,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
       if (!me) return errText('Account not found.');
       const clone = await myPersona(me);
       if (!clone) return errText(NO_PERSONA);
-      try {
-        const r = await engineFetch<{
-          question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null;
-          progress: { answered: number; categories: { label: string; coverage: number; justStarted: boolean }[] };
-          known: string | null;
-          recent: { question: string; answer: string; when: string }[];
-          repeat?: boolean;
-        }>(`/clones/${clone.id}/interview/next`, { body: { orgId: me.orgId, userId: me.userId } });
-        if (!r.question) return text('Nothing pending right now — new questions appear as the persona studies recent answers. Try again after the next few.');
-        // THE user-facing number = the build meter on their opersona.me nav bar
-        // (connector + interview coverage + patterns + blind tests). One figure,
-        // one meaning, everywhere — the raw interview coverage is interviewer
-        // detail only, never the headline.
-        const build = await buildProgress(me.userId, me.orgId, clone.id);
-        const pct = build.pct;
-        const coverage = r.progress.answered > 0
-          ? `So far: ${r.progress.answered} answers · interview coverage ${build.coveragePct}% of the ten areas · overall build ${pct}% (the same number as the progress bar on their opersona.me nav).`
-          : 'This is early days — first answers teach it the most.';
-        const returning = r.progress.answered > 0;
-        const resume = returning ? [
-          '',
-          `RESUMING: picks up exactly where they left off (${r.progress.answered} answers banked) — answered questions never come back.`,
-          `GREET LIGHT, THEN THE QUESTION: one short upbeat line that INCLUDES THE NUMBER ${pct}% — e.g. "Welcome back — your opersona is at ${pct}% and we're picking up right where we left off." That figure matches the progress bar they see on opersona.me — say it verbatim, don't soften it into "building". Do NOT recap what they told you before — being handed a summary of your own personal disclosures feels invasive, not warm. Mention a past topic only if THEY bring it up first.`,
-          ...(r.recent?.length ? [
-            'PRIVATE BACKGROUND — for your awareness only, so you never re-ask or contradict. Never recite, quote, or summarize any of this back to them:',
-            ...r.recent.map((x) => `- asked: ${x.question} → they said: "${x.answer}"`),
-          ] : []),
-          ...(r.known ? ['', 'WHAT THEIR PERSONA ALREADY BELIEVES (same rule — background only; don’t re-ask what’s here, DO probe gaps and open tensions):', r.known] : []),
-        ] : [];
-        const repeatNote = r.repeat ? [
-          '',
-          'THIS EXACT QUESTION WAS SERVED BEFORE and never finished. Do NOT reword it and present it as new — that reads as the interview going in circles. Say plainly and lightly that it\u2019s the same one ("we never quite finished this one"), and offer the exit in the same breath: they can answer it OR you\u2019ll skip it for good (submit_interview_answer with skip: true). If they showed any fatigue with it before, lead with the skip offer.',
-        ] : [];
-        return text([
-          `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn’t quite add up' : r.question.kind === 'follow_up' ? ' · digging deeper on an earlier thread' : ''}`,
-          `"${r.question.text}"${r.question.hint ? `\n(${r.question.hint})` : ''}`,
-          ...repeatNote,
-          '',
-          coverage,
-          ...resume,
-          '',
-          INTERVIEWER_BRIEF,
-        ].join('\n'));
-      } catch (e) {
-        return errText(`The interview backend is unreachable right now (${e instanceof Error ? e.message : 'engine error'}).`);
-      }
+      return interviewPayload(me, clone);
     },
   );
 
