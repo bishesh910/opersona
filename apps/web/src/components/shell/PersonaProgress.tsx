@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { CopyButton } from '@/components/shell/CopyButton';
-import { connectorState } from '@/actions/bridge';
+import { connectorState, bridgeState } from '@/actions/bridge';
 import { failedExtractionCount } from '@/actions/progress';
 import { progressParts, PART_MAX, type ProgressData } from '@/lib/persona-progress-math';
 
@@ -34,16 +34,35 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(data.failedExtractions);
+  const [online, setOnline] = useState<boolean | null>(null);
+  const [total, setTotal] = useState(data.failedExtractions);
+  const [kicked, setKicked] = useState(false);
   useEffect(() => setMounted(true), []);
-  useEffect(() => setWaiting(data.failedExtractions), [data.failedExtractions]);
+  useEffect(() => { setWaiting(data.failedExtractions); setTotal((t) => Math.max(t, data.failedExtractions)); }, [data.failedExtractions]);
 
-  // While the panel is open with a backlog, poll so the number counts DOWN in
-  // place as the bridge works through it (a frozen count reads as "stuck").
+  // While the panel is open with a backlog: poll the count (so it drains
+  // visibly) and the bridge state (processing bar when online; a retry button
+  // only when nothing can drain on its own).
   useEffect(() => {
     if (!open || waiting === 0) return;
-    const t = setInterval(() => { void failedExtractionCount().then(setWaiting).catch(() => {}); }, 4000);
+    const poll = () => {
+      void failedExtractionCount().then((n) => { setWaiting(n); setTotal((t) => Math.max(t, n)); }).catch(() => {});
+      void bridgeState().then((st) => setOnline(st.connected)).catch(() => {});
+    };
+    poll();
+    const t = setInterval(poll, 4000);
     return () => clearInterval(t);
   }, [open, waiting === 0]);
+
+  // Bridge online + backlog → kick the drain ourselves, once per panel-open.
+  // (The server dedupes, so this is safe alongside the automatic hello-drain.)
+  useEffect(() => {
+    if (open && online === true && waiting > 0 && !kicked && cloneId) {
+      setKicked(true);
+      void fetch(`/api/engine/clones/${cloneId}/learning/retry-extractions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+    }
+    if (!open && kicked) setKicked(false);
+  }, [open, online, waiting, kicked, cloneId]);
 
   /** "Sync now": requeue failed extractions and report which rail will run them.
    *  (The same drain fires automatically whenever the bridge connects.) */
@@ -124,12 +143,12 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
                 <p className="rounded-lg border border-emerald-300 bg-emerald-50 p-2.5 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
                   All caught up — every waiting answer has been processed. Check <Link href="/me/memory" className="underline underline-offset-2" onClick={() => setOpen(false)}>Memory</Link> to see what it learned.
                 </p>
-              ) : (
+              ) : online === false ? (
+              /* Nothing can drain: the machine is asleep. This is the ONLY state with a button. */
               <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
                 <p>
-                  <span className="font-medium">{waiting} interview answer{waiting === 1 ? '' : 's'} still waiting to be processed</span> — they
-                  failed earlier while no Claude was reachable. Your answers are safe: they retry on their own whenever your
-                  bridge is connected, and this number counts down live as it works through them.
+                  <span className="font-medium">{waiting} interview answer{waiting === 1 ? '' : 's'} waiting</span> — your bridge machine is
+                  offline. Wake it and they process automatically (or add an API key in Settings → Models). Nothing is lost.
                 </p>
                 {cloneId && (
                   <button type="button" className="btn-secondary btn-sm !text-xs" disabled={syncBusy} onClick={() => void retryNow()}>
@@ -137,6 +156,16 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
                   </button>
                 )}
                 {syncMsg && <p>{syncMsg}</p>}
+              </div>
+              ) : (
+              /* Bridge online (or checking): the drain runs itself — show progress, no button. */
+              <div className="space-y-1.5 rounded-lg border border-neutral-200 bg-neutral-50 p-2.5 text-xs dark:border-neutral-800 dark:bg-neutral-900/60">
+                <p className="text-neutral-700 dark:text-neutral-300">
+                  <span className="font-medium">Processing on your bridge</span> — {Math.max(0, total - waiting)} of {total} done, {waiting} to go.
+                </p>
+                <span className="block h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+                  <span className="block h-full animate-pulse rounded-full bg-amber-400 transition-[width] duration-700" style={{ width: `${total > 0 ? Math.round(((total - waiting) / total) * 100) : 0}%` }} />
+                </span>
               </div>
               )
             )}
