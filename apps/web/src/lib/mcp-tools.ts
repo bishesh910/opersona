@@ -44,6 +44,48 @@ const NO_PERSONA = 'No persona yet — build one at https://opersona.me/onboardi
 /** Register the v1 tool set for one authenticated user. */
 export function registerOpersonaTools(server: McpServer, userId: string): void {
   server.tool(
+    'opersona_menu',
+    "THE front door. Call when the user says 'opersona' or 'opersona me' WITHOUT a more specific ask, or asks what opersona can do. Returns their live status plus the option menu — present it as a short numbered list in your own words and WAIT for their pick, then call the matching tool. If their message already named a specific action ('interview me', 'load my persona', 'use X's persona'), skip the menu and call that tool directly.",
+    {},
+    async () => {
+      const me = await resolveWorkspace(userId);
+      if (!me) return errText('Account not found.');
+      const clone = await myPersona(me);
+      if (!clone) {
+        return text([
+          'No persona yet — two-minute setup at https://opersona.me/onboarding, then say "opersona me" again.',
+          'Tell the user that, warmly and briefly.',
+        ].join('\n'));
+      }
+      const build = await buildProgress(me.userId, me.orgId, clone.id);
+      return text([
+        `# opersona — ${clone.name}`,
+        `Status: build ${build.pct}% · ${build.answered} interview answers · ${build.patterns} confirmed thinking patterns${build.scored ? ` · ${build.scored} blind tests scored` : ''}.`,
+        '',
+        `MENU — show these as a short numbered list (your own words, one line each, mention the ${build.pct}% somewhere) and wait for their choice:`,
+        `1. ${build.answered > 0 ? 'Continue the interview — teach it who you are (resumes exactly where you left off)' : 'Start the interview — the fastest way to teach it who you are'} → call opersona_me`,
+        '2. Talk as/with my persona — it answers as the user for the rest of this chat → call my_persona',
+        "3. Use someone else's persona — a teammate or a community one → list_my_roster (theirs) or search_community (public), then use_persona with the slug",
+        "4. Search my persona's memory — facts, decisions, past work → recall_memory",
+        '5. Teach it from THIS conversation → learn_from_this_chat (or save_insight for a single fact)',
+        '',
+        'When they answer with a number or a phrase, call the mapped tool immediately — no re-confirmation. Dashboard: https://opersona.me/me',
+      ].join('\n'));
+    },
+  );
+
+  // Slash-style entries in claude.ai's prompt picker — same flows, one click.
+  server.prompt('interview-me', 'Continue building your opersona: your own Claude interviews you about real moments.', () => ({
+    messages: [{ role: 'user' as const, content: { type: 'text' as const, text: 'opersona: continue my interview (call opersona_me and conduct it per its instructions).' } }],
+  }));
+  server.prompt('chat-as-me', 'Load your opersona and have Claude answer as you for the rest of this chat.', () => ({
+    messages: [{ role: 'user' as const, content: { type: 'text' as const, text: 'Load my opersona with my_persona and answer as me for the rest of this conversation.' } }],
+  }));
+  server.prompt('opersona', 'See your opersona status and everything you can do with it.', () => ({
+    messages: [{ role: 'user' as const, content: { type: 'text' as const, text: 'opersona me — show me the menu (call opersona_menu).' } }],
+  }));
+
+  server.tool(
     'my_persona',
     "Load the user's opersona: their complete persona character sheet (story, role, thinking patterns, confirmed facts, playbooks). Call this when asked to answer AS the user, imitate their thinking, or apply 'my persona' to a task — then follow the returned instructions for the rest of the conversation. (To INTERVIEW the user and build the persona instead, use opersona_me.)",
     {},
@@ -205,7 +247,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
 
   server.tool(
     'opersona_me',
-    "\"opersona me\" — interview the user to BUILD their opersona, right here in this chat, with YOU conducting it. Fetches the next question from their persona's adaptive interview (10 life areas, contradiction probes included) plus instructions for running it conversationally. Call when the user says 'opersona me', asks to be interviewed, to 'teach my persona about me', or to continue their interview. (To ACT AS their already-built persona instead, use my_persona.) Their answers are extracted server-side into evidence-backed memories, traits and rules they review at opersona.me.",
+    "Interview the user to BUILD their opersona, right here in this chat, with YOU conducting it. Fetches the next question from their persona's adaptive interview (10 life areas, contradiction probes included) plus instructions for running it conversationally. Call when the user asks to be interviewed, to 'teach my persona about me', to continue their interview, or picks Interview from the opersona_menu options. (A bare 'opersona me' with no specific ask goes to opersona_menu first; to ACT AS their already-built persona instead, use my_persona.) Their answers are extracted server-side into evidence-backed memories, traits and rules they review at opersona.me.",
     {},
     async () => {
       const me = await resolveWorkspace(userId);
