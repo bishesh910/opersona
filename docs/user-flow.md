@@ -62,6 +62,9 @@ Behind each submitted exchange:
   (values / beliefs / preferences / behaviours / decision patterns) and
   **contextual rules** (IF situation AND condition THEN tendency) — every item
   tiered *you said this / observed / hunch* with verbatim quotes, and
+- every 5th completed answer, the batch is ALSO mined for **reasoning
+  patterns** ("How I think") — the answers are real writing where reasoning
+  style is visible, held to the same verbatim-quote discipline, and
 - **contradiction hunting**: when an answer sits oddly against the model
   ("independence matters" vs "accepted financial dependence"), an open tension
   is recorded and its probe question — *"what makes those situations

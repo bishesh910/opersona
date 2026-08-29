@@ -15,10 +15,11 @@ type Job =
   | { kind: 'extract'; orgId: string; cloneId: string; conversationId: string }
   | { kind: 'import'; importId: string }
   | { kind: 'refresh'; orgId: string; cloneId: string }
-  | { kind: 'interview_extract'; orgId: string; cloneId: string; answerId: string };
+  | { kind: 'interview_extract'; orgId: string; cloneId: string; answerId: string }
+  | { kind: 'interview_fingerprint'; orgId: string; cloneId: string; batch: number };
 const q: Job[] = []; let running = false;
 const queuedKeys = new Set<string>();
-const key = (j: Job) => j.kind === 'extract' ? `x:${j.conversationId}` : j.kind === 'import' ? `i:${j.importId}` : j.kind === 'interview_extract' ? `a:${j.answerId}` : `r:${j.cloneId}`;
+const key = (j: Job) => j.kind === 'extract' ? `x:${j.conversationId}` : j.kind === 'import' ? `i:${j.importId}` : j.kind === 'interview_extract' ? `a:${j.answerId}` : j.kind === 'interview_fingerprint' ? `f:${j.cloneId}:${j.batch}` : `r:${j.cloneId}`;
 
 export function enqueue(j: Job): void {
   const k = key(j); if (queuedKeys.has(k)) return; queuedKeys.add(k); q.push(j); void pump();
@@ -68,6 +69,29 @@ async function run(j: Job): Promise<void> {
     const { extractInterviewAnswer } = await import('../interview/extractAnswer.js');
     const r = await extractInterviewAnswer(j.orgId, j.cloneId, j.answerId);
     console.log(`[learning] interview answer ${j.answerId}: ${r.status} (${r.note})`);
+  } else if (j.kind === 'interview_fingerprint') {
+    // The interview feeds "How I think" too: answers are real writing where the
+    // person's reasoning is VISIBLE (not just claimed) — mined with the same
+    // verbatim-quote discipline as any transcript. Batched per 5 answers;
+    // sessionId is deterministic so re-runs dedupe.
+    const batchAnswers = await db.select({ q: interviewAnswers.questionText, a: interviewAnswers.text })
+      .from(interviewAnswers)
+      .where(and(eq(interviewAnswers.cloneId, j.cloneId), eq(interviewAnswers.skipped, false)))
+      .orderBy(interviewAnswers.createdAt)
+      .offset((j.batch - 1) * 5).limit(5);
+    if (batchAnswers.length < 2) return;
+    const transcript = batchAnswers.flatMap((r) => [
+      { role: 'assistant' as const, text: r.q },
+      { role: 'human' as const, text: r.a },
+    ]);
+    const { learnFromPlainTranscript } = await import('./claudeCode.js');
+    const r = await learnFromPlainTranscript({
+      orgId: j.orgId, cloneId: j.cloneId,
+      sessionId: `interview-batch-${j.cloneId.slice(0, 8)}-${j.batch}`,
+      title: `Interview answers ${(j.batch - 1) * 5 + 1}–${(j.batch - 1) * 5 + batchAnswers.length}`,
+      transcript,
+    });
+    console.log(`[learning] interview fingerprint batch ${j.batch}: ${r.status} (${r.observations ?? 0} observations)`);
   } else {
     await refresh(j.orgId, j.cloneId);
   }

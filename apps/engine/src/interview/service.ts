@@ -130,5 +130,10 @@ export async function submitThread(a: {
   if (!skipped) enqueue({ kind: 'interview_extract', orgId: a.orgId, cloneId: a.cloneId, answerId: ans!.id });
   await storeCoverage(a.orgId, a.cloneId);
   const next = await nextQuestionFor(a.orgId, a.cloneId);
+  // Every 5th completed answer, the batch also feeds "How I think": the answers
+  // are mined as a transcript for reasoning patterns (visible style, not claims).
+  if (!skipped && next.progress.answered > 0 && next.progress.answered % 5 === 0) {
+    enqueue({ kind: 'interview_fingerprint', orgId: a.orgId, cloneId: a.cloneId, batch: next.progress.answered / 5 });
+  }
   return { answerId: skipped ? null : ans!.id, ...next };
 }
