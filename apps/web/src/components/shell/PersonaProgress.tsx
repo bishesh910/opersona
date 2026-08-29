@@ -89,6 +89,13 @@ export function PersonaProgress({ data, variant = 'sidebar' }: { data: ProgressD
               <button type="button" className="btn-secondary btn-sm shrink-0" onClick={() => setOpen(false)}>Close</button>
             </div>
 
+            {data.failedExtractions > 0 && (
+              <p className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                <span className="font-medium">{data.failedExtractions} interview answer{data.failedExtractions === 1 ? '' : 's'} couldn&rsquo;t be processed</span> — no Claude was
+                reachable when they were tried (bridge offline, no API key). Your answers are safe and retry automatically
+                the moment your bridge reconnects; wake the paired machine or add an API key in Settings → Models.
+              </p>
+            )}
             <ol className="space-y-3.5 text-sm">
               <li className="flex gap-2.5">
                 <StepChip done={connector} n={1} />

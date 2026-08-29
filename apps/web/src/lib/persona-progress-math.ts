@@ -13,6 +13,9 @@ export interface ProgressData {
   patterns: number;      // confirmed reasoning patterns
   scored: number;        // scored blind scenarios
   bridgePaired: boolean;
+  /** interview answers whose extraction FAILED (usually: no Claude rail was
+   *  reachable). They retry automatically when a bridge connects. */
+  failedExtractions: number;
 }
 
 export interface ProgressParts {

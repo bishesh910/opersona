@@ -102,3 +102,16 @@ export async function resumePending(): Promise<void> {
   for (const a of answers) enqueue({ kind: 'interview_extract', orgId: a.orgId, cloneId: a.cloneId, answerId: a.id });
   if (convs.length || imps.length || answers.length) console.log(`[learning] resumed ${convs.length} extraction(s), ${imps.length} import(s), ${answers.length} interview answer(s)`);
 }
+
+/** When a bridge CONNECTS, drain this org's rail-outage casualties: interview
+ *  answers that failed while no Claude was reachable get one fresh attempt the
+ *  moment one is. (Engine-boot resume alone kept retrying into the same dead
+ *  rail; this is the event that actually changes the odds.) */
+export async function retryRailFailures(orgId: string): Promise<void> {
+  const answers = await db.select({ id: interviewAnswers.id, cloneId: interviewAnswers.cloneId })
+    .from(interviewAnswers)
+    .where(and(eq(interviewAnswers.orgId, orgId), eq(interviewAnswers.extractionStatus, 'failed'), eq(interviewAnswers.skipped, false)));
+  if (!answers.length) return;
+  console.log(`[learning] bridge connected for org=${orgId} — retrying ${answers.length} failed interview extraction(s)`);
+  for (const a of answers) enqueue({ kind: 'interview_extract', orgId, cloneId: a.cloneId, answerId: a.id });
+}

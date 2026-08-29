@@ -13,8 +13,8 @@ export async function buildProgress(userId: string, orgId: string, cloneId: stri
   const [consent] = await db.select({ id: authSchema.oauthConsent.id }).from(authSchema.oauthConsent)
     .where(eq(authSchema.oauthConsent.userId, userId)).limit(1);
   const connector = !!consent;
-  if (!cloneId) return { pct: connector ? 20 : 0, connector, answered: 0, coveragePct: 0, patterns: 0, scored: 0, bridgePaired: false };
-  const [[cov], [pat], [sc], [btok]] = await Promise.all([
+  if (!cloneId) return { pct: connector ? 20 : 0, connector, answered: 0, coveragePct: 0, patterns: 0, scored: 0, bridgePaired: false, failedExtractions: 0 };
+  const [[cov], [pat], [sc], [btok], [fx]] = await Promise.all([
     db.select({ sum: sql<number>`coalesce(sum(${schema.interviewCoverage.coverage}), 0)`, answered: sql<number>`coalesce(sum(${schema.interviewCoverage.answered}), 0)::int` })
       .from(schema.interviewCoverage).where(eq(schema.interviewCoverage.cloneId, cloneId)),
     db.select({ n: sql<number>`count(*)::int` }).from(schema.reasoningPatterns)
@@ -23,6 +23,8 @@ export async function buildProgress(userId: string, orgId: string, cloneId: stri
       .where(and(eq(schema.predictionScenarios.cloneId, cloneId), eq(schema.predictionScenarios.status, 'scored'))),
     db.select({ id: schema.bridgeTokens.id }).from(schema.bridgeTokens)
       .where(and(eq(schema.bridgeTokens.orgId, orgId), isNull(schema.bridgeTokens.revokedAt))).limit(1),
+    db.select({ n: sql<number>`count(*)::int` }).from(schema.interviewAnswers)
+      .where(and(eq(schema.interviewAnswers.cloneId, cloneId), eq(schema.interviewAnswers.extractionStatus, 'failed'), eq(schema.interviewAnswers.skipped, false))),
   ]);
   const coverage = Math.max(0, Math.min(1, (cov?.sum ?? 0) / INTERVIEW_CATEGORIES.length));
   const answered = cov?.answered ?? 0;
@@ -30,5 +32,5 @@ export async function buildProgress(userId: string, orgId: string, cloneId: stri
   const scored = sc?.n ?? 0;
   const coveragePct = Math.round(coverage * 100);
   const { pct } = progressParts({ connector, answered, coveragePct: coverage * 100, patterns, scored });
-  return { pct, connector, answered, coveragePct, patterns, scored, bridgePaired: !!btok };
+  return { pct, connector, answered, coveragePct, patterns, scored, bridgePaired: !!btok, failedExtractions: fx?.n ?? 0 };
 }

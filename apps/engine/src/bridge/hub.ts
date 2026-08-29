@@ -87,6 +87,8 @@ async function handleFrame(conn: BridgeConn, raw: Buffer): Promise<void> {
       conn.supportsJobSessions = (frame.caps as Record<string, unknown>).jobSessions === true;
       conn.workspaces = (frame.workspaces ?? []).map((w) => ({ path: w.path, label: w.label, bash: 'ask' as const }));
       console.log('[bridge] hello org=%s host=%s bridge=v%s caps=%j workspaces=%d', conn.orgId, frame.host, frame.bridgeVersion, frame.caps, conn.workspaces.length);
+      // The rail just came back — drain anything that failed while it was gone.
+      void import('../learning/queue.js').then((m) => m.retryRailFailures(conn.orgId)).catch((e) => console.error('[bridge] retry failed', e));
       break;
     case 'pong':
       conn.alive = true;

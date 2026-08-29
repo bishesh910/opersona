@@ -140,6 +140,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
       return text([
         `# opersona — ${clone.name}`,
         `Status: build ${build.pct}% · ${build.answered} interview answers · ${build.patterns} confirmed thinking patterns${build.scored ? ` · ${build.scored} blind tests scored` : ''}.`,
+        ...(build.failedExtractions > 0 ? [`HEADS-UP (tell them): ${build.failedExtractions} of their interview answers couldn't be processed because no Claude was reachable (their bridge was offline). The answers are safe and retry automatically when their bridge machine is awake and connected — or an API key in Settings → Models removes the dependency.`] : []),
         '',
         `MENU — show these as a short numbered list (your own words, one line each, mention the ${build.pct}% somewhere) and wait for their choice:`,
         `1. ${build.answered > 0 ? 'Continue the interview — teach it who you are (resumes exactly where you left off)' : 'Start the interview — the fastest way to teach it who you are'}`,

@@ -140,6 +140,9 @@ export async function extractInterviewAnswer(orgId: string, cloneId: string, ans
   const [row] = await db.select().from(interviewAnswers)
     .where(and(eq(interviewAnswers.id, answerId), eq(interviewAnswers.orgId, orgId), eq(interviewAnswers.cloneId, cloneId))).limit(1);
   if (!row) return { status: 'failed', note: 'answer not found' };
+  // Re-enqueues happen (boot resume + retry-on-bridge-connect) — a finished
+  // answer must never be extracted twice, or its memories would duplicate.
+  if (row.extractionStatus === 'done') return { status: 'done', note: 'already extracted' };
   if (row.skipped || row.text.trim().length < 8) {
     await db.update(interviewAnswers).set({ extractionStatus: 'skipped', extractedAt: new Date() }).where(eq(interviewAnswers.id, answerId));
     return { status: 'skipped', note: 'nothing to extract' };
