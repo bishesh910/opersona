@@ -150,7 +150,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
         '',
         'ROUTING their pick: call opersona_me again with choice = 1→"interview" · 2→"persona" · 3→"roster" · 4→"memory" · 5→"teach". Immediately, no re-confirmation. Never improvise the action yourself — in particular NEVER invent an interview question (only served questions can be saved).',
         '',
-        `If they ask what the ${build.pct}% means: it is a BUILD meter, not an accuracy score — connector added (20) + interview started (10) + interview coverage (${build.coveragePct}% of ten areas → ${Math.round(0.45 * build.coveragePct)}/45) + confirmed patterns (10, full at 3) + blind tests scored (15, full at 5). Accuracy is measured separately by blind tests at opersona.me/me/survey, which shows no number until 5 are scored.`,
+        `If they ask what the ${build.pct}% means: it is a BUILD meter, not an accuracy score — connector added (one-time +20) + first interview answer (one-time +10) + interview coverage (${build.coveragePct}% of ten areas → ${Math.round(0.45 * build.coveragePct)}/45) + confirmed patterns (10, full at 3) + blind tests scored (15, full at 5). Accuracy is measured separately by blind tests at opersona.me/me/survey, which shows no number until 5 are scored.`,
         '',
         'Dashboard: https://opersona.me/me',
       ].join('\n'));

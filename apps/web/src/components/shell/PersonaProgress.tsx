@@ -143,11 +143,12 @@ export function PersonaProgress({ data, variant = 'sidebar' }: { data: ProgressD
             <div className="border-t border-neutral-200 pt-3 dark:border-neutral-800">
               <p className="muted mb-1.5 text-[11px] font-medium">Where the {pct}% comes from — a build meter, not an accuracy score:</p>
               <dl className="muted grid grid-cols-[1fr_auto] gap-x-4 gap-y-0.5 text-[11px] tabular-nums">
-                <dt>Connector added</dt><dd>{Math.round(parts.connector)} / {PART_MAX.connector}</dd>
-                <dt>Interview started</dt><dd>{Math.round(parts.started)} / {PART_MAX.started}</dd>
+                {/* one-time milestones show as ✓ +N, never as a fraction ("10/10" read as a completion score) */}
+                <dt>Connector added (one-time)</dt><dd>{parts.connector ? `✓ +${PART_MAX.connector}` : `0 / ${PART_MAX.connector}`}</dd>
+                <dt>First interview answer (one-time)</dt><dd>{parts.started ? `✓ +${PART_MAX.started}` : `0 / ${PART_MAX.started}`}</dd>
                 <dt>Interview coverage ({data.coveragePct}% of ten areas)</dt><dd>{Math.round(parts.coverage)} / {PART_MAX.coverage}</dd>
-                <dt>Thinking patterns confirmed ({data.patterns}; full at 3)</dt><dd>{Math.round(parts.patterns)} / {PART_MAX.patterns}</dd>
-                <dt>Blind tests scored ({data.scored}; full at 5)</dt><dd>{Math.round(parts.scored)} / {PART_MAX.scored}</dd>
+                <dt>Thinking patterns confirmed ({data.patterns}; full credit at 3)</dt><dd>{Math.round(parts.patterns)} / {PART_MAX.patterns}</dd>
+                <dt>Blind tests scored ({data.scored}; full credit at 5)</dt><dd>{Math.round(parts.scored)} / {PART_MAX.scored}</dd>
               </dl>
               <p className="muted mt-1.5 text-[11px]">
                 How ACCURATE the persona is lives elsewhere: behavioural similarity from blind tests, which shows no number until 5 are scored.
