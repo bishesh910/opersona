@@ -17,6 +17,8 @@ export function BridgeNavButton({ variant = 'sidebar', waiting = 0 }: { variant?
   useEffect(() => setMounted(true), []);
   const [state, setState] = useState<BridgeState | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
+  const [origin, setOrigin] = useState('https://opersona.me');
+  useEffect(() => { if (window.location.origin.startsWith('http')) setOrigin(window.location.origin); }, []);
   const [busy, setBusy] = useState(false);
   const reload = useCallback(() => { bridgeState().then(setState).catch(() => {}); }, []);
 
@@ -121,9 +123,14 @@ export function BridgeNavButton({ variant = 'sidebar', waiting = 0 }: { variant?
               </div>
             )}
 
-            <p className="muted border-t border-neutral-200 pt-2.5 text-[11px] dark:border-neutral-800">
-              Prefer an API key instead, or need to revoke a machine? <Link href="/settings" className="underline underline-offset-2" onClick={() => setOpen(false)}>Settings → Models</Link>.
-            </p>
+            <div className="muted border-t border-neutral-200 pt-2.5 text-[11px] dark:border-neutral-800">
+              <p className="mb-1">Same terminal, more persona — the connector works in <span className="font-medium text-neutral-700 dark:text-neutral-300">Claude Code</span> too (then <code>/mcp</code> to sign in):</p>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] dark:bg-neutral-800">{`claude mcp add --transport http opersona ${origin}/mcp`}</code>
+                <CopyButton text={`claude mcp add --transport http opersona ${origin}/mcp`} />
+              </div>
+              <p className="mt-1.5">Prefer an API key instead, or need to revoke a machine? <Link href="/settings" className="underline underline-offset-2" onClick={() => setOpen(false)}>Settings → Models</Link>.</p>
+            </div>
           </div>
           </div>
         </div>,
