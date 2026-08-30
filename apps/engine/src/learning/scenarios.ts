@@ -13,7 +13,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { db, predictionScenarios, personaSnapshots, reasoningPatterns, traits, contradictions } from '@opersona/db';
 import { structuredCall } from '../llm.js';
 import { orgModelConfig } from '../keys.js';
@@ -182,13 +182,24 @@ export async function answerScenario(a: {
   const row = res[0];
   if (!row) return { ok: false, status: 409, error: 'already answered (or not an open scenario)' };
 
+  await judgeScenarioRow(a.orgId, row);
+  const [final] = await db.select().from(predictionScenarios).where(eq(predictionScenarios.id, row.id)).limit(1);
+  return { ok: true, scenario: final! };
+}
+
+/** Judge one answered/failed row (human answer committed). Returns true when
+ *  scored; on any failure the row is left 'failed' — safe, retryable, and
+ *  retried automatically whenever the org's rail comes back. */
+export async function judgeScenarioRow(orgId: string, row: typeof predictionScenarios.$inferSelect): Promise<boolean> {
   try {
-    const cfg = await orgModelConfig(a.orgId);
+    const cfg = await orgModelConfig(orgId);
     const pred = row.aiPrediction!;
+    const answer = row.humanAnswer ?? '';
+    const factors = row.humanFactors;
     const judged = await structuredCall({
-      orgId: a.orgId, cloneId: a.cloneId, kind: 'scenario-judge', apiKey: cfg.apiKey, model: cfg.extractModel, effort: 'medium',
+      orgId, cloneId: row.cloneId, kind: 'scenario-judge', apiKey: cfg.apiKey, model: cfg.extractModel, effort: 'medium',
       schema: ScenarioJudge, system: JUDGE_SYSTEM,
-      user: `SCENARIO:\n${row.scenario}\n${row.question}${row.choices.length ? `\nOptions: ${row.choices.join(' | ')}` : ''}\n\nPERSON'S ANSWER:\n${a.answer}${a.factors ? `\nTheir stated reasons: ${a.factors}` : ''}\n\nMODEL'S BLIND PREDICTION (made ${row.predictedAt ? 'before the person answered' : ''}):\nDecision: ${pred.decision}\nFactors: ${pred.factors.join('; ')}\nCommunication: ${pred.communication}`,
+      user: `SCENARIO:\n${row.scenario}\n${row.question}${row.choices.length ? `\nOptions: ${row.choices.join(' | ')}` : ''}\n\nPERSON'S ANSWER:\n${answer}${factors ? `\nTheir stated reasons: ${factors}` : ''}\n\nMODEL'S BLIND PREDICTION (made ${row.predictedAt ? 'before the person answered' : ''}):\nDecision: ${pred.decision}\nFactors: ${pred.factors.join('; ')}\nCommunication: ${pred.communication}`,
     });
     const scores = {
       decision: judged.decision_match.score,
@@ -197,7 +208,7 @@ export async function answerScenario(a: {
       communication: judged.communication_match.score,
       calibration: calibrationScore(pred.confidence, judged.decision_match.score),
     };
-    const [scored] = await db.update(predictionScenarios).set({
+    await db.update(predictionScenarios).set({
       status: 'scored',
       judge: {
         rationale: {
@@ -209,15 +220,23 @@ export async function answerScenario(a: {
       scoreDecision: scores.decision, scoreReasoning: scores.reasoning, scorePreference: scores.preference,
       scoreCommunication: scores.communication, scoreCalibration: scores.calibration, scoreOverall: overallScore(scores),
       judgeModel: cfg.extractModel, judgedAt: new Date(),
-    }).where(eq(predictionScenarios.id, row.id)).returning();
-    return { ok: true, scenario: scored! };
+    }).where(eq(predictionScenarios.id, row.id));
+    return true;
   } catch (e) {
-    // Judge failed — the human answer is safe; the row is retryable.
     await db.update(predictionScenarios).set({ status: 'failed' }).where(eq(predictionScenarios.id, row.id)).catch(() => {});
     console.error('[scenarios] judge failed', row.id, e instanceof Error ? e.message : e);
-    const [failed] = await db.select().from(predictionScenarios).where(eq(predictionScenarios.id, row.id)).limit(1);
-    return { ok: true, scenario: failed! };
+    return false;
   }
+}
+
+/** Re-run judges for scenarios that failed while no rail was reachable. */
+export async function rejudgeFailedScenarios(orgId: string): Promise<number> {
+  const rows = await db.select().from(predictionScenarios)
+    .where(and(eq(predictionScenarios.orgId, orgId), eq(predictionScenarios.status, 'failed'), isNotNull(predictionScenarios.humanAnswer)));
+  let n = 0;
+  for (const r of rows) if (await judgeScenarioRow(orgId, r)) n++;
+  if (rows.length) console.log(`[scenarios] rejudged ${n}/${rows.length} for org=${orgId}`);
+  return n;
 }
 
 export async function skipScenario(orgId: string, cloneId: string, id: string): Promise<boolean> {

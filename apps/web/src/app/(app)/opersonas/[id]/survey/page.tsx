@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation';
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, inArray } from 'drizzle-orm';
 import { db, schema } from '@opersona/db';
 import { requireOrg } from '@/lib/session';
 import { getCloneAccess } from '@/lib/clones';
 import { engineFetch } from '@/lib/engine';
 import { SelfTestPanel } from '@/components/thinking/SelfTestPanel';
 import { ScenarioTestPanel } from '@/components/thinking/ScenarioTestPanel';
+import { ScenarioHistory, type HistoryRow } from '@/components/thinking/ScenarioHistory';
 import { SimilarityCard, type SimilarityData } from '@/components/thinking/SimilarityCard';
 
 export const dynamic = 'force-dynamic';
@@ -45,10 +46,29 @@ export default async function SurveyPage({ params }: { params: Promise<{ id: str
   const sim = await engineFetch<SimilarityData>(`/clones/${id}/similarity`, { query: { orgId: ctx.orgId } })
     .catch(() => null);
 
+  // History: once answered, a scenario is no longer blind — full rows are fine.
+  const past = await db.select().from(schema.predictionScenarios)
+    .where(and(eq(schema.predictionScenarios.cloneId, id), inArray(schema.predictionScenarios.status, ['scored', 'failed', 'answered'])))
+    .orderBy(desc(schema.predictionScenarios.answeredAt)).limit(50);
+  const history: HistoryRow[] = past.map((r) => ({
+    id: r.id, category: r.category, status: r.status, scenario: r.scenario, question: r.question,
+    humanAnswer: r.humanAnswer, humanFactors: r.humanFactors,
+    prediction: r.aiPrediction ? { decision: r.aiPrediction.decision, factors: r.aiPrediction.factors, communication: r.aiPrediction.communication, confidence: r.aiPrediction.confidence } : null,
+    scoreOverall: r.scoreOverall,
+    scores: [
+      { label: 'Decision', value: r.scoreDecision }, { label: 'Reasoning', value: r.scoreReasoning },
+      { label: 'Preferences', value: r.scorePreference }, { label: 'Communication', value: r.scoreCommunication },
+      { label: 'Calibration', value: r.scoreCalibration },
+    ],
+    keyDifferences: (r.judge as { key_differences?: string[] } | null)?.key_differences ?? [],
+    answeredAt: r.answeredAt?.toISOString() ?? null,
+  }));
+
   return (
     <div className="space-y-8">
       <ScenarioTestPanel cloneId={id} readOnly={!access.canWrite} open={openScenarios} />
       {sim && <SimilarityCard data={sim} />}
+      <ScenarioHistory rows={history} />
       <div className="border-t border-neutral-200 pt-6 dark:border-neutral-800">
         <SelfTestPanel
           cloneId={id}

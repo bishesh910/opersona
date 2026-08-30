@@ -135,8 +135,18 @@ export async function retryRailFailures(orgId: string): Promise<number> {
   const answers = await db.select({ id: interviewAnswers.id, cloneId: interviewAnswers.cloneId })
     .from(interviewAnswers)
     .where(and(eq(interviewAnswers.orgId, orgId), eq(interviewAnswers.extractionStatus, 'failed'), eq(interviewAnswers.skipped, false)));
-  if (!answers.length) return 0;
-  console.log(`[learning] retrying ${answers.length} failed interview extraction(s) for org=${orgId}`);
-  for (const a of answers) enqueue({ kind: 'interview_extract', orgId, cloneId: a.cloneId, answerId: a.id });
-  return answers.length;
+  if (answers.length) {
+    console.log(`[learning] retrying ${answers.length} failed interview extraction(s) for org=${orgId}`);
+    for (const a of answers) enqueue({ kind: 'interview_extract', orgId, cloneId: a.cloneId, answerId: a.id });
+  }
+  // Failed scenario judges drain on the same signal (fired async — each judge is
+  // its own inference call; counting them up front keeps this fast).
+  const { predictionScenarios } = await import('@opersona/db');
+  const { isNotNull } = await import('drizzle-orm');
+  const failedJudges = await db.select({ id: predictionScenarios.id }).from(predictionScenarios)
+    .where(and(eq(predictionScenarios.orgId, orgId), eq(predictionScenarios.status, 'failed'), isNotNull(predictionScenarios.humanAnswer)));
+  if (failedJudges.length) {
+    void import('./scenarios.js').then((m) => m.rejudgeFailedScenarios(orgId)).catch((e) => console.error('[scenarios] rejudge sweep failed', e));
+  }
+  return answers.length + failedJudges.length;
 }
