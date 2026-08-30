@@ -62,6 +62,7 @@ export default async function SurveyPage({ params }: { params: Promise<{ id: str
     ],
     keyDifferences: (r.judge as { key_differences?: string[] } | null)?.key_differences ?? [],
     answeredAt: r.answeredAt?.toISOString() ?? null,
+    predictedAt: r.predictedAt?.toISOString() ?? null,
   }));
 
   return (

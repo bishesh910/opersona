@@ -19,6 +19,14 @@ export interface HistoryRow {
   scores: { label: string; value: number | null }[];
   keyDifferences: string[];
   answeredAt: string | null;
+  predictedAt: string | null;
+}
+
+/** "locked in 8 h before you answered" — the proof the twin never peeked. */
+function lockedFor(predictedAt: string | null, answeredAt: string | null): string | null {
+  if (!predictedAt || !answeredAt) return null;
+  const mins = Math.max(0, Math.round((new Date(answeredAt).getTime() - new Date(predictedAt).getTime()) / 60_000));
+  return mins < 90 ? `${mins} min` : `${Math.round(mins / 60)} h`;
 }
 
 export function ScenarioHistory({ rows }: { rows: HistoryRow[] }) {
@@ -43,6 +51,9 @@ export function ScenarioHistory({ rows }: { rows: HistoryRow[] }) {
               </summary>
               <div className="space-y-3 pb-1 pt-3">
                 <p className="muted text-xs">{r.scenario}</p>
+                {lockedFor(r.predictedAt, r.answeredAt) && (
+                  <p className="muted text-[11px]">Prediction locked in {lockedFor(r.predictedAt, r.answeredAt)} before you answered — it never saw your answer.</p>
+                )}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-lg border border-neutral-200 p-2.5 dark:border-neutral-800">
                     <p className="muted mb-1 text-[11px] font-medium uppercase tracking-wide">You said</p>
@@ -72,8 +83,9 @@ export function ScenarioHistory({ rows }: { rows: HistoryRow[] }) {
                   </div>
                 ) : (
                   <p className="text-xs text-amber-600">
-                    Scoring couldn&rsquo;t run — no Claude was reachable when you answered. Your answer is safe; judging
-                    retries automatically when your bridge reconnects (or with an API key), and the scores appear here.
+                    The prediction above was made and sealed long before you answered — that part is done. What&rsquo;s
+                    waiting is the REFEREE: scoring the match between the two answers runs on your Claude, and none was
+                    reachable at the time. It retries automatically when your bridge reconnects; the scores appear here.
                   </p>
                 )}
               </div>

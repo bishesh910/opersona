@@ -165,7 +165,7 @@ function Reveal({ cloneId, scored, humanAnswer, onCorrectionDone }: { cloneId: s
           ) : null}
         </>
       ) : (
-        <p className="text-xs text-amber-600">Scoring couldn&rsquo;t run — no Claude was reachable. Your answer is safe, this comparison stays in Answered scenarios below, and judging retries automatically when your bridge reconnects.</p>
+        <p className="text-xs text-amber-600">The prediction above was already made and sealed before you answered — that part is done. Only the REFEREE (scoring the match) needs your Claude, and none was reachable just now. This comparison stays in Answered scenarios below; scoring retries automatically when your bridge reconnects.</p>
       )}
       {corrected ? (
         <p className="text-xs text-emerald-700 dark:text-emerald-400">Taught — the correction is folding into your persona.</p>
