@@ -40,6 +40,11 @@ export default async function SourcesPage() {
               memory mid-conversation — and say <span className="font-medium text-neutral-800 dark:text-neutral-200">&ldquo;opersona me&rdquo;</span>{' '}
               any time to be interviewed about real moments. That interview is the fastest way to teach it who you are.
             </p>
+            <p className="muted mt-2 text-sm">
+              Live in the terminal? The same connector works in <span className="font-medium text-neutral-800 dark:text-neutral-200">Claude Code</span>:{' '}
+              <code className="text-xs">claude mcp add --transport http opersona https://opersona.me/mcp</code>, then <code className="text-xs">/mcp</code> to
+              sign in — your persona&apos;s memory and the interview, right where you work.
+            </p>
           </div>
         </div>
       </section>

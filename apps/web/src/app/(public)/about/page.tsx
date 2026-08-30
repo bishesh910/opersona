@@ -61,7 +61,8 @@ export default function AboutPage() {
             playbooks. It runs on your own Claude: the opersona bridge on your machine (one{" "}
             <code className="text-xs">npx opersona</code> command using the Claude subscription you
             already have — your login never leaves your computer), an API key you provide, or as a
-            connector inside claude.ai, where saying &ldquo;opersona me&rdquo; starts your interview.
+            connector inside claude.ai — or inside Claude Code in your terminal — where saying
+            &ldquo;opersona me&rdquo; starts your interview.
             There is no platform API key. Nobody&rsquo;s thinking is billed to us.
           </p>
         </div>
