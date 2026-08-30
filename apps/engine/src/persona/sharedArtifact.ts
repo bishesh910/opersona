@@ -33,7 +33,7 @@ export async function exportSharedPersona(orgId: string, cloneId: string, opts: 
   const [personality] = opts.sections.personality === false ? [] : await db.select().from(personalityTests)
     .where(eq(personalityTests.cloneId, cloneId)).orderBy(desc(personalityTests.createdAt)).limit(1);
 
-  let { prompt } = await renderPersona(orgId, cloneId, undefined, 'shared');
+  let { prompt } = await renderPersona(orgId, cloneId, undefined, 'shared', { includePersonality: opts.sections.personality !== false });
   if (prompt.length > ARTIFACT_CAPS.promptChars) prompt = prompt.slice(0, ARTIFACT_CAPS.promptChars - 2) + ' …';
 
   let acc: number | null = null;

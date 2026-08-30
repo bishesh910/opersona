@@ -230,7 +230,7 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
                 <dt>First interview answer (one-time)</dt><dd>{parts.started ? `✓ +${PART_MAX.started}` : `0 / ${PART_MAX.started}`}</dd>
                 <dt>Interview coverage ({data.coveragePct}% of ten areas)</dt><dd>{Math.round(parts.coverage)} / {PART_MAX.coverage}</dd>
                 <dt>Thinking patterns confirmed ({data.patterns}; full credit at 3)</dt><dd>{Math.round(parts.patterns)} / {PART_MAX.patterns}</dd>
-                <dt>Blind tests scored ({data.scored}; full credit at 5)</dt><dd>{Math.round(parts.scored)} / {PART_MAX.scored}</dd>
+                <dt><Link href="/me/survey" className="underline underline-offset-2" onClick={() => setOpen(false)}>Blind tests scored</Link> ({data.scored}; full credit at 5)</dt><dd>{Math.round(parts.scored)} / {PART_MAX.scored}</dd>
               </dl>
               <p className="muted mt-1.5 text-[11px]">
                 How ACCURATE the persona is lives elsewhere: behavioural similarity from blind tests, which shows no number until 5 are scored.

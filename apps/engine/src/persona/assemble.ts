@@ -61,7 +61,7 @@ How to work:
 - When a situation matches a playbook trigger, follow the playbook's steps in order, saying where you deviate and why.
 - Match the communication style described below. Be concrete: commands in code blocks, exact paths, one idea per paragraph.`;
 
-export async function renderPersona(orgId: string, cloneId: string, orgName?: string, audience: Audience = 'owner'): Promise<RenderedPersona> {
+export async function renderPersona(orgId: string, cloneId: string, orgName?: string, audience: Audience = 'owner', opts?: { includePersonality?: boolean }): Promise<RenderedPersona> {
   const visitor = audience === 'visitor';
   const shared = audience === 'shared';
   const imported = audience === 'imported';
@@ -120,7 +120,9 @@ export async function renderPersona(orgId: string, cloneId: string, orgName?: st
   const fp = renderFingerprint(name, patterns);
   if (fp) parts.push('', fp);
 
-  const [personality] = await db.select().from(personalityTests).where(eq(personalityTests.cloneId, cloneId)).orderBy(desc(personalityTests.createdAt)).limit(1);
+  // Publish honors its section toggles LITERALLY — personality off means the
+  // prompt carries no MBTI lens either, not just the artifact's data field.
+  const [personality] = opts?.includePersonality === false ? [] : await db.select().from(personalityTests).where(eq(personalityTests.cloneId, cloneId)).orderBy(desc(personalityTests.createdAt)).limit(1);
   if (personality && personality.source === 'stated') {
     // Typed in directly — poles are known, strengths are not; never invent percentages.
     parts.push('', `## Personality lens (self-reported, ${personality.type})`,
