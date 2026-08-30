@@ -43,10 +43,13 @@ conversations are never stored on the opersona server at all.
   can export as a Markdown vault (Obsidian-compatible). Owner-private, always.
 - **Imports your history.** claude.ai export zips, Claude Code sessions (hook or upload),
   and ChatGPT / Codex exports all feed the same extractor.
-- **Lives inside claude.ai.** The connector puts your persona where you already talk:
-  `my_persona` loads it into any conversation, `recall_memory` serves its memory mid-chat,
-  `save_insight` and `learn_from_this_chat` teach it, and teammates load your published
-  persona with `use_persona`. No second chat app to live in.
+- **Lives inside claude.ai — and Claude Code.** The connector puts your persona where you
+  already talk: `my_persona` loads it into any conversation, `recall_memory` serves its memory
+  mid-chat, `save_insight` and `learn_from_this_chat` teach it, and teammates load your
+  published persona with `use_persona`. In the terminal it's one command
+  (`claude mcp add --transport http opersona https://opersona.me/mcp`) — and since the bridge
+  already learns from your Claude Code sessions, the persona rides along in the same tool it
+  learns from. No second chat app to live in.
 - **Pixies.** Every person gets a procedurally drawn pixel avatar — from a selfie (never stored)
   or a dice roll — that blinks, thinks, and talks in the UI.
 - **Private by construction.** Invite-only by default (`ALLOW_SIGNUP` opens it, with admin

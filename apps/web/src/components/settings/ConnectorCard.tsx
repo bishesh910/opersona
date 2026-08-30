@@ -51,6 +51,14 @@ export function ConnectorCard({ compact = false }: { compact?: boolean }) {
         <li>Paste the URL above, then sign in and press <span className="font-medium text-neutral-700 dark:text-neutral-300">Allow</span></li>
         <li>In any chat: <em>“load my persona and answer as me”</em></li>
       </ol>
+      <div className="muted border-t border-neutral-200 pt-2 text-xs dark:border-neutral-800">
+        <p className="mb-1"><span className="font-medium text-neutral-700 dark:text-neutral-300">Claude Code too</span> — same persona, in your terminal (then <code>/mcp</code> to sign in):</p>
+        <div className="flex items-center gap-2">
+          <code className="min-w-0 flex-1 truncate rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] dark:bg-neutral-800">{`claude mcp add --transport http opersona ${url}`}</code>
+          <CopyButton text={`claude mcp add --transport http opersona ${url}`} />
+        </div>
+        <p className="mt-1">&ldquo;opersona me&rdquo; works there as well — and mid-coding, <em>&ldquo;what did I decide about…&rdquo;</em> answers from your persona&rsquo;s memory.</p>
+      </div>
     </div>
   );
 }

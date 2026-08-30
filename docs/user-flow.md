@@ -85,7 +85,8 @@ anything that only stood on it.
 
 ## 6 · Use it — the connector and `/me/simulate`
 
-- **Talk as/with your persona on claude.ai**: `my_persona` loads your own
+- **Talk as/with your persona on claude.ai — or in Claude Code**
+  (`claude mcp add --transport http opersona https://opersona.me/mcp`, then `/mcp` to sign in): `my_persona` loads your own
   persona into the conversation; teammates and adopters load yours with
   `use_persona` (shareable material only); `recall_memory` serves its memory
   mid-chat; `learn_from_this_chat` turns any conversation into lessons — your own

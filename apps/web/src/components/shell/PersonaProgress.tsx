@@ -180,6 +180,7 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
                     <CopyButton text={url} />
                   </div>
                   {connector && <p className="text-xs text-emerald-600 dark:text-emerald-400">connected to your claude.ai ✓</p>}
+                  <p className="muted text-[11px]">Works in Claude Code too: <code>claude mcp add --transport http opersona {url}</code></p>
                 </div>
               </li>
               <li className="flex gap-2.5">
