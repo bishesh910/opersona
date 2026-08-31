@@ -7,7 +7,12 @@ export const viewport: Viewport = { width: 'device-width', initialScale: 1, view
 export const metadata: Metadata = {
   title: 'opersona.me',
   description: 'How to think, not what to think — AI personas that reason the way their humans do',
-  icons: { icon: [{ url: '/api/favicon', type: 'image/png', sizes: '72x72' }] },
+  icons: {
+    icon: [{ url: '/api/favicon', type: 'image/png', sizes: '72x72' }],
+    // Explicit apple link: iOS parses static HTML for this, and the layout's
+    // explicit `icons` config suppresses the app/apple-icon.png auto-injection.
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
