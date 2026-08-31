@@ -47,6 +47,17 @@ const CORRECTION_CHIPS: { key: string; label: string }[] = [
   { key: 'other', label: 'Other' },
 ];
 
+/** Backgrounding a tab (or leaving the page) aborts in-flight fetches, but the
+ *  engine finished the work anyway — generation inserts rows, the judge updates
+ *  one. So on ANY request error we ask the server what actually happened before
+ *  telling the user something went wrong. */
+async function fetchScenarios(cloneId: string, view: 'open' | 'history'): Promise<Record<string, unknown>[]> {
+  const r = await fetch(`/api/engine/clones/${cloneId}/scenarios?view=${view}`);
+  if (!r.ok) return [];
+  const j = (await r.json()) as { scenarios?: Record<string, unknown>[] };
+  return j.scenarios ?? [];
+}
+
 async function post<T>(url: string, body?: unknown): Promise<T> {
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
   const j = (await r.json().catch(() => ({}))) as T & { error?: string };
@@ -232,9 +243,12 @@ function ScenarioCard({ cloneId, item }: { cloneId: string; item: OpenScenario }
       const r = await post<{ scenario: ScoredScenario }>(`/api/engine/clones/${cloneId}/scenarios/${item.id}/answer`,
         { answer: answer.trim(), factors: factors.trim() || undefined });
       setScored(r.scenario); // NO refresh here — see the Done button below
-
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'could not submit');
+      // Dropped connection ≠ lost answer: the row may already be answered/scored.
+      const landed = (await fetchScenarios(cloneId, 'history').catch(() => []))
+        .find((x) => x.id === item.id) as ScoredScenario | undefined;
+      if (landed) setScored(landed);
+      else setErr(e instanceof Error ? e.message : 'could not submit');
     } finally { setBusy(false); }
   }
   async function skip() {
@@ -329,7 +343,10 @@ export function ScenarioTestPanel({ cloneId, open, readOnly }: { cloneId: string
       await post(`/api/engine/clones/${cloneId}/scenarios`, { count: WANTED });
       router.refresh();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'failed');
+      // Same rule: if scenarios exist now, generation finished without us.
+      const open = await fetchScenarios(cloneId, 'open').catch(() => []);
+      if (open.length > 0) { setReady(open.length); router.refresh(); }
+      else setErr(e instanceof Error ? e.message : 'failed');
     } finally { clearInterval(poll); setRunning(false); }
   }
   return (
