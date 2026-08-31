@@ -58,10 +58,50 @@ export const MIN_SAMPLE = 5;
 export const calibrationScore = (predictionConfidence: number, decisionScore: number): number =>
   1 - Math.abs(predictionConfidence - decisionScore);
 
-export function overallScore(s: { decision: number; reasoning: number; preference: number; communication: number; calibration: number }): number {
-  return JUDGE_WEIGHTS.decision * s.decision + JUDGE_WEIGHTS.reasoning * s.reasoning
-    + JUDGE_WEIGHTS.preference * s.preference + JUDGE_WEIGHTS.communication * s.communication
-    + JUDGE_WEIGHTS.calibration * s.calibration;
+/** A dimension with nothing to judge is NOT scored (null) rather than scored
+ *  badly — the same "Not enough data yet" discipline used everywhere else.
+ *  Scoring someone's "reasoning factors" when they never stated any reasons
+ *  measured our own prompt, not them. */
+export function scoreableDims(answer: string, factors: string | null | undefined): { reasoning: boolean; communication: boolean } {
+  const a = (answer ?? '').trim();
+  return {
+    reasoning: (factors ?? '').trim().length >= 10 || a.length >= 200,
+    communication: a.length >= 120,
+  };
+}
+
+/** Which option a text picked, by leading letter or by quoting the option. */
+function optionIndex(choices: string[], text: string): number | null {
+  const t = (text ?? '').trim().toLowerCase();
+  if (!t || !choices.length) return null;
+  const letter = /^\(?([a-e])[.):\s]/.exec(t)?.[1];
+  if (letter) {
+    const i = letter.charCodeAt(0) - 97;
+    if (i >= 0 && i < choices.length) return i;
+  }
+  let hit: number | null = null;
+  choices.forEach((c, i) => { const cc = c.trim().toLowerCase(); if (cc.length >= 8 && t.includes(cc)) hit = i; });
+  return hit;
+}
+
+/** Choice scenarios score the DECISION in code: same option or not. No LLM
+ *  opinion, no partial credit for eloquence — un-gameable, like calibration. */
+export function choiceDecisionMatch(choices: string[], answer: string, predicted: string): number | null {
+  if (!choices.length) return null;
+  const a = optionIndex(choices, answer);
+  const p = optionIndex(choices, predicted);
+  return a != null && p != null ? (a === p ? 1 : 0) : null;
+}
+
+/** Weighted mean over the dimensions that COULD be scored (weights renormalized). */
+export function overallScore(s: { decision: number | null; reasoning: number | null; preference: number | null; communication: number | null; calibration: number | null }): number {
+  let sum = 0, w = 0;
+  for (const [k, weight] of Object.entries(JUDGE_WEIGHTS) as [keyof typeof JUDGE_WEIGHTS, number][]) {
+    const v = s[k];
+    if (v == null) continue;
+    sum += weight * v; w += weight;
+  }
+  return w > 0 ? sum / w : 0;
 }
 
 // ── the blind-view discipline ────────────────────────────────────────────────
@@ -85,7 +125,7 @@ Rules for good scenarios:
 - TARGET the weak spots you were given: uncertain traits, open tensions, thin dimensions, low-scoring past categories. target_note says which, in plain words.
 - Never re-test a situation the evidence shows they already faced and resolved — invent adjacent, fresh situations.
 - Avoid the categories listed as recently used.
-- choice format: 2-4 genuinely defensible options, each attractive to a different kind of person.`;
+- PREFER the choice format: most scenarios should offer 3-4 genuinely defensible options, each attractive to a different kind of person, none obviously "right". Choice scenarios are answerable in one tap and let the decision be compared exactly. Leave at most one scenario per batch open-ended, for something a menu would flatten.`;
 
 /** Weak/uncertain areas the generator should aim at. */
 export async function uncertainAreas(cloneId: string): Promise<string[]> {
@@ -201,12 +241,15 @@ export async function judgeScenarioRow(orgId: string, row: typeof predictionScen
       schema: ScenarioJudge, system: JUDGE_SYSTEM,
       user: `SCENARIO:\n${row.scenario}\n${row.question}${row.choices.length ? `\nOptions: ${row.choices.join(' | ')}` : ''}\n\nPERSON'S ANSWER:\n${answer}${factors ? `\nTheir stated reasons: ${factors}` : ''}\n\nMODEL'S BLIND PREDICTION (made ${row.predictedAt ? 'before the person answered' : ''}):\nDecision: ${pred.decision}\nFactors: ${pred.factors.join('; ')}\nCommunication: ${pred.communication}`,
     });
+    const dims = scoreableDims(answer, factors);
+    const exact = choiceDecisionMatch(row.choices, answer, pred.decision);
+    const decision = exact ?? judged.decision_match.score;
     const scores = {
-      decision: judged.decision_match.score,
-      reasoning: judged.reasoning_factor_match.score,
+      decision,
+      reasoning: dims.reasoning ? judged.reasoning_factor_match.score : null,
       preference: judged.preference_match.score,
-      communication: judged.communication_match.score,
-      calibration: calibrationScore(pred.confidence, judged.decision_match.score),
+      communication: dims.communication ? judged.communication_match.score : null,
+      calibration: calibrationScore(pred.confidence, decision),
     };
     await db.update(predictionScenarios).set({
       status: 'scored',

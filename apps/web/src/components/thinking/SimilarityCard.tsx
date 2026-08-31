@@ -64,7 +64,11 @@ export function SimilarityCard({ data }: { data: SimilarityData }) {
           ))}
         </div>
       )}
-      <p className="muted text-[11px]">LLM-judged over {data.scored} blind scenario{data.scored === 1 ? '' : 's'} — an internal model metric, not a scientific measure of you.</p>
+      <p className="muted text-[11px]">
+        LLM-judged over {data.scored} blind scenario{data.scored === 1 ? '' : 's'} — an internal model metric, not a scientific measure of you.
+        On multiple-choice scenarios the decision is matched exactly, in code. A dimension with nothing to judge (no reasons given,
+        or a one-line answer) is left <em>unscored</em> rather than scored badly, so each average counts only the answers that could carry it.
+      </p>
     </section>
   );
 }

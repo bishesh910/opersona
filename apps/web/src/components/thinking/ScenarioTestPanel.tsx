@@ -245,10 +245,14 @@ function ScenarioCard({ cloneId, item }: { cloneId: string; item: OpenScenario }
             </div>
           )}
           <textarea className="input min-h-20 w-full text-sm"
-            placeholder={item.format === 'choice' ? 'Pick an option above and/or say it in your own words…' : 'What would you actually do?'}
+            placeholder={item.format === 'choice' ? 'Picked one above? That\u2019s enough — add a line if it misses what you\u2019d really do.' : 'What would you actually do?'}
             value={answer} onChange={(e) => setAnswer(e.target.value)} disabled={busy} />
-          <input className="input w-full text-sm" placeholder="Why? (optional — sharpens the comparison)"
+          <input className="input w-full text-sm" placeholder="Why did you pick that? (one line)"
             value={factors} onChange={(e) => setFactors(e.target.value)} disabled={busy} />
+          <p className="muted text-[11px]">
+            Optional — but it&rsquo;s the only way the &ldquo;reasoning&rdquo; dimension can be scored. Leave it blank and
+            that dimension is simply left unscored, never counted against your twin.
+          </p>
           <div className="flex items-center gap-2">
             <button type="button" className="btn-primary btn-sm" disabled={busy || !answer.trim()} onClick={() => void submit()}>
               {busy ? 'Comparing…' : 'Lock in my answer'}
