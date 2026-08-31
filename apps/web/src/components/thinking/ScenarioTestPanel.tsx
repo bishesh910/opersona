@@ -7,7 +7,7 @@
  * per-dimension scores — and when the model missed, "What did I get wrong?"
  * turns the miss into corrections the model learns from.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export interface OpenScenario {
@@ -181,6 +181,40 @@ function Reveal({ cloneId, scored, humanAnswer, onCorrectionDone }: { cloneId: s
   );
 }
 
+/** Honest progress: a bar that only advances on REAL signal where we have one
+ *  (scenarios appearing), and otherwise creeps toward — never reaches — done,
+ *  with the elapsed seconds shown so a slow rail looks slow instead of stuck. */
+function Progress({ pct, label, sub }: { pct: number; label: string; sub?: string }) {
+  return (
+    <div className="w-full max-w-sm space-y-1">
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className="font-medium text-neutral-700 dark:text-neutral-300">{label}</span>
+        <span className="muted tabular-nums">{Math.round(pct * 100)}%</span>
+      </div>
+      <span className="block h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+        <span className="block h-full rounded-full bg-amber-400 transition-[width] duration-700 ease-out" style={{ width: `${Math.max(3, Math.round(pct * 100))}%` }} />
+      </span>
+      {sub && <p className="muted text-[11px]">{sub}</p>}
+    </div>
+  );
+}
+
+/** Seconds since `active` went true (0 while idle). */
+function useElapsed(active: boolean): number {
+  const [s, setS] = useState(0);
+  useEffect(() => {
+    if (!active) { setS(0); return; }
+    const t0 = Date.now();
+    const id = setInterval(() => setS(Math.round((Date.now() - t0) / 1000)), 500);
+    return () => clearInterval(id);
+  }, [active]);
+  return s;
+}
+
+/** Asymptotic creep for work with no progress signal: fast at first, never
+ *  past ~92%, so it can't imply a finish it hasn't reached. */
+const creep = (elapsed: number, typical: number) => 0.92 * (1 - Math.exp(-elapsed / typical));
+
 function ScenarioCard({ cloneId, item }: { cloneId: string; item: OpenScenario }) {
   const router = useRouter();
   const [answer, setAnswer] = useState('');
@@ -189,6 +223,7 @@ function ScenarioCard({ cloneId, item }: { cloneId: string; item: OpenScenario }
   const [scored, setScored] = useState<ScoredScenario | null>(null);
   const [skippedAway, setSkippedAway] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const elapsed = useElapsed(busy);
 
   async function submit() {
     if (!answer.trim()) return;
@@ -257,8 +292,15 @@ function ScenarioCard({ cloneId, item }: { cloneId: string; item: OpenScenario }
             <button type="button" className="btn-primary btn-sm" disabled={busy || !answer.trim()} onClick={() => void submit()}>
               {busy ? 'Comparing…' : 'Lock in my answer'}
             </button>
-            <span className="muted text-xs">Your twin answered this before you — you’ll see its prediction after you commit.</span>
+            {!busy && <span className="muted text-xs">Your twin answered this before you — you’ll see its prediction after you commit.</span>}
           </div>
+          {busy && (
+            <Progress
+              pct={creep(elapsed, 12)}
+              label="Scoring the match…"
+              sub={`Your answer is saved. The referee compares it with the sealed prediction on your own Claude — usually 10–30s${elapsed > 5 ? ` · ${elapsed}s` : ''}.`}
+            />
+          )}
           {err && <p className="text-xs text-red-600" role="alert">{err}</p>}
         </div>
       )}
@@ -269,15 +311,26 @@ function ScenarioCard({ cloneId, item }: { cloneId: string; item: OpenScenario }
 export function ScenarioTestPanel({ cloneId, open, readOnly }: { cloneId: string; open: OpenScenario[]; readOnly: boolean }) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
+  const [ready, setReady] = useState(0);
   const [err, setErr] = useState<string | null>(null);
+  const elapsed = useElapsed(running);
+  const WANTED = 3;
   async function generate() {
-    setRunning(true); setErr(null);
+    setRunning(true); setReady(0); setErr(null);
+    // Real progress: createScenarioBatch inserts each scenario as it finishes,
+    // so polling the open list shows genuine "2 of 3 ready" — not a fake bar.
+    const poll = setInterval(() => {
+      void fetch(`/api/engine/clones/${cloneId}/scenarios?view=open`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j: { scenarios?: unknown[] } | null) => { if (j?.scenarios) setReady(j.scenarios.length); })
+        .catch(() => {});
+    }, 3000);
     try {
-      await post(`/api/engine/clones/${cloneId}/scenarios`, { count: 3 });
+      await post(`/api/engine/clones/${cloneId}/scenarios`, { count: WANTED });
       router.refresh();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'failed');
-    } finally { setRunning(false); }
+    } finally { clearInterval(poll); setRunning(false); }
   }
   return (
     <section className="space-y-3">
@@ -292,12 +345,21 @@ export function ScenarioTestPanel({ cloneId, open, readOnly }: { cloneId: string
           {open.map((s) => <ScenarioCard key={s.id} cloneId={cloneId} item={s} />)}
         </ul>
       ) : !readOnly ? (
-        <div className="flex items-center gap-3">
-          <button type="button" className="btn-secondary btn-sm" onClick={() => void generate()} disabled={running}>
-            {running ? 'Preparing…' : 'New scenarios'}
-          </button>
-          {running && <span className="muted text-xs">Writing 3 scenarios and sealing your twin’s blind predictions… ~1 min</span>}
-          {err && <span className="text-xs text-red-600">{err}</span>}
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <button type="button" className="btn-secondary btn-sm" onClick={() => void generate()} disabled={running}>
+              {running ? 'Preparing…' : 'New scenarios'}
+            </button>
+            {err && <span className="text-xs text-red-600">{err}</span>}
+          </div>
+          {running && (
+            <Progress
+              // 20% for writing the batch, then a real fifth per sealed scenario.
+              pct={Math.min(0.97, 0.2 * creep(elapsed, 15) / 0.92 + (ready / WANTED) * 0.8)}
+              label={ready > 0 ? `${ready} of ${WANTED} ready` : 'Writing your scenarios…'}
+              sub={`Each one is written, then answered blind by your twin and sealed before you see it — that's two passes on your own Claude, so a minute or two is normal${elapsed > 8 ? ` · ${elapsed}s` : ''}.`}
+            />
+          )}
         </div>
       ) : (
         <p className="muted text-xs">No open scenarios.</p>
