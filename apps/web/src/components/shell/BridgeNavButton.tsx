@@ -18,7 +18,12 @@ export function BridgeNavButton({ variant = 'sidebar', waiting = 0 }: { variant?
   const [state, setState] = useState<BridgeState | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
   const [origin, setOrigin] = useState('https://opersona.me');
-  useEffect(() => { if (window.location.origin.startsWith('http')) setOrigin(window.location.origin); }, []);
+  const [os, setOs] = useState<'mac' | 'linux' | 'win'>('mac');
+  useEffect(() => {
+    if (window.location.origin.startsWith('http')) setOrigin(window.location.origin);
+    const ua = navigator.userAgent;
+    setOs(/Windows/i.test(ua) ? 'win' : /Mac/i.test(ua) ? 'mac' : 'linux');
+  }, []);
   const [busy, setBusy] = useState(false);
   const reload = useCallback(() => { bridgeState().then(setState).catch(() => {}); }, []);
 
@@ -40,6 +45,7 @@ export function BridgeNavButton({ variant = 'sidebar', waiting = 0 }: { variant?
   const connected = state?.connected === true;
   const dot = <span className={'inline-block h-2 w-2 shrink-0 rounded-full ' + (connected ? 'bg-green-500' : 'bg-neutral-400')} />;
   const cmd = fresh ? `npx opersona@latest install --token ${fresh}` : '';
+  const fgCmd = fresh ? `npx opersona@latest --token ${fresh}` : ''; // Windows: no background service yet
 
   const trigger = variant === 'dot' ? (
     <button type="button" onClick={() => setOpen(true)} title={connected ? `bridge online — ${state?.host ?? ''}` : 'pair your machine'}
@@ -111,14 +117,38 @@ export function BridgeNavButton({ variant = 'sidebar', waiting = 0 }: { variant?
 
             {!connected && fresh && (
               <div className="space-y-1.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950/40">
-                <p className="text-xs font-medium">Run this once on a machine where Claude Code is signed in — it&rsquo;s the whole setup:</p>
-                <div className="flex items-center gap-2">
-                  <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">{cmd}</code>
-                  <CopyButton text={cmd} />
+                <div className="flex items-center gap-1">
+                  {([['mac', 'macOS'], ['linux', 'Linux'], ['win', 'Windows']] as const).map(([k, label]) => (
+                    <button key={k} type="button" onClick={() => setOs(k)}
+                      className={'rounded px-2 py-0.5 text-[11px] font-medium ' + (os === k
+                        ? 'bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100'
+                        : 'text-amber-700 hover:bg-amber-100 dark:text-amber-400 dark:hover:bg-amber-900/50')}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
+                <p className="text-xs font-medium">
+                  {os === 'win'
+                    ? 'Run this in a terminal where Claude Code is signed in (keep the window open):'
+                    : 'Run this once on a machine where Claude Code is signed in — it\u2019s the whole setup:'}
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">{os === 'win' ? fgCmd : cmd}</code>
+                  <CopyButton text={os === 'win' ? fgCmd : cmd} />
+                </div>
+                {os === 'linux' && (
+                  <>
+                    <p className="text-xs font-medium">Server or headless box? Also run this once, so it keeps running after you log out:</p>
+                    <div className="flex items-center gap-2">
+                      <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">loginctl enable-linger $USER</code>
+                      <CopyButton text="loginctl enable-linger $USER" />
+                    </div>
+                  </>
+                )}
                 <p className="muted text-xs">
-                  Pairs, installs itself as an invisible background service, and starts it. The dot up there turns
-                  <span className="font-medium"> ● green</span> within seconds of it connecting. Needs Node and the <code>claude</code> CLI.
+                  {os === 'win'
+                    ? 'The background service isn\u2019t wired for Windows yet — the bridge runs while this terminal stays open. Needs Node and the claude CLI.'
+                    : 'Pairs, installs itself as an invisible background service, and starts it. The dot up there turns \u25cf green within seconds of it connecting. Needs Node and the claude CLI.'}
                 </p>
               </div>
             )}
