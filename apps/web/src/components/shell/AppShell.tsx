@@ -2,14 +2,15 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { SidebarResizer, SidebarToggle } from '@/components/shell/SidebarResizer';
 import { requireOrg, require2FA } from '@/lib/session';
-import { eq } from 'drizzle-orm';
-import { db, schema } from '@opersona/db';
+import { eq, isNull, sql } from 'drizzle-orm';
+import { db, schema, authSchema } from '@opersona/db';
 import { SideNav } from '@/components/shell/SideNav';
 import { UserMenu } from '@/components/shell/UserMenu';
 import { SidebarFooter } from '@/components/shell/SidebarFooter';
 import { PersonaProgress } from '@/components/shell/PersonaProgress';
 import { BridgeNavButton } from '@/components/shell/BridgeNavButton';
 import { buildProgress } from '@/lib/persona-progress';
+import { isPlatformAdmin } from '@/lib/auth';
 
 /** The signed-in chrome: sidebar, mobile strip, user menu. Used by the (app)
  * layout and — when a session exists — by the (public) layout, so community
@@ -20,6 +21,12 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   await require2FA(ctx);
   const [own] = await db.select({ id: schema.clones.id, r: schema.clones.avatarRecipe }).from(schema.clones).where(eq(schema.clones.ownerUserId, ctx.userId)).limit(1);
   const progress = await buildProgress(ctx.userId, ctx.orgId, own?.id);
+  // Platform admins get the admissions door in the nav, with a live queue count.
+  const admin = isPlatformAdmin(ctx.user.email);
+  const [pendingRow] = admin
+    ? await db.select({ n: sql<number>`count(*)::int` }).from(authSchema.user).where(isNull(authSchema.user.approvedAt))
+    : [{ n: 0 }];
+  const approvalsBadge = { '/admin/approvals': (pendingRow?.n ?? 0) > 0 ? String(pendingRow!.n) : undefined };
   return (
     <div data-app-shell className="flex h-dvh overflow-hidden overscroll-none">
       {/* sidebar width/collapse persist per device; applied pre-paint (no flash) */}
@@ -29,6 +36,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         <SideNav include={['/me']} />
         <SideNav include={['/opersonas']} />
         <SideNav include={['/explore']} />
+        {admin && <SideNav include={['/admin/approvals']} badges={approvalsBadge} />}
         <div className="mt-4 space-y-0.5 border-t border-neutral-200 pt-3 dark:border-neutral-800">
           <PersonaProgress data={progress} cloneId={own?.id} />
           <BridgeNavButton waiting={progress.failedExtractions} />
@@ -52,6 +60,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
             <SideNav horizontal include={['/me']} />
             <SideNav horizontal include={['/opersonas']} />
             <SideNav horizontal include={['/explore']} />
+            {admin && <SideNav horizontal include={['/admin/approvals']} badges={approvalsBadge} />}
             <div className="ml-auto shrink-0"><PersonaProgress data={progress} cloneId={own?.id} variant="pill" /></div>
           </nav>
         </div>

@@ -18,12 +18,14 @@ const ITEMS: NavItem[] = [
   { href: '/me', label: 'Me', icon: I.persona },
   { href: '/opersonas', label: 'Opersonas', icon: I.users },
   { href: '/explore', label: 'Explore', icon: I.compass },
+  // Platform-admin only — rendered solely via include (AppShell gates it).
+  { href: '/admin/approvals', label: 'Approvals', icon: I.check },
   { href: '/settings', label: 'Settings', icon: I.gear },
 ];
 
 const LEAN = new Set(['/me', '/opersonas']); // desktop sidebar: the rest live in the account menu
 
-export function SideNav({ horizontal = false, include }: { horizontal?: boolean; include?: string[] }) {
+export function SideNav({ horizontal = false, include, badges }: { horizontal?: boolean; include?: string[]; badges?: Record<string, string | undefined> }) {
   const path = usePathname();
   const items = include ? ITEMS.filter((it) => include.includes(it.href)) : horizontal ? ITEMS : ITEMS.filter((it) => LEAN.has(it.href));
   return (
@@ -41,7 +43,7 @@ export function SideNav({ horizontal = false, include }: { horizontal?: boolean;
                   : 'text-neutral-700 hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800/60')
               }
             >
-              <span className="opacity-70">{it.icon}</span>{horizontal && it.shortLabel ? it.shortLabel : it.label}{it.badge ? <span className="ml-1 rounded bg-amber-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">{it.badge}</span> : null}
+              <span className="opacity-70">{it.icon}</span>{horizontal && it.shortLabel ? it.shortLabel : it.label}{(badges?.[it.href] ?? it.badge) ? <span className="ml-1 rounded bg-amber-100 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">{badges?.[it.href] ?? it.badge}</span> : null}
             </Link>
           </li>
         );
