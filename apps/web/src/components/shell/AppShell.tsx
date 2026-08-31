@@ -57,10 +57,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <div className="md:hidden">{/* wrapper owns the breakpoint: .nav-scroll's display:flex would out-specificity md:hidden */}
           <nav className="flex items-center gap-1 whitespace-nowrap border-b border-neutral-200 px-2 py-1.5 dark:border-neutral-800">
-            <SideNav horizontal include={['/me']} />
-            <SideNav horizontal include={['/opersonas']} />
-            <SideNav horizontal include={['/explore']} />
-            {admin && <SideNav horizontal include={['/admin/approvals']} badges={approvalsBadge} />}
+            {/* ONE scroll container: .nav-scroll is overflow-x:auto, so a SideNav
+                per item made every pill its own independently-swiping strip. */}
+            <SideNav horizontal badges={approvalsBadge}
+              include={admin ? ['/me', '/opersonas', '/explore', '/admin/approvals'] : ['/me', '/opersonas', '/explore']} />
             <div className="ml-auto shrink-0"><PersonaProgress data={progress} cloneId={own?.id} variant="pill" /></div>
           </nav>
         </div>
