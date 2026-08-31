@@ -91,13 +91,19 @@ function CorrectionForm({ cloneId, scenarioId, onDone }: { cloneId: string; scen
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const elapsed = useElapsed(busy);
   async function send() {
     setBusy(true); setErr(null);
     try {
       await post(`/api/engine/clones/${cloneId}/scenarios/${scenarioId}/correct`, { kinds, note: note.trim() });
       onDone();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'failed');
+      // Same durability rule as answering: the correction may have landed while
+      // the connection dropped — the row carries its correction id once it has.
+      const landed = (await fetchScenarios(cloneId, 'history').catch(() => []))
+        .find((x) => x.id === scenarioId) as { correctionId?: string | null } | undefined;
+      if (landed?.correctionId) onDone();
+      else setErr(e instanceof Error ? e.message : 'failed');
     } finally { setBusy(false); }
   }
   return (
@@ -125,6 +131,13 @@ function CorrectionForm({ cloneId, scenarioId, onDone }: { cloneId: string; scen
         </button>
         {err && <span className="text-xs text-red-600">{err}</span>}
       </div>
+      {busy && (
+        <Progress
+          pct={creep(elapsed, 14)}
+          label="Folding this into your persona…"
+          sub={`Turning your words into counter-observations and candidate rules, then republishing the model — on your own Claude, usually 15–40s${elapsed > 6 ? ` · ${elapsed}s` : ''}. Safe to leave; it finishes without you.`}
+        />
+      )}
     </div>
   );
 }
