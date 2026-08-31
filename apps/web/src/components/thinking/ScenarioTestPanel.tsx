@@ -196,8 +196,8 @@ function ScenarioCard({ cloneId, item }: { cloneId: string; item: OpenScenario }
     try {
       const r = await post<{ scenario: ScoredScenario }>(`/api/engine/clones/${cloneId}/scenarios/${item.id}/answer`,
         { answer: answer.trim(), factors: factors.trim() || undefined });
-      setScored(r.scenario);
-      router.refresh();
+      setScored(r.scenario); // NO refresh here — see the Done button below
+
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'could not submit');
     } finally { setBusy(false); }
@@ -218,7 +218,13 @@ function ScenarioCard({ cloneId, item }: { cloneId: string; item: OpenScenario }
       <p className="text-sm">{item.scenario}</p>
       <p className="text-sm font-medium">{item.question}</p>
       {scored ? (
-        <Reveal cloneId={cloneId} scored={scored} humanAnswer={answer.trim()} onCorrectionDone={() => router.refresh()} />
+        <>
+          <Reveal cloneId={cloneId} scored={scored} humanAnswer={answer.trim()} onCorrectionDone={() => { /* stays put until Done */ }} />
+          <div className="flex items-center gap-3 border-t border-neutral-200 pt-2.5 dark:border-neutral-800">
+            <button type="button" className="btn-secondary btn-sm" onClick={() => router.refresh()}>Done</button>
+            <span className="muted text-xs">Kept in Answered scenarios below — Done clears it from here.</span>
+          </div>
+        </>
       ) : (
         <div className="space-y-2">
           {item.format === 'choice' && item.choices.length > 0 && (
