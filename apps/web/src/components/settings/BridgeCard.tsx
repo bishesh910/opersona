@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { bridgeState, mintBridgeToken, revokeBridgeToken, type BridgeState } from '@/actions/bridge';
 import { CopyButton } from '@/components/shell/CopyButton';
+import { PairCommands } from '@/components/settings/PairCommands';
 
 function ago(iso: string): string {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -64,23 +65,7 @@ export function BridgeCard() {
             <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-xs dark:bg-neutral-900" data-bridge-token>{fresh}</code>
             <CopyButton text={fresh} />
           </div>
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium">Run this once on any machine where Claude Code is signed in — it&rsquo;s the whole setup:</p>
-            <div className="flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900" data-bridge-cmd>{cmd}</code>
-              <CopyButton text={cmd} />
-            </div>
-            <p className="muted text-xs">
-              Pairs, installs itself as an invisible background service, and starts it: no terminal to keep open,
-              runs at every login, restarts if it crashes. Needs Node and the <code>claude</code> CLI signed in.
-              The status above flips to <span className="font-medium">● online</span> within seconds.
-              Remove any time with <code>npx opersona uninstall</code>.
-            </p>
-            <p className="muted text-xs">
-              Prefer to watch it run first? Same flags without <code>install</code> run it in the foreground:{' '}
-              <code className="break-all">{fgCmd}</code> <CopyButton text={fgCmd} />
-            </p>
-          </div>
+          <PairCommands token={fresh} />
         </div>
       )}
 

@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { bridgeState, mintBridgeToken, type BridgeState } from '@/actions/bridge';
 import { CopyButton } from '@/components/shell/CopyButton';
+import { PairCommands } from '@/components/settings/PairCommands';
 
 export function BridgeNavButton({ variant = 'sidebar', waiting = 0 }: { variant?: 'sidebar' | 'dot'; waiting?: number }) {
   const [open, setOpen] = useState(false);
@@ -96,6 +97,11 @@ export function BridgeNavButton({ variant = 'sidebar', waiting = 0 }: { variant?
               </p>
             )}
 
+            {!fresh && (
+              <button type="button" className="btn-primary btn-sm" onClick={() => void pair()} disabled={busy}>
+                {busy ? 'Creating…' : (state?.tokens.length ?? 0) > 0 ? 'Pair another machine' : 'Pair this machine'}
+              </button>
+            )}
             {!connected && !fresh && (state?.tokens.length ?? 0) > 0 && (
               <div className="space-y-1.5 rounded-lg border border-neutral-200 bg-neutral-50 p-2.5 text-xs dark:border-neutral-800 dark:bg-neutral-900/60">
                 <p className="font-medium text-neutral-700 dark:text-neutral-300">Get it running again — on the paired machine, run:</p>
@@ -109,47 +115,10 @@ export function BridgeNavButton({ variant = 'sidebar', waiting = 0 }: { variant?
                 </p>
               </div>
             )}
-            {!connected && !fresh && (state?.tokens.length ?? 0) === 0 && (
-              <button type="button" className="btn-primary btn-sm" onClick={() => void pair()} disabled={busy}>
-                {busy ? 'Creating…' : 'Pair this machine'}
-              </button>
-            )}
 
             {!connected && fresh && (
-              <div className="space-y-1.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950/40">
-                <div className="flex items-center gap-1">
-                  {([['mac', 'macOS'], ['linux', 'Linux'], ['win', 'Windows']] as const).map(([k, label]) => (
-                    <button key={k} type="button" onClick={() => setOs(k)}
-                      className={'rounded px-2 py-0.5 text-[11px] font-medium ' + (os === k
-                        ? 'bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100'
-                        : 'text-amber-700 hover:bg-amber-100 dark:text-amber-400 dark:hover:bg-amber-900/50')}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs font-medium">
-                  {os === 'win'
-                    ? 'Run this in a terminal where Claude Code is signed in (keep the window open):'
-                    : 'Run this once on a machine where Claude Code is signed in — it\u2019s the whole setup:'}
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">{os === 'win' ? fgCmd : cmd}</code>
-                  <CopyButton text={os === 'win' ? fgCmd : cmd} />
-                </div>
-                {os === 'linux' && (
-                  <>
-                    <p className="text-xs font-medium">Server or headless box? Also run this once, so it keeps running after you log out:</p>
-                    <div className="flex items-center gap-2">
-                      <code className="min-w-0 flex-1 truncate rounded bg-white px-2 py-1 font-mono text-[11px] dark:bg-neutral-900">loginctl enable-linger $USER</code>
-                      <CopyButton text="loginctl enable-linger $USER" />
-                    </div>
-                  </>
-                )}
-                <p className="muted text-xs">
-                  {os === 'win'
-                    ? 'The background service isn\u2019t wired for Windows yet — the bridge runs while this terminal stays open. Needs Node and the claude CLI.'
-                    : 'Pairs, installs itself as an invisible background service, and starts it. The dot up there turns \u25cf green within seconds of it connecting. Needs Node and the claude CLI.'}
-                </p>
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950/40">
+                <PairCommands token={fresh} />
               </div>
             )}
 
