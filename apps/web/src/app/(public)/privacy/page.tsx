@@ -42,18 +42,58 @@ export default function PrivacyPage() {
       </section>
 
       <section className="card space-y-2 p-5">
-        <h2 className="font-medium">What your persona learns — the &ldquo;résumé&rdquo;</h2>
+        <h2 className="font-medium">Your persona&apos;s memory — the sensitive part, in full</h2>
         <p className="text-sm">
-          Your persona distills <em>how you think</em> into short entries: facts (&ldquo;prefers evidence-first answers&rdquo;),
-          reasoning patterns, playbooks, and one-paragraph summaries of past work. These stay readable on the server
-          <strong> on purpose</strong> — they are what powers your persona&apos;s memory, the claude.ai connector, and
-          (only if you choose) sharing.
+          This is the part worth reading twice. Everything your persona knows is stored <strong>readable</strong> on the
+          server — not encrypted-and-forgotten like your conversations — because readable memory is the entire product:
+          it is what your persona recalls, what the claude.ai connector serves, and what you review and correct. We would
+          rather say that plainly than bury it.
         </p>
+
+        <p className="muted text-sm">What&apos;s actually in there:</p>
         <ul className="muted list-disc space-y-1 pl-5 text-sm">
-          <li>Every entry is visible to you, with its origin, and deletable in one click.</li>
-          <li><strong>The interview lives on this side.</strong> What you tell your persona in the interview — including your exact words, kept as evidence — is stored readable, because it <em>is</em> the persona&apos;s memory. It follows the same rules: visible to you, never shared unless you mark it shareable, gone when you delete it.</li>
-          <li>Rule of thumb: <strong>conversations stay where they happened; only the résumé lives here</strong> — and you can read every line of it.</li>
+          <li><strong>Your interview answers, verbatim.</strong> Whole answers in your own words — including the personal
+            ones. They are the evidence behind everything else, so they are kept as written, not summarised away.</li>
+          <li><strong>What was distilled from them</strong> — life memories, values/beliefs/preferences, and IF/THEN rules,
+            each carrying short quotes of your words as proof.</li>
+          <li><strong>Reasoning patterns</strong> (&ldquo;how you think&rdquo;) with their supporting quotes, plus facts,
+            playbooks and one-paragraph summaries of past work.</li>
         </ul>
+
+        <p className="muted text-sm">The rules it lives under — enforced in code, not in this paragraph:</p>
+        <ul className="muted list-disc space-y-1 pl-5 text-sm">
+          <li><strong>Nobody else can read it. Ever, by default.</strong> Every learned item carries a
+            &ldquo;shareable&rdquo; flag that starts <em>off</em>. Non-owner views — a teammate, an imported copy, a
+            published persona — are served only rows explicitly marked shareable, and interview-learned memory
+            (answers, life memories, traits, rules) is <strong>excluded from published personas entirely</strong>.</li>
+          <li><strong>Your quotes never travel.</strong> Even where a pattern is shared, only its one-line description
+            goes; the verbatim evidence behind it stays here, visible to you alone.</li>
+          <li><strong>Uncertain guesses never speak.</strong> Anything the system only suspects (&ldquo;hunch&rdquo; tier)
+            is stored for your review but never enters a prompt, yours or anyone&apos;s.</li>
+          <li><strong>Every item shows its origin and its receipts</strong>, and takes a verdict: <em>that&apos;s me</em>
+            confirms it, <em>not me</em> retires it — a rejected item is never used again.</li>
+          <li><strong>Delete means delete.</strong> One item, your whole persona, or your entire account — the account
+            sweep walks every table that references you and clears your files on disk. No archive copy, no tombstone,
+            no &ldquo;deactivated&rdquo; limbo. Take it with you first: full JSON export, or a Markdown vault.</li>
+          <li><strong>No expiry, no quiet reuse.</strong> Memory stays until you remove it. It is never sold, never shown
+            to other users unless you publish it, and never used to train anyone&apos;s model.</li>
+        </ul>
+
+        <p className="muted text-sm">The honest limits, since a privacy page that only lists guarantees is marketing:</p>
+        <ul className="muted list-disc space-y-1 pl-5 text-sm">
+          <li>It is readable <em>on the server</em>. We give ourselves no page, route or API to read it — but, as with any
+            host anywhere, someone with database access could query it. That is exactly why conversations are never
+            stored here: what remains is the résumé you can read yourself, line by line, and delete at will.</li>
+          <li>Some entries are the system&apos;s <em>inferences about you</em>, written by a model from your words. They
+            can be wrong or clumsily phrased. That is what the review page and the &ldquo;not me&rdquo; button are for —
+            and why nothing inferred is treated as fact without evidence you can see.</li>
+          <li>Sharing is a decision, not a default — but it <em>is</em> irreversible in one sense: what someone already
+            copied is theirs. Unpublishing stops new copies; it can&apos;t reach into an old one.</li>
+        </ul>
+        <p className="muted text-sm">
+          Rule of thumb: <strong>conversations stay where they happened; only the résumé lives here</strong> — and you can
+          read every line of it, correct it, or end it.
+        </p>
       </section>
 
       <section className="card space-y-2 p-5">
