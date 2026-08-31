@@ -129,7 +129,12 @@ export function BridgeNavButton({ variant = 'sidebar', waiting = 0 }: { variant?
                 <code className="min-w-0 flex-1 truncate rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] dark:bg-neutral-800">{`claude mcp add --transport http opersona ${origin}/mcp`}</code>
                 <CopyButton text={`claude mcp add --transport http opersona ${origin}/mcp`} />
               </div>
-              <p className="mt-1.5">Prefer an API key instead, or need to revoke a machine? <Link href="/settings" className="underline underline-offset-2" onClick={() => setOpen(false)}>Settings → Models</Link>.</p>
+              <p className="mt-2 mb-1">Moving or retiring a machine? Uninstall the service there (your pairing stays; only one machine connects at a time — the newest wins):</p>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] dark:bg-neutral-800">npx opersona uninstall</code>
+                <CopyButton text="npx opersona uninstall" />
+              </div>
+              <p className="mt-1.5">Prefer an API key instead, or need to revoke a machine&rsquo;s token? <Link href="/settings" className="underline underline-offset-2" onClick={() => setOpen(false)}>Settings → Models</Link>.</p>
             </div>
           </div>
           </div>
