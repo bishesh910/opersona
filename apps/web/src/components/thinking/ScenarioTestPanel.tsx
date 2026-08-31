@@ -245,6 +245,7 @@ function ScenarioCard({ cloneId, item }: { cloneId: string; item: OpenScenario }
   const [factors, setFactors] = useState('');
   const [busy, setBusy] = useState(false);
   const [scored, setScored] = useState<ScoredScenario | null>(null);
+  const [more, setMore] = useState(false);
   const [skippedAway, setSkippedAway] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const elapsed = useElapsed(busy);
@@ -289,37 +290,57 @@ function ScenarioCard({ cloneId, item }: { cloneId: string; item: OpenScenario }
         </>
       ) : (
         <div className="space-y-2">
-          {item.format === 'choice' && item.choices.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+          {/* Tap-first: the options ARE the answer. Writing is opt-in, never the
+              price of participating — an essay per scenario is why people quit. */}
+          {item.choices.length > 0 ? (
+            <div className="space-y-1.5">
               {item.choices.map((c, i) => {
                 const tag = String.fromCharCode(65 + i);
                 const on = answer.startsWith(`${tag}.`);
                 return (
                   <button key={i} type="button" disabled={busy}
                     onClick={() => setAnswer(`${tag}. ${c}`)}
-                    className={'rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors ' + (on
+                    className={'flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ' + (on
                       ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
-                      : 'border-neutral-300 text-neutral-700 dark:border-neutral-700 dark:text-neutral-200')}>
-                    <span className="font-medium">{tag}.</span> {c}
+                      : 'border-neutral-300 text-neutral-700 hover:border-neutral-400 dark:border-neutral-700 dark:text-neutral-200')}>
+                    <span className={'mt-px shrink-0 font-semibold ' + (on ? '' : 'text-neutral-400')}>{tag}</span>
+                    <span>{c}</span>
                   </button>
                 );
               })}
             </div>
+          ) : (
+            <textarea className="input min-h-20 w-full text-sm" placeholder="What would you actually do?"
+              value={answer} onChange={(e) => setAnswer(e.target.value)} disabled={busy} />
           )}
-          <textarea className="input min-h-20 w-full text-sm"
-            placeholder={item.format === 'choice' ? 'Picked one above? That\u2019s enough — add a line if it misses what you\u2019d really do.' : 'What would you actually do?'}
-            value={answer} onChange={(e) => setAnswer(e.target.value)} disabled={busy} />
-          <input className="input w-full text-sm" placeholder="Why did you pick that? (one line)"
-            value={factors} onChange={(e) => setFactors(e.target.value)} disabled={busy} />
-          <p className="muted text-[11px]">
-            Optional — but it&rsquo;s the only way the &ldquo;reasoning&rdquo; dimension can be scored. Leave it blank and
-            that dimension is simply left unscored, never counted against your twin.
-          </p>
+
+          {item.choices.length > 0 && (
+            more ? (
+              <div className="space-y-1.5">
+                <textarea className="input min-h-16 w-full text-sm" placeholder="If none of them is quite it — what would you actually do?"
+                  value={answer.startsWith('A.') || answer.startsWith('B.') || answer.startsWith('C.') || answer.startsWith('D.') ? '' : answer}
+                  onChange={(e) => setAnswer(e.target.value)} disabled={busy} />
+                <input className="input w-full text-sm" placeholder="Why that one? (one line)"
+                  value={factors} onChange={(e) => setFactors(e.target.value)} disabled={busy} />
+                <p className="muted text-[11px]">A reason is the only way the &ldquo;reasoning&rdquo; dimension gets scored — skip it and it&rsquo;s left unscored, never counted against your twin.</p>
+              </div>
+            ) : (
+              <button type="button" className="muted text-xs underline underline-offset-2" onClick={() => setMore(true)}>
+                none of these fit, or add why →
+              </button>
+            )
+          )}
+
+          {item.choices.length === 0 && (
+            <input className="input w-full text-sm" placeholder="Why? (one line — makes the reasoning dimension scoreable)"
+              value={factors} onChange={(e) => setFactors(e.target.value)} disabled={busy} />
+          )}
+
           <div className="flex items-center gap-2">
             <button type="button" className="btn-primary btn-sm" disabled={busy || !answer.trim()} onClick={() => void submit()}>
               {busy ? 'Comparing…' : 'Lock in my answer'}
             </button>
-            {!busy && <span className="muted text-xs">Your twin answered this before you — you’ll see its prediction after you commit.</span>}
+            {!busy && <span className="muted text-xs">Your twin already answered this — you&rsquo;ll see it after you commit.</span>}
           </div>
           {busy && (
             <Progress

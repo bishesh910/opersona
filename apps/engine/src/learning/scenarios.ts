@@ -14,20 +14,27 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { and, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
-import { db, predictionScenarios, personaSnapshots, reasoningPatterns, traits, contradictions } from '@opersona/db';
+import { db, predictionScenarios, personaSnapshots, reasoningPatterns, traits, contradictions, personaBriefs, facts, playbooks } from '@opersona/db';
 import { structuredCall } from '../llm.js';
 import { orgModelConfig } from '../keys.js';
 import { activePrompt } from '../persona/assemble.js';
 import { DIMENSIONS } from './extractReasoning.js';
 
-export const SCENARIO_CATEGORIES = ['career', 'conflict', 'purchase', 'time', 'communication', 'risk', 'relationships', 'ethics', 'planning', 'other'] as const;
+export const SCENARIO_CATEGORIES = [
+  'career', 'conflict', 'purchase', 'time', 'communication', 'risk', 'relationships', 'ethics', 'planning',
+  // professional/craft ground: what they're actually good at, not just their life
+  'work_judgement', 'technical_tradeoff', 'debugging', 'code_review', 'teamwork', 'other',
+] as const;
+const WORK_CATEGORIES: readonly string[] = ['work_judgement', 'technical_tradeoff', 'debugging', 'code_review', 'teamwork', 'career'];
 
 // ── schemas ──────────────────────────────────────────────────────────────────
 const GeneratedScenarios = z.object({
   scenarios: z.array(z.object({
     category: z.enum(SCENARIO_CATEGORIES),
-    format: z.enum(['open', 'choice']),
-    choices: z.array(z.string().max(200)).max(4).default([]).describe('2-4 labelled options for choice format; empty for open'),
+    // Choice ONLY: answering must be a tap, never an essay. Enforced by the
+    // schema (structuredCall retries a violation) rather than hoped for in prose.
+    format: z.literal('choice'),
+    choices: z.array(z.string().min(3).max(200)).min(3).max(4).describe('3-4 genuinely defensible options, each attractive to a different kind of person'),
     scenario: z.string().min(40).max(700).describe('the situation, second person, 2-5 sentences, concrete stakes, no right answer'),
     question: z.string().min(5).max(200).describe('"What do you do?" variant'),
     target_note: z.string().max(200).describe('plain words: which weak/uncertain area this probes'),
@@ -120,12 +127,13 @@ export const OPEN_COLUMNS = {
 const GEN_SYSTEM = `You create BLIND prediction tests for an AI behavioural model of one specific person. Each scenario is shown to the person AND (separately) answered by the model; the comparison measures how well the model knows them.
 
 Rules for good scenarios:
-- Second person, concrete stakes, 2-5 sentences, decidable without special knowledge. Mix personal and professional life.
-- There must be NO right answer — only a revealing one. Room for a decision, a reason, and a way of handling people.
+- EVERY scenario is multiple choice: 3-4 options, each one a real person's defensible answer, none obviously "right". Answering must be ONE TAP — never a writing task. Options are concrete actions ("Ship it behind a flag and watch the error rate"), never abstract labels ("Be pragmatic").
+- Second person, concrete stakes, 2-5 sentences, decidable without special knowledge.
+- BALANCE the batch: roughly half on their PROFESSIONAL ground — the work they're good at, using the work context you were given (their role, their domains, how they debug/review/decide technically) — and half on life. A test that only asks about family and money misses most of who someone is.
+- There must be NO right answer — only a revealing one. The options should split people by what they weigh, not by competence.
 - TARGET the weak spots you were given: uncertain traits, open tensions, thin dimensions, low-scoring past categories. target_note says which, in plain words.
 - Never re-test a situation the evidence shows they already faced and resolved — invent adjacent, fresh situations.
-- Avoid the categories listed as recently used.
-- PREFER the choice format: most scenarios should offer 3-4 genuinely defensible options, each attractive to a different kind of person, none obviously "right". Choice scenarios are answerable in one tap and let the decision be compared exactly. Leave at most one scenario per batch open-ended, for something a menu would flatten.`;
+- Avoid the categories listed as recently used.`;
 
 /** Weak/uncertain areas the generator should aim at. */
 export async function uncertainAreas(cloneId: string): Promise<string[]> {
@@ -145,6 +153,27 @@ export async function uncertainAreas(cloneId: string): Promise<string[]> {
   return out.slice(0, 10);
 }
 
+/** What this person is actually GOOD at — so half the batch can test their
+ *  craft, not just their family and money. Drawn from the same evidence the
+ *  persona runs on: role, confirmed fact domains, playbooks, reasoning moves. */
+async function workContext(cloneId: string): Promise<string[]> {
+  const out: string[] = [];
+  const [brief] = await db.select({ role: personaBriefs.roleTitle }).from(personaBriefs).where(eq(personaBriefs.cloneId, cloneId)).limit(1);
+  if (brief?.role) out.push(`role: ${brief.role}`);
+  const domains = await db.select({ d: facts.domain }).from(facts)
+    .where(and(eq(facts.cloneId, cloneId), eq(facts.status, 'confirmed')));
+  const uniq = [...new Set(domains.map((x) => x.d).filter(Boolean))].slice(0, 8);
+  if (uniq.length) out.push(`domains they work in: ${uniq.join(', ')}`);
+  const pbs = await db.select({ n: playbooks.name, d: playbooks.domain }).from(playbooks)
+    .where(and(eq(playbooks.cloneId, cloneId), eq(playbooks.status, 'confirmed'))).limit(6);
+  for (const p of pbs) out.push(`playbook they run: ${p.n}${p.d ? ` (${p.d})` : ''}`);
+  const pats = await db.select({ desc: reasoningPatterns.description, dim: reasoningPatterns.dimension }).from(reasoningPatterns)
+    .where(and(eq(reasoningPatterns.cloneId, cloneId), eq(reasoningPatterns.status, 'confirmed')))
+    .orderBy(desc(reasoningPatterns.strength)).limit(8);
+  for (const p of pats) out.push(`how they work [${p.dim}]: ${p.desc}`);
+  return out.slice(0, 16);
+}
+
 // ── generation (prediction sealed at birth) ──────────────────────────────────
 export async function createScenarioBatch(orgId: string, cloneId: string, count = 3): Promise<{ batchId: string; created: number }> {
   const cfg = await orgModelConfig(orgId);
@@ -154,12 +183,16 @@ export async function createScenarioBatch(orgId: string, cloneId: string, count 
   const avoid = [...new Set(recent.map((r) => r.category))];
   const weak = recent.filter((r) => r.scoreOverall != null && r.scoreOverall < 0.6).map((r) => r.category);
   const targets = await uncertainAreas(cloneId);
+  const work = await workContext(cloneId);
+  const wanted = Math.min(5, Math.max(1, count));
 
   const gen = await structuredCall({
     orgId, cloneId, kind: 'scenario-gen', apiKey: cfg.apiKey, model: cfg.extractModel, effort: 'medium',
     schema: GeneratedScenarios, system: GEN_SYSTEM,
     user: [
-      `Create ${Math.min(5, Math.max(1, count))} scenarios.`,
+      `Create ${wanted} scenarios — ALL multiple choice.`,
+      `At least ${Math.ceil(wanted / 2)} of them must sit in their professional ground (categories: ${WORK_CATEGORIES.join(', ')}), built from the WORK CONTEXT below. The rest cover life.`,
+      work.length ? `WORK CONTEXT (what they're good at — make the professional ones feel like their actual job):\n${work.map((w) => `- ${w}`).join('\n')}` : 'WORK CONTEXT: (thin — keep professional scenarios generic but still concrete)',
       targets.length ? `WEAK SPOTS to target:\n${targets.map((t) => `- ${t}`).join('\n')}` : 'WEAK SPOTS: (none known — cover varied ground)',
       avoid.length ? `RECENTLY USED categories to avoid: ${avoid.join(', ')}` : '',
       weak.length ? `Categories where the model recently predicted POORLY (worth revisiting with a fresh situation): ${[...new Set(weak)].join(', ')}` : '',
