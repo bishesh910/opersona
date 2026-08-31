@@ -109,6 +109,16 @@ export const auth = betterAuth({
           try {
             if (isPlatformAdmin(user.email) || !SIGNUP_OPEN) {
               await db.update(authSchema.user).set({ approvedAt: new Date() }).where(eq(authSchema.user.id, user.id));
+            } else {
+              // A stranger is now waiting at /pending — tell every platform admin.
+              // Fire-and-forget: a mail hiccup must never fail a signup.
+              for (const admin of PLATFORM_ADMINS) {
+                void sendEmail({
+                  to: admin,
+                  subject: `opersona: ${user.email} is waiting for approval`,
+                  text: `A new account just signed up and is waiting at the door:\n\n  ${user.name ? `${user.name} — ` : ''}${user.email}\n\nApprove or reject: ${process.env.BETTER_AUTH_URL ?? 'https://opersona.me'}/admin/approvals`,
+                }).catch((e) => console.error('[auth] admin approval notification failed', e));
+              }
             }
           } catch (e) {
             console.error('[auth] auto-approve failed (fix at /admin/approvals)', e);

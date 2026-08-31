@@ -1,3 +1,4 @@
+import { MAILER_ON } from '@/lib/email';
 import { notFound } from 'next/navigation';
 import { asc, isNull } from 'drizzle-orm';
 import { db, authSchema } from '@opersona/db';
@@ -18,6 +19,13 @@ export default async function ApprovalsAdminPage() {
   }).from(authSchema.user).where(isNull(authSchema.user.approvedAt)).orderBy(asc(authSchema.user.createdAt)).limit(200);
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      {!MAILER_ON && (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+          Mailer unconfigured — you will NOT be emailed when someone signs up (and password reset / verification emails are off too).
+          Set <code>RESEND_API_KEY</code> and <code>EMAIL_FROM</code> in <code>.env</code>, then restart.
+        </p>
+      )}
+
       <div>
         <h1 className="text-xl font-semibold">Account approvals</h1>
         <p className="muted mt-1 text-sm">People who signed up and are waiting to be let in. They see a friendly waiting page until you decide.</p>
