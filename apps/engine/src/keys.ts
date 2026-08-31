@@ -11,9 +11,9 @@ export interface OrgSettingsOnly { chatModel: string; extractModel: string; cond
 export async function orgSettingsOnly(orgId: string): Promise<OrgSettingsOnly> {
   const [row] = await db.select().from(orgSettings).where(eq(orgSettings.orgId, orgId)).limit(1);
   return {
-    chatModel: row?.chatModel ?? 'claude-opus-5',
-    extractModel: row?.extractModel ?? 'claude-sonnet-5',
-    condenseModel: row?.condenseModel ?? 'claude-haiku-4-5',
+    chatModel: model(row?.chatModel, 'claude-opus-5'),
+    extractModel: model(row?.extractModel, 'claude-sonnet-5'),
+    condenseModel: model(row?.condenseModel, 'claude-haiku-4-5'),
     chatEffort: row?.chatEffort ?? 'high',
     bossCloneId: row?.bossCloneId ?? null,
     sealKeyFp: row?.sealKeyFp ?? null,
@@ -27,6 +27,12 @@ export async function orgSettingsOnly(orgId: string): Promise<OrgSettingsOnly> {
  * dime. The monthly budget guard lives here for the same reason: one gate, all
  * eleven inference sites covered.
  */
+/** Fable is not used by this product (product decision): every rail runs on
+ *  Opus 5 / Sonnet 5 / Haiku. A stored value from an older config is coerced
+ *  to Opus here — the single chokepoint every inference call passes through. */
+const model = (v: string | null | undefined, fallback: string): string =>
+  (!v || v === 'claude-fable-5') ? (v === 'claude-fable-5' ? 'claude-opus-5' : fallback) : v;
+
 export async function orgModelConfig(orgId: string): Promise<OrgModelConfig> {
   const [row] = await db.select().from(orgSettings).where(eq(orgSettings.orgId, orgId)).limit(1);
   let apiKey = '';
@@ -44,9 +50,9 @@ export async function orgModelConfig(orgId: string): Promise<OrgModelConfig> {
       const [r2] = await db.select().from(orgSettings).where(eq(orgSettings.orgId, orgId)).limit(1);
       return {
         apiKey: '',
-        chatModel: r2?.chatModel ?? 'claude-opus-5',
-        extractModel: r2?.extractModel ?? 'claude-sonnet-5',
-        condenseModel: r2?.condenseModel ?? 'claude-haiku-4-5',
+        chatModel: model(r2?.chatModel, 'claude-opus-5'),
+        extractModel: model(r2?.extractModel, 'claude-sonnet-5'),
+        condenseModel: model(r2?.condenseModel, 'claude-haiku-4-5'),
         chatEffort: r2?.chatEffort ?? 'high',
         bossCloneId: r2?.bossCloneId ?? null,
         sealKeyFp: r2?.sealKeyFp ?? null,
@@ -72,9 +78,9 @@ export async function orgModelConfig(orgId: string): Promise<OrgModelConfig> {
 
   return {
     apiKey,
-    chatModel: row?.chatModel ?? 'claude-opus-5',
-    extractModel: row?.extractModel ?? 'claude-sonnet-5',
-    condenseModel: row?.condenseModel ?? 'claude-haiku-4-5',
+    chatModel: model(row?.chatModel, 'claude-opus-5'),
+    extractModel: model(row?.extractModel, 'claude-sonnet-5'),
+    condenseModel: model(row?.condenseModel, 'claude-haiku-4-5'),
     chatEffort: row?.chatEffort ?? 'high',
     bossCloneId: row?.bossCloneId ?? null,
     sealKeyFp: row?.sealKeyFp ?? null,
