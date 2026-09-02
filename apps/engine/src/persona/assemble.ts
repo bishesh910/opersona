@@ -14,7 +14,7 @@ import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import {
   db, clones, personaBriefs, facts, playbooks, corrections, autonomyLedger, episodes, personaSnapshots, documents, reasoningPatterns, personalityTests, importedPersonas,
-  traits, contextualRules, memories,
+  traits, contextualRules, memories, styleProfiles,
 } from '@opersona/db';
 import { describeMbti, describeStatedMbti, AXIS_POLES, type Axis } from '@opersona/shared';
 import { renderFingerprint, type PatternRow } from '../learning/fingerprint.js';
@@ -119,6 +119,11 @@ export async function renderPersona(orgId: string, cloneId: string, orgName?: st
 
   const fp = renderFingerprint(name, patterns);
   if (fp) parts.push('', fp);
+
+  // HOW THEY WRITE — counted from their own answers, no quotes, no invention.
+  // Travels with shared copies too: a persona that doesn't sound like them isn't one.
+  const [style] = await db.select({ md: styleProfiles.renderedMd }).from(styleProfiles).where(eq(styleProfiles.cloneId, cloneId)).limit(1);
+  if (style?.md) parts.push('', `## How ${name} talks`, style.md);
 
   // Publish honors its section toggles LITERALLY — personality off means the
   // prompt carries no MBTI lens either, not just the artifact's data field.

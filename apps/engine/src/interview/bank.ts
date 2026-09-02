@@ -26,7 +26,9 @@ export const CATEGORY_FACETS: Record<InterviewCategory, string[]> = {
   values: ['named_values', 'value_in_action', 'sacrifices', 'priorities_conflict', 'drift_over_time'],
   decision_making: ['big_decision_process', 'information_gathering', 'gut_vs_analysis', 'regret_and_revision', 'pressure'],
   relationships: ['closeness', 'conflict', 'trust', 'support_give_take', 'boundaries'],
-  work: ['motivation', 'collaboration', 'ambition', 'feedback', 'failure_recovery'],
+  work: ['motivation', 'collaboration', 'ambition', 'feedback', 'failure_recovery',
+    // craft: how they actually DO the work, not just how they feel about it
+    'craft_method', 'debugging', 'shipping_bar', 'learning_new'],
   money: ['spending', 'saving', 'risk', 'money_meaning', 'generosity_dependence'],
   emotional: ['stress_response', 'joy', 'anger', 'coping', 'expression'],
   ethics: ['fairness', 'honesty', 'rule_breaking', 'dilemmas', 'hard_lines'],
@@ -104,6 +106,16 @@ const RAW: BankQuestion[] = [
     'Tell me about the most useful criticism you ever received. What made it land instead of sting?'),
   q('work.failure_recovery.1', 'work', 'failure_recovery',
     'Tell me about a work failure that was genuinely yours. What did you do in the first 48 hours — and what do you do differently now?'),
+
+  q('work.craft_method.1', 'work', 'craft_method',
+    'Take something you are genuinely good at. Walk me through how you actually do it — the real sequence, including the step other people skip.',
+    'The part you would insist on even under time pressure.'),
+  q('work.debugging.1', 'work', 'debugging',
+    'Think of the last thing that broke and made no sense. What did you check first, and what did you refuse to do until you understood it?'),
+  q('work.shipping_bar.1', 'work', 'shipping_bar',
+    'What has to be true before you call something finished and hand it over? Tell me about a time you shipped anyway — and one where you refused.'),
+  q('work.learning_new.1', 'work', 'learning_new',
+    'When you had to learn something hard recently, how did you actually go about it — and how did you know you had it?'),
 
   // ── money ─────────────────────────────────────────────────────────────────
   q('money.spending.1', 'money', 'spending',

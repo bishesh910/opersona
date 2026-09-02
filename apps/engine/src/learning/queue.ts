@@ -69,6 +69,11 @@ async function run(j: Job): Promise<void> {
     const { extractInterviewAnswer } = await import('../interview/extractAnswer.js');
     const r = await extractInterviewAnswer(j.orgId, j.cloneId, j.answerId);
     console.log(`[learning] interview answer ${j.answerId}: ${r.status} (${r.note})`);
+    // Voice: how they actually write, recounted from every answer. No model call.
+    try {
+      const { updateVoiceProfile } = await import('../interview/voice.js');
+      await updateVoiceProfile(j.orgId, j.cloneId);
+    } catch (e) { console.error('[learning] voice profile failed', e); }
   } else if (j.kind === 'interview_fingerprint') {
     // The interview feeds "How I think" too: answers are real writing where the
     // person's reasoning is VISIBLE (not just claimed) — mined with the same
