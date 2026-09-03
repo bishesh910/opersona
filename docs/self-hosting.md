@@ -109,6 +109,28 @@ host.
 - No email delivery — invitations are copy-link.
 - Database backups, TLS, and monitoring are yours to arrange, as with any self-hosted service.
 
+## Localhost vs a domain (what the connector needs)
+
+The two Claude clients reach your instance differently, and it decides whether
+you need a domain at all:
+
+| Client | How it reaches you | Works on 127.0.0.1? |
+| --- | --- | --- |
+| **Claude Code** (terminal) | runs on *your* machine, calls your URL directly | **yes** — `claude mcp add --transport http opersona http://127.0.0.1:3000/mcp` |
+| **claude.ai** (web/app) | Anthropic's servers call your URL | **no** — needs a public HTTPS address |
+| **The bridge** (`npx opersona`) | dials *out* from your machine to the instance | yes, if it can reach the instance |
+
+So a laptop-only install is a real, complete setup **if you live in Claude
+Code**: interview, persona, memory and all the tools work over loopback. Cookies
+and the OAuth resource follow `BETTER_AUTH_URL`, so set it to
+`http://127.0.0.1:3000` and nothing is marked https-only.
+
+For claude.ai you need a public name. Either give the box a domain
+(`install.sh --domain …`) or point a tunnel at it — Cloudflare Tunnel, ngrok or
+`tailscale funnel` all give you an HTTPS hostname without opening a port. Set
+`BETTER_AUTH_URL` and `TRUSTED_ORIGINS` to that hostname, restart, and add
+`<hostname>/mcp` as the connector.
+
 ## Backups
 
 The installer doesn't set these up, and nothing else will. Losing the database

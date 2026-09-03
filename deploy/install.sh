@@ -195,8 +195,23 @@ Next:
   1. Open ${BASE_URL}/sign-up and create the first account.${ADMIN_EMAIL:+ Use $ADMIN_EMAIL — it is already the platform admin.}
   2. Settings → Models → Pair a machine, and run the one command it shows.
      That is what gives your persona a brain: YOUR Claude, on your own plan.
-  3. On claude.ai, add ${BASE_URL}/mcp as a custom connector, then say
-     "opersona me" in any chat to start the interview.
+  3. Connect it to Claude:
+$(if [ -n "$DOMAIN" ]; then cat <<TIP
+     • claude.ai → Settings → Connectors → Add custom connector →
+       ${BASE_URL}/mcp   then say "opersona me" in any chat.
+     • Claude Code: claude mcp add --transport http opersona ${BASE_URL}/mcp
+TIP
+else cat <<TIP
+     • Claude Code (works with no domain, because it runs on this machine):
+         claude mcp add --transport http opersona http://127.0.0.1:3000/mcp
+       then /mcp to sign in, and say "opersona me".
+     • claude.ai CANNOT reach this instance: Anthropic's servers call your
+       URL, and 127.0.0.1 means their machine, not yours. To use claude.ai
+       you need a public HTTPS address — either re-run this installer with
+       --domain, or put a tunnel in front (Cloudflare Tunnel, ngrok,
+       tailscale funnel) and set BETTER_AUTH_URL to the tunnel's hostname.
+TIP
+fi)
 
 Config lives in $DIR/.env (0600). Logs: journalctl -u opersona-web -f
 Update later: cd $DIR && git pull && pnpm install && pnpm build && sudo systemctl restart opersona-engine opersona-web
