@@ -27,7 +27,7 @@
     "typescript": "^5.7.2",
     "zod": "^4.4.3"
   },
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "AGPL-3.0-or-later",
   "homepage": "https://opersona.me",
   "repository": {
     "type": "git",

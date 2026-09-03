@@ -132,3 +132,9 @@ automated — is in
 Works properly on phones — dedicated layouts, not shrunken desktop.
 
 <img src="docs/images/signin-mobile.png" width="320" alt="Sign in on mobile" />
+
+## License
+
+[AGPL-3.0-or-later](LICENSE). Run it, self-host it, fork it, take your data and
+leave. The one condition: if you run a modified version as a service other
+people use, publish your changes.

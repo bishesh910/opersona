@@ -41,5 +41,6 @@
       "drizzle-orm": "0.45.2",
       "kysely": "0.28.17"
     }
-  }
+  },
+  "license": "AGPL-3.0-or-later"
 }

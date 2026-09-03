@@ -26,5 +26,6 @@
     "@better-auth/cli": "1.4.21",
     "@types/pg": "^8.15.0",
     "drizzle-kit": "^0.31.10"
-  }
+  },
+  "license": "AGPL-3.0-or-later"
 }
