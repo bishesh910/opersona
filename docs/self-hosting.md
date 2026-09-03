@@ -154,3 +154,18 @@ chmod +x ~/backup.sh
 Two things people get wrong: dumps that live on the same disk they protect
 (copy them off the box), and never testing a restore. Check yours reads back:
 `pg_restore -l ~/backups/opersona-*.dump | head`.
+
+## The archived branches
+
+Two eras of this codebase are kept as tags rather than branches, so they stay
+recoverable without looking like something you should run:
+
+| Tag | What it holds |
+| --- | --- |
+| `archive/on-site-chat` | opersona.me when it still talked — persona chat, sealed conversations, the in-app interview room, human-in-the-loop approvals, the bubblewrap sandbox. Removed when all conversation moved to claude.ai over MCP. |
+| `archive/desktop-tray` | the Tauri menu-bar app, desktop GUI and download page, superseded by `npx opersona` and the connector. |
+
+```bash
+git fetch origin --tags
+git switch -c look-at-it archive/on-site-chat   # browse or lift code out
+```

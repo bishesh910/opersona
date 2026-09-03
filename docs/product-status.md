@@ -5,7 +5,7 @@
 **The MCP pivot (evening):** all TALKING now lives on claude.ai through the
 connector — the on-site chat (/chat, /c/*, sealed conversations, attachments,
 sandboxed exec, tool approvals) and the on-site interview UI are REMOVED
-(archived on the `old-chat` branch). opersona.me is the dashboard: model
+(archived as the `archive/on-site-chat` tag). opersona.me is the dashboard: model
 review, blind tests, corrections, simulate, share. The engine dropped its
 whole session layer; the bridge now carries only inference jobs + coding-
 session ingest. Privacy story got stronger: no conversations are stored at
