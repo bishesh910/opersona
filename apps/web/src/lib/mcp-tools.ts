@@ -89,7 +89,7 @@ async function interviewPayload(me: Me, clone: { id: string }) {
       'THIS EXACT QUESTION WAS SERVED BEFORE and never finished. Do NOT reword it and present it as new — that reads as the interview going in circles. Say plainly and lightly that it\u2019s the same one ("we never quite finished this one"), and offer the exit in the same breath: they can answer it OR you\u2019ll skip it for good (submit_interview_answer with skip: true). If they showed any fatigue with it before, lead with the skip offer.',
     ] : [];
     return text([
-      `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn\u2019t quite add up' : r.question.kind === 'follow_up' ? ' · digging deeper on an earlier thread' : ''}`,
+      `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn\u2019t quite add up' : r.question.kind === 'follow_up' ? ' · ONE deeper dig on something they said earlier — ask it once; if their earlier words already answer it, submit those words or skip, never re-ask' : ''}`,
       `"${r.question.text}"${r.question.hint ? `\n(${r.question.hint})` : ''}`,
       ...repeatNote,
       '',
@@ -363,7 +363,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
         return text([
           `${head} Flow naturally into the next one:`,
           '',
-          `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn’t quite add up' : ''}`,
+          `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn’t quite add up' : r.question.kind === 'follow_up' ? ' · ONE deeper dig on something they said earlier — ask it once; if their earlier words already answer it, submit those words or skip, never re-ask' : ''}`,
           `"${r.question.text}"${r.question.hint ? `\n(${r.question.hint})` : ''}`,
           pace,
         ].join('\n'));

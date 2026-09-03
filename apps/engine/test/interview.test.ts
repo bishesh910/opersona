@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { INTERVIEW_CATEGORIES } from '@opersona/shared';
 import { BANK, CATEGORY_FACETS, bankFor } from '../src/interview/bank.js';
 import { computeCoverage, type CoverageAnswer } from '../src/interview/coverage.js';
-import { pickNext, scoreCandidate, type Candidate, type PickerState } from '../src/interview/nextQuestion.js';
+import {
+  pickNext, scoreCandidate, questionOverlap, threadEligible, circles, FOLLOW_UP_COOLDOWN, FOLLOW_UP_MAX_AGE,
+  type Candidate, type PickerState,
+} from '../src/interview/nextQuestion.js';
 import { sanitizeExtraction, reinforceConfidence, AnswerExtraction, type AnswerExtractionT } from '../src/interview/extractAnswer.js';
 
 // ── bank integrity ───────────────────────────────────────────────────────────
@@ -170,8 +173,8 @@ describe('sanitizeExtraction', () => {
     const raw: AnswerExtractionT = {
       ...base,
       followup_seeds: [
-        { category: 'work', facet: 'motivation', question: 'Tell me about a time work felt effortless.' },
-        { category: 'work', facet: 'not_a_real_facet', question: 'Bogus?' },
+        { category: 'work', facet: 'motivation', question: 'Tell me about a time work felt effortless.', hook_strength: 0.5 },
+        { category: 'work', facet: 'not_a_real_facet', question: 'Bogus?', hook_strength: 0.5 },
       ],
     };
     const { out } = sanitizeExtraction(raw, ANSWER);
@@ -227,5 +230,70 @@ describe('escalation gate', () => {
   it('follow-ups and contradiction probes are never gated', () => {
     const probe: Candidate = { id: 'c1', category: 'ethics', facet: null, kind: 'contradiction', priority: 0, text: 'What makes those different?' };
     expect(pickNext([probe, light], coldState(0))?.id).toBe('c1');
+  });
+});
+
+// ── thread rules: the "keeps asking about the same thing" contract ──────────
+describe('thread rules (no circling)', () => {
+  const parent = 'a-parent';
+  const follow: Candidate = { id: 'f1', category: 'work', facet: 'ambition', kind: 'follow_up', priority: 0.9, parentAnswerId: parent,
+    text: 'Since that early win, have you sought out lead roles again?' };
+  const probe: Candidate = { id: 'c1', category: 'work', facet: 'ambition', kind: 'contradiction', priority: 0, parentAnswerId: parent,
+    text: 'What was different about the deployment that let you push through?' };
+  const other = bankC('money', 'saving', 'How do you handle money you do not immediately need?');
+  const turns = (n: number) => [...Array(n).keys()].map((i) => `later-${i}`);
+
+  it('questionOverlap: a rephrase scores high, a different question low', () => {
+    expect(questionOverlap(
+      'Tell me about a time two things you care about pulled in opposite directions. Which won, and why?',
+      'Tell me about a specific time you actually had to choose family over a work obligation.',
+    )).toBeLessThan(0.5);
+    expect(questionOverlap(
+      'Tell me about the last specific time you froze under pressure with no time to research.',
+      'After one of those times you froze under pressure, what did you do differently to prepare?',
+    )).toBeGreaterThanOrEqual(0.5);
+    expect(questionOverlap('How far ahead do you really plan?', 'When is a lie acceptable to you?')).toBe(0);
+  });
+
+  it('a follow-up is NOT served right after the answer it grew from', () => {
+    const s = state({ recentAnswerIds: [parent] });
+    expect(threadEligible(follow, s)).toBe(false);
+    expect(pickNext([follow, other], s)?.id).toBeUndefined(); // the bank question wins
+  });
+
+  it('…nor after one more turn, but it is once the cooldown has passed', () => {
+    expect(threadEligible(follow, state({ recentAnswerIds: [...turns(FOLLOW_UP_COOLDOWN - 1), parent] }))).toBe(false);
+    const cooled = state({ recentAnswerIds: [...turns(FOLLOW_UP_COOLDOWN), parent] });
+    expect(threadEligible(follow, cooled)).toBe(true);
+    expect(pickNext([follow, other], cooled)?.id).toBe('f1'); // strong hook now beats the bank
+  });
+
+  it('a stale follow-up (parent scrolled out of the window) is never served', () => {
+    expect(threadEligible(follow, state({ recentAnswerIds: [...turns(FOLLOW_UP_MAX_AGE), parent] }))).toBe(false);
+    expect(threadEligible(follow, state({ recentAnswerIds: turns(3) }))).toBe(false); // parent unknown ⇒ not recent
+  });
+
+  it('a contradiction probe waits one turn, then outranks everything', () => {
+    expect(threadEligible(probe, state({ recentAnswerIds: [parent] }))).toBe(false);
+    const s = state({ recentAnswerIds: ['later-0', parent] });
+    expect(threadEligible(probe, s)).toBe(true);
+    expect(pickNext([probe, other, follow], s)?.id).toBe('c1');
+  });
+
+  it('a candidate that rephrases a question just asked is dropped', () => {
+    const asked = 'Tell me about the last specific time you froze under pressure with no time to research.';
+    const rephrase = bankC('decision_making', 'pressure', 'After one of those times you froze under pressure, what did you do differently to prepare?');
+    const s = state({ recentQuestionTexts: [asked] });
+    expect(circles(rephrase, s)).toBe(true);
+    expect(circles(other, s)).toBe(false);
+    expect(pickNext([rephrase, other], s)?.facet).toBe('saving');
+  });
+
+  it('never stalls: when every candidate is on cooldown, one is still served', () => {
+    expect(pickNext([follow], state({ recentAnswerIds: [parent] }))?.id).toBe('f1');
+  });
+
+  it('legacy behavioural candidates ignore thread rules entirely', () => {
+    expect(threadEligible(other, state({ recentAnswerIds: [parent] }))).toBe(true);
   });
 });

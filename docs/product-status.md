@@ -60,6 +60,13 @@ phase plan:
   miss), corrected, and the very next simulation led with the corrected rule.
 - Playwright smoke (public surfaces, auth gates, redirects, 404) passes
   against the live site.
+- **The interview never digs twice** (thread rules, 2026-09-03): a follow-up is
+  linked to the answer it grew from, only the strongest one per answer is kept,
+  it is held back for two turns, served once (its siblings retire), and an
+  answer to a follow-up or probe never spawns another. A rephrase of a question
+  asked in the last six turns is dropped by a distinctive-word overlap check;
+  follow-ups older than twelve turns are retired. Pure-picker tests plus one
+  end-to-end DB test pin all of it.
 
 ## Honesty guarantees baked in
 

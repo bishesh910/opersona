@@ -21,6 +21,7 @@ export interface InterviewState extends PickerState {
 export async function loadInterviewState(cloneId: string): Promise<InterviewState> {
   const [answerRows, traitRows, ruleRows, memoryRows, openContra] = await Promise.all([
     db.select({
+      id: interviewAnswers.id, questionText: interviewAnswers.questionText,
       category: interviewAnswers.category, skipped: interviewAnswers.skipped,
       extraction: interviewAnswers.extraction, createdAt: interviewAnswers.createdAt,
       facet: interviewQuestions.facet,
@@ -77,8 +78,11 @@ export async function loadInterviewState(cloneId: string): Promise<InterviewStat
 
   const recentCategories = answerRows.filter((a) => !a.skipped && isCategory(a.category)).slice(0, 3).map((a) => a.category as InterviewCategory);
   const recentSkippedFacets = answerRows.slice(0, 10).filter((a) => a.skipped && a.facet).map((a) => a.facet!) as string[];
+  // Turn history for the thread rules: skips count as turns (the person still sat through them).
+  const recentAnswerIds = answerRows.slice(0, 12).map((a) => a.id);
+  const recentQuestionTexts = answerRows.slice(0, 6).map((a) => a.questionText);
 
-  return { coverage, coverageList, uncertainty, recentCategories, recentSkippedFacets };
+  return { coverage, coverageList, uncertainty, recentCategories, recentSkippedFacets, recentAnswerIds, recentQuestionTexts };
 }
 
 /** Refresh the interview_coverage cache (the UI reads this). */

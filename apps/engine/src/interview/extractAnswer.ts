@@ -11,7 +11,7 @@
  * extraction 'failed' and writes NOTHING (single transaction).
  */
 import { z } from 'zod';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import {
   db, interviewAnswers, interviewQuestions, traits, memories, contextualRules, contradictions, learningEvents,
   type Evidence,
@@ -19,6 +19,7 @@ import {
 import { INTERVIEW_CATEGORIES, FOLLOWUP_INTENTS, TIER_CONFIDENCE_CAP, TRAIT_KINDS, redactSecrets } from '@opersona/shared';
 import { structuredCall } from '../llm.js';
 import { orgModelConfig } from '../keys.js';
+import { questionOverlap, CIRCLE_THRESHOLD } from './nextQuestion.js';
 import { knownDigest, storeCoverage } from './state.js';
 import { CATEGORY_FACETS } from './bank.js';
 
@@ -63,6 +64,7 @@ export const AnswerExtraction = z.object({
     category: z.enum(INTERVIEW_CATEGORIES),
     facet: z.string().max(40),
     question: z.string().min(10).max(240),
+    hook_strength: z.number().min(0).max(1).default(0.5).describe('1 = a thread clearly worth ONE more question later; 0.3 = marginal'),
   })).max(2).default([]),
   note: z.string().max(200).default(''),
 });
@@ -86,8 +88,11 @@ Hard rules:
 - REUSE a key from KNOWN TRAITS when the answer reinforces the same thing — do not coin near-duplicates.
 - TENSIONS: if the answer sits uneasily with a KNOWN trait, name it neutrally and write a curious probe question ("What makes those situations different for you?"). People are not inconsistent — they are contextual; the probe's job is to find the rule.
 - Empty arrays are correct for thin answers. quality='refusal' when they declined; 'off_topic' when the answer is about something else.
-- followup_seeds: at most 2 genuinely promising NEW questions this answer opens up (category + facet from the known facet list), phrased behaviourally ("Tell me about the last time…").
+- followup_seeds: at most 2 genuinely promising NEW questions this answer opens up (category + facet from the known facet list), phrased behaviourally ("Tell me about the last time…"). A seed must open a DIFFERENT moment or area than this answer already covered — never a rephrase of the question just asked, never "tell me more about that same story". Only one will ever be asked, and not right away. Empty is the right answer for most thin or complete answers.
 - Do not psychoanalyse. Model observable behaviour and stated positions, never private inner states.`;
+
+/** Pending follow-ups a clone may hold at once — enough to have something to chase, too few to become an archive of old topics. */
+export const MAX_PENDING_FOLLOW_UPS = 5;
 
 const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
 
@@ -255,16 +260,30 @@ export async function extractInterviewAnswer(orgId: string, cloneId: string, ans
         await log('rule', ins!.id, 'created', `IF ${r.situation}${r.condition ? ` AND ${r.condition}` : ''} THEN ${r.tendency}`);
       }
 
+      // What's already in the question pipeline — the guard against asking the same thing twice.
+      const pipeline = await tx.select({ id: interviewQuestions.id, text: interviewQuestions.text, kind: interviewQuestions.kind, status: interviewQuestions.status })
+        .from(interviewQuestions)
+        .where(and(eq(interviewQuestions.cloneId, cloneId), notInArray(interviewQuestions.status, ['retired'])))
+        .orderBy(desc(interviewQuestions.createdAt)).limit(80);
+      const alreadyAsked = (text: string) => pipeline.some((q) => questionOverlap(q.text, text) >= CIRCLE_THRESHOLD);
+
       for (const tn of out.tensions) {
         const [trait] = await tx.select({ id: traits.id }).from(traits)
           .where(and(eq(traits.cloneId, cloneId), eq(traits.key, tn.existing_key))).limit(1);
+        // One open tension per trait, and never a probe that reads like a question already in flight.
+        if (trait) {
+          const [openForTrait] = await tx.select({ id: contradictions.id }).from(contradictions)
+            .where(and(eq(contradictions.cloneId, cloneId), eq(contradictions.traitId, trait.id), inArray(contradictions.status, ['open', 'probed']))).limit(1);
+          if (openForTrait) continue;
+        }
+        if (alreadyAsked(tn.probe_question)) continue;
         const [contra] = await tx.insert(contradictions).values({
           orgId, cloneId, traitId: trait?.id ?? null, answerId, description: tn.description,
         }).returning({ id: contradictions.id });
         const [probe] = await tx.insert(interviewQuestions).values({
           orgId, cloneId, category: row.category, facet: question?.facet ?? null,
           text: tn.probe_question, kind: 'contradiction', source: 'generated',
-          contradictionId: contra!.id, status: 'pending',
+          contradictionId: contra!.id, parentAnswerId: answerId, status: 'pending',
         }).returning({ id: interviewQuestions.id });
         await tx.update(contradictions).set({ probeQuestionId: probe!.id }).where(eq(contradictions.id, contra!.id));
         await log('contradiction', contra!.id, 'created', tn.description);
@@ -280,14 +299,24 @@ export async function extractInterviewAnswer(orgId: string, cloneId: string, ans
         if (resolved) await log('contradiction', question.contradictionId, 'updated', `resolved: ${out.contradiction_resolution?.note ?? ''}`);
       }
 
-      // Fresh questions this answer opened up (thread depth capped at 2).
-      const depth = (row.context?.threadDepth ?? 0);
-      if (depth < 2) {
-        for (const s of out.followup_seeds) {
+      // Fresh questions this answer opened up — ONE level of digging per thread.
+      // A follow-up's or probe's answer never spawns more follow-ups: chaining is
+      // precisely the "it keeps asking about the same thing" loop. The strongest
+      // seed is kept, linked to its parent so the picker can hold it back for a
+      // few turns, and dropped if it merely rephrases something already asked.
+      if (question?.kind === 'behavioural') {
+        const [seed] = [...out.followup_seeds].sort((a, b) => b.hook_strength - a.hook_strength);
+        if (seed && !alreadyAsked(seed.question) && questionOverlap(row.questionText, seed.question) < CIRCLE_THRESHOLD) {
           await tx.insert(interviewQuestions).values({
-            orgId, cloneId, category: s.category, facet: s.facet, text: s.question,
-            kind: 'behavioural', source: 'generated', status: 'pending',
+            orgId, cloneId, category: seed.category, facet: seed.facet, text: seed.question,
+            kind: 'follow_up', source: 'generated', status: 'pending', parentAnswerId: answerId, priority: seed.hook_strength,
           });
+          // A shallow backlog: beyond the newest few, older follow-ups are retired, not queued for weeks.
+          const backlog = await tx.select({ id: interviewQuestions.id }).from(interviewQuestions)
+            .where(and(eq(interviewQuestions.cloneId, cloneId), eq(interviewQuestions.status, 'pending'), eq(interviewQuestions.kind, 'follow_up')))
+            .orderBy(desc(interviewQuestions.createdAt));
+          const stale = backlog.slice(MAX_PENDING_FOLLOW_UPS).map((q) => q.id);
+          if (stale.length) await tx.update(interviewQuestions).set({ status: 'retired' }).where(inArray(interviewQuestions.id, stale));
         }
       }
 

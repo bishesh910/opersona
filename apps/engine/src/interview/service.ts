@@ -11,7 +11,7 @@ import { CATEGORY_LABEL, type InterviewCategory } from '@opersona/shared';
 import { enqueue } from '../learning/queue.js';
 import { BANK } from './bank.js';
 import { loadInterviewState, storeCoverage, type InterviewState } from './state.js';
-import { pickNext, type Candidate } from './nextQuestion.js';
+import { pickNext, FOLLOW_UP_MAX_AGE, type Candidate } from './nextQuestion.js';
 
 export interface ServedQuestion {
   id: string;
@@ -62,6 +62,14 @@ export async function nextQuestionFor(orgId: string, cloneId: string): Promise<{
   // interviewer must SAY so (and offer a skip) instead of rewording it as new.
   if (open) return { question: serve(open), progress: await progressFor(state, cloneId), repeat: true };
 
+  // Hygiene: a follow-up whose parent answer has scrolled out of the recent
+  // window is stale — the moment has passed, and dredging it up weeks later is
+  // exactly what "keeps asking about the same thing" felt like.
+  const liveParents = (state.recentAnswerIds ?? []).slice(0, FOLLOW_UP_MAX_AGE);
+  await db.update(interviewQuestions).set({ status: 'retired' })
+    .where(and(eq(interviewQuestions.cloneId, cloneId), eq(interviewQuestions.status, 'pending'), eq(interviewQuestions.kind, 'follow_up'),
+      liveParents.length ? notInArray(interviewQuestions.parentAnswerId, liveParents) : sql`true`));
+
   const pending = await db.select().from(interviewQuestions)
     .where(and(eq(interviewQuestions.cloneId, cloneId), eq(interviewQuestions.status, 'pending')))
     .orderBy(asc(interviewQuestions.createdAt));
@@ -73,7 +81,7 @@ export async function nextQuestionFor(orgId: string, cloneId: string): Promise<{
   const candidates: Candidate[] = [
     ...pending.map((p) => ({
       id: p.id, category: p.category as InterviewCategory, facet: p.facet,
-      kind: p.kind as Candidate['kind'], priority: p.priority, text: p.text,
+      kind: p.kind as Candidate['kind'], priority: p.priority, text: p.text, parentAnswerId: p.parentAnswerId,
     })),
     ...BANK.filter((b) => !usedBankKeys.has(b.bankKey)).map((b) => ({
       bankKey: b.bankKey, category: b.category, facet: b.facet,
@@ -85,6 +93,13 @@ export async function nextQuestionFor(orgId: string, cloneId: string): Promise<{
 
   if (winner.id) {
     await db.update(interviewQuestions).set({ status: 'asked', askedAt: new Date() }).where(eq(interviewQuestions.id, winner.id));
+    // One dig per thread: serving a follow-up retires its siblings, so an answer
+    // is never mined for a second, third, fourth question about the same story.
+    if (winner.kind === 'follow_up' && winner.parentAnswerId) {
+      await db.update(interviewQuestions).set({ status: 'retired' })
+        .where(and(eq(interviewQuestions.cloneId, cloneId), eq(interviewQuestions.status, 'pending'),
+          eq(interviewQuestions.parentAnswerId, winner.parentAnswerId), sql`${interviewQuestions.id} <> ${winner.id}`));
+    }
     const [rowQ] = await db.select().from(interviewQuestions).where(eq(interviewQuestions.id, winner.id)).limit(1);
     return { question: serve(rowQ!), progress: await progressFor(state, cloneId) };
   }
@@ -122,7 +137,7 @@ export async function submitThread(a: {
   const [ans] = await db.insert(interviewAnswers).values({
     orgId: a.orgId, cloneId: a.cloneId, questionId: q.id, category: q.category, questionText: q.text,
     text, skipped,
-    context: { intent: q.intent, ...(a.dialogue?.length ? { dialogue: a.dialogue.map((m) => ({ role: m.role === 'user' ? 'user' : 'interviewer', text: m.text.slice(0, 2000) })).slice(0, 24) } : {}) },
+    context: { intent: q.intent, threadDepth: q.kind === 'behavioural' ? 0 : 1, ...(a.dialogue?.length ? { dialogue: a.dialogue.map((m) => ({ role: m.role === 'user' ? 'user' : 'interviewer', text: m.text.slice(0, 2000) })).slice(0, 24) } : {}) },
     extractionStatus: skipped ? 'skipped' : 'pending',
     ...(skipped ? { extractedAt: new Date() } : {}),
   }).returning({ id: interviewAnswers.id });

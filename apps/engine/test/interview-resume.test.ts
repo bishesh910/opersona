@@ -11,7 +11,8 @@ import { randomUUID } from 'node:crypto';
 vi.mock('../src/llm.js', () => ({ structuredCall: vi.fn(), textCall: vi.fn() }));
 vi.mock('../src/keys.js', () => ({ orgModelConfig: vi.fn(async () => ({ apiKey: 'k', chatModel: 'c', extractModel: 'e', condenseModel: 'h' })) }));
 
-import { db, pool, clones } from '@opersona/db';
+import { and, eq } from 'drizzle-orm';
+import { db, pool, clones, interviewQuestions } from '@opersona/db';
 import { nextQuestionFor, submitThread } from '../src/interview/service.js';
 
 const ORG = `org_test_${randomUUID().slice(0, 8)}`;
@@ -72,5 +73,43 @@ describe('interview evidence confirms patterns directly (product decision)', () 
     expect(rows.find((r) => r.patternKey === 'test_plain_move')?.status).toBe('emerging');
     await pool.query("delete from reasoning_observations where org_id = $1", [ORG]);
     await pool.query("delete from reasoning_patterns where org_id = $1", [ORG]);
+  });
+});
+
+describe('one dig per thread (no "asking about it again and again")', () => {
+  it('a follow-up waits for the cooldown, then serves once and retires its siblings', async () => {
+    if (!enabled) return;
+    const served = await nextQuestionFor(ORG, CLONE);
+    expect(served.question).not.toBeNull();
+    const answered = await submitThread({ orgId: ORG, cloneId: CLONE, questionId: served.question!.id, userText: 'A concrete story with a why, long enough to count.' });
+    const parent = answered.answerId!;
+
+    // Two follow-ups grow out of that answer (what extraction would insert).
+    const mk = (text: string, priority: number) => db.insert(interviewQuestions).values({
+      orgId: ORG, cloneId: CLONE, category: 'work', facet: 'ambition', text, kind: 'follow_up', source: 'generated',
+      status: 'pending', parentAnswerId: parent, priority,
+    }).returning({ id: interviewQuestions.id }).then((r) => r[0]!.id);
+    const strong = await mk('Since that early win, have you gone looking for lead roles again?', 0.9);
+    const weak = await mk('Who on that team did you learn the most from, and how?', 0.4);
+
+    // Right after the parent answer: NOT the follow-up.
+    const next1 = answered.question!;
+    expect([strong, weak]).not.toContain(next1.id);
+    const a1 = await submitThread({ orgId: ORG, cloneId: CLONE, questionId: next1.id, userText: 'Another concrete story, different topic entirely.' });
+    // One turn later: still held back.
+    expect([strong, weak]).not.toContain(a1.question!.id);
+    const a2 = await submitThread({ orgId: ORG, cloneId: CLONE, questionId: a1.question!.id, userText: 'And a third story, to let the thread breathe.' });
+
+    // Cooldown over: the strongest follow-up is served ONCE, and its sibling is retired.
+    expect(a2.question!.id).toBe(strong);
+    expect(a2.question!.kind).toBe('follow_up');
+    const [sibling] = await db.select({ status: interviewQuestions.status }).from(interviewQuestions).where(eq(interviewQuestions.id, weak));
+    expect(sibling!.status).toBe('retired');
+
+    // Answering the follow-up never brings the thread back: nothing pending remains for that parent.
+    await submitThread({ orgId: ORG, cloneId: CLONE, questionId: strong, userText: 'Yes, once, and it went fine.' });
+    const left = await db.select({ id: interviewQuestions.id }).from(interviewQuestions)
+      .where(and(eq(interviewQuestions.parentAnswerId, parent), eq(interviewQuestions.status, 'pending')));
+    expect(left).toHaveLength(0);
   });
 });
