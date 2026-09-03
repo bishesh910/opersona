@@ -1,0 +1,48 @@
+name: Bug report
+description: Something behaves differently than it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. **Never paste real persona data, interview answers,
+        API keys or bridge tokens** — redact anything personal before posting.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you saw, what you expected instead.
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations: { required: true }
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options:
+        - Web app (dashboard, memory, blind tests)
+        - claude.ai connector / MCP tools
+        - Interview
+        - Bridge (npx opersona)
+        - Engine (extraction, judging, simulation)
+        - Self-hosting / deploy
+        - Not sure
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: The commit you're on, or the bridge version (`npx opersona version`).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Redacted. Engine logs come from `journalctl -u opersona-engine`; bridge logs from `~/.opersona-bridge/bridge.log`.
+      render: shell

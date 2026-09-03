@@ -1,0 +1,22 @@
+name: Idea or feature request
+description: Something opersona should do (or stop doing)
+labels: [idea]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What's frustrating or missing today? Describe the situation, not the solution.
+    validations: { required: true }
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you'd like instead
+    validations: { required: true }
+  - type: textarea
+    id: honesty
+    attributes:
+      label: How would we know it works?
+      description: |
+        opersona refuses to show numbers it can't back up. If your idea involves the
+        persona claiming something about a person, say what evidence would justify it.

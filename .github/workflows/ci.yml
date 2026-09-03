@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: opersona_test      # the _test suffix is what unlocks the DB-writing suites
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/opersona_test
+      ENGINE_INTERNAL_TOKEN: ci-token
+      BETTER_AUTH_SECRET: ci-secret-ci-secret-ci-secret-ci
+      BETTER_AUTH_URL: http://localhost:3000
+      SECRETS_KEK: Y2ktY2ktY2ktY2ktY2ktY2ktY2ktY2ktY2ktY2k=
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.4 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+      - run: pnpm typecheck
+      - run: pnpm test
