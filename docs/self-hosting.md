@@ -1,9 +1,32 @@
 # Self-hosting (the honest edition)
 
-opersona is built to be taken home: clone it, run it on your own box, sign in with your own
-Claude. This page is candid about what's automated and what's still hands-on. A one-command
-installer (docker-compose + first-run bootstrap) is the top roadmap item; until then, this is
-the map.
+opersona is built to be taken home: run it on your own box, sign in with your own Claude.
+This page is candid about what's automated and what's still hands-on.
+
+## The one-command install
+
+On a fresh Ubuntu/Debian server:
+
+```bash
+curl -fsSL https://opersona.me/install | bash -s -- --domain persona.example.com
+```
+
+It installs Node 22, Postgres, and the app; creates a database and a role that
+can reach *only* that database; generates every secret locally into `.env`
+(0600) and transmits none of them; writes both systemd units; and — when you
+pass `--domain` — installs Caddy and gets a TLS certificate. `--dry-run` prints
+the whole plan without touching anything, and the script is plain text at that
+URL so you can read it before piping it anywhere.
+
+**What it deliberately does not do**, because these are decisions, not defaults:
+
+- open sign-ups (`ALLOW_SIGNUP=false` — you approve accounts at `/admin/approvals`)
+- require 2FA (`REQUIRE_2FA=true` when you want it mandatory)
+- set up backups — see [Backups](#backups) below; nothing else will do this for you
+- harden the host (firewall, key-only SSH, unattended upgrades, non-passwordless sudo)
+
+The rest of this page is the manual path, and the operational detail the
+installer can't decide for you.
 
 ## Requirements
 
@@ -85,3 +108,27 @@ host.
   will script).
 - No email delivery — invitations are copy-link.
 - Database backups, TLS, and monitoring are yours to arrange, as with any self-hosted service.
+
+## Backups
+
+The installer doesn't set these up, and nothing else will. Losing the database
+means losing every persona on the instance — the one failure with no recovery.
+
+```bash
+# nightly dump of the database + uploaded files, 14 days of history
+mkdir -p ~/backups
+cat > ~/backup.sh <<'EOF'
+set -euo pipefail
+OUT=~/backups; STAMP=$(date +%F-%H%M)
+URL=$(grep -m1 '^DATABASE_URL=' ~/opersona/.env | cut -d= -f2-)
+pg_dump -Fc --no-owner --no-acl "$URL" > "$OUT/opersona-$STAMP.dump"
+tar -czf "$OUT/files-$STAMP.tgz" -C ~ opersona/data 2>/dev/null || true
+find "$OUT" -type f -mtime +14 -delete
+EOF
+chmod +x ~/backup.sh
+(crontab -l 2>/dev/null; echo "17 3 * * * ~/backup.sh") | crontab -
+```
+
+Two things people get wrong: dumps that live on the same disk they protect
+(copy them off the box), and never testing a restore. Check yours reads back:
+`pg_restore -l ~/backups/opersona-*.dump | head`.

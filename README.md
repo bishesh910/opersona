@@ -107,8 +107,20 @@ its own Claude: either the **opersona bridge** (a tiny daemon on your computer t
 the learning on the Claude subscription you already have) or an Anthropic API key. There
 is no shared platform account. The short version:
 
+**One command on a fresh Ubuntu/Debian box** — Node, Postgres, the app, systemd
+services, and TLS if you pass a domain:
+
 ```bash
-# Node 22, pnpm 9, Postgres 16 required
+curl -fsSL https://opersona.me/install | bash -s -- --domain persona.example.com
+```
+
+It generates every secret locally and sends nothing anywhere. Read it first —
+it's plain text at that URL, identical to [`deploy/install.sh`](deploy/install.sh),
+and `--dry-run` prints what it would do without touching the machine.
+
+Or by hand (Node 22, pnpm 9, Postgres 16):
+
+```bash
 cp .env.example .env      # set DATABASE_URL, ENGINE_INTERNAL_TOKEN, BETTER_AUTH_*, SECRETS_KEK;
                           # see docs/self-hosting.md for first-run
 pnpm install
@@ -117,9 +129,8 @@ pnpm db:migrate           # fresh DB; a database from before the 2026-08 migrati
 pnpm dev                  # web :3000, engine :4000
 ```
 
-The full walk-through — including reverse proxy, systemd units, and what is *not* yet
-automated — is in
-[docs/self-hosting.md](docs/self-hosting.md). A one-command installer is on the roadmap.
+The full walk-through — reverse proxy, systemd units, backups, and what the
+installer does *not* do for you — is in [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Roadmap
 
