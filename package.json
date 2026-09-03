@@ -20,7 +20,6 @@
     "e2e": "playwright test"
   },
   "devDependencies": {
-    "@better-auth/cli": "^1.4.21",
     "@opersona/db": "workspace:^",
     "@opersona/shared": "workspace:^",
     "@playwright/test": "^1.62.1",
@@ -39,7 +38,9 @@
       "esbuild@<0.25.0": ">=0.25.0",
       "sharp@<0.35.0": ">=0.35.0",
       "drizzle-orm": "0.45.2",
-      "kysely": "0.28.17"
+      "kysely": "0.28.17",
+      "qs": "^6.16.0",
+      "lodash": "^4.17.23"
     }
   },
   "license": "AGPL-3.0-or-later"
