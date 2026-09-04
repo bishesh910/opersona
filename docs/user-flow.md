@@ -47,8 +47,11 @@ are best: on claude.ai, with the opersona connector attached. Say
 ("Tell me about the last time…", never "are you a risk taker?"), follows the
 threads your answers open, keeps your verbatim words, and lands each completed
 exchange in opersona. Replies are instant — the conversation runs on the Claude
-you already use — and there is deliberately no finish line: a few exchanges per
-question, a natural break every few questions, come back any time.
+you already use. **The core interview is ten questions** — one per area of life,
+about fifteen minutes, numbered so you can see the end — and finishing it makes
+the persona Ready. Nothing more is required. Going deeper is on request only:
+three questions at a time, follow-ups and contradiction probes included, and it
+resumes exactly where you left off.
 
 The site itself has NO interview UI (and no chat): opersona.me is the dashboard
 where you review what the interview learned.

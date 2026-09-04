@@ -18,13 +18,14 @@ conversations are never stored on the opersona server at all.
 
 ## What it does
 
-- **Interviews you — on claude.ai.** Say **"opersona me"** with the opersona connector
-  attached and your own Claude conducts a cognitive interview about real moments across ten
-  life areas — identity, values, decisions, relationships, work, money, feelings, ethics,
-  social life, the future — chasing the threads your answers open and probing the places where
-  your story doesn't quite add up ("what makes those situations different for you?").
-  Everything it learns is tiered honestly — *you said this* / *observed* / *hunch* — and
-  traceable to your own words.
+- **Interviews you — ten questions, about fifteen minutes.** Say **"opersona me"** with the
+  opersona connector attached and your own Claude asks for one real moment from each of ten
+  areas of life — identity, values, decisions, relationships, work, money, feelings, ethics,
+  social life, the future. That's the whole requirement: finish it and the persona is Ready.
+  Going deeper is optional and on request — three questions at a time, chasing the threads
+  your answers opened and probing where your story doesn't quite add up ("what makes those
+  situations different for you?"). Everything it learns is tiered honestly — *you said this* /
+  *observed* / *hunch* — and traceable to your own words.
 - **Predicts you, blind, and keeps score.** Fresh scenarios are answered by your persona BEFORE
   you see them (the prediction is sealed at creation — it can never peek). You answer, it
   reveals, an LLM judge scores decision / reasoning / preference / communication match, and

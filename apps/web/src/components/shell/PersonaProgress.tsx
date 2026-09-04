@@ -94,7 +94,7 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
     return () => { stop = true; clearInterval(t); };
   }, [open, connector]);
 
-  const parts = progressParts({ connector, answered: data.answered, coveragePct: data.coveragePct, patterns: data.patterns, scored: data.scored });
+  const parts = progressParts({ connector, answered: data.answered, coreDone: data.coreDone, patterns: data.patterns, scored: data.scored });
   const pct = parts.pct;
   const url = `${origin}/mcp`;
 
@@ -186,13 +186,15 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
               <li className="flex gap-2.5">
                 <StepChip done={data.answered > 0} n={2} />
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">Say &ldquo;opersona me&rdquo; — get interviewed</p>
+                  <p className="font-medium">Say &ldquo;opersona me&rdquo; — ten questions, about fifteen minutes</p>
                   <p className="muted text-xs">
-                    In any claude.ai chat, those two words start your cognitive interview: real moments, your real words,
-                    a few minutes at a time. It&rsquo;s the fastest way to teach it who you are.
-                    {data.answered > 0
-                      ? <> Coverage so far: <span className="font-medium text-neutral-700 dark:text-neutral-300">{data.coveragePct}%</span> — there&rsquo;s no finish line; every session deepens it.</>
-                      : <> Nothing answered yet.</>}
+                    In any claude.ai chat, those two words start the core interview: one real moment from each of ten
+                    areas of life, in your own words. That&rsquo;s the whole requirement — finish it and your persona is Ready.
+                    {data.coreDone >= 10
+                      ? <> <span className="font-medium text-emerald-600 dark:text-emerald-400">Core interview complete.</span> Say &ldquo;go deeper&rdquo; any time for three more — optional, never required.</>
+                      : data.answered > 0
+                        ? <> <span className="font-medium text-neutral-700 dark:text-neutral-300">{data.coreDone} of 10</span> areas covered — it resumes exactly where you left off.</>
+                        : <> Nothing answered yet.</>}
                   </p>
                 </div>
               </li>
@@ -228,9 +230,10 @@ export function PersonaProgress({ data, cloneId, variant = 'sidebar' }: { data: 
                 {/* one-time milestones show as ✓ +N, never as a fraction ("10/10" read as a completion score) */}
                 <dt>Connector added (one-time)</dt><dd>{parts.connector ? `✓ +${PART_MAX.connector}` : `0 / ${PART_MAX.connector}`}</dd>
                 <dt>First interview answer (one-time)</dt><dd>{parts.started ? `✓ +${PART_MAX.started}` : `0 / ${PART_MAX.started}`}</dd>
-                <dt>Interview coverage ({data.coveragePct}% of ten areas)</dt><dd>{Math.round(parts.coverage)} / {PART_MAX.coverage}</dd>
+                <dt>Core interview ({data.coreDone} of 10 areas)</dt><dd>{Math.round(parts.core)} / {PART_MAX.core}</dd>
                 <dt>Thinking patterns confirmed ({data.patterns}; full credit at 3)</dt><dd>{Math.round(parts.patterns)} / {PART_MAX.patterns}</dd>
                 <dt><Link href="/me/survey" className="underline underline-offset-2" onClick={() => setOpen(false)}>Blind tests scored</Link> ({data.scored}; full credit at 5)</dt><dd>{Math.round(parts.scored)} / {PART_MAX.scored}</dd>
+                <dt>Going deeper (optional; {Math.max(0, data.answered - data.coreDone)} extra answers, full credit at 10)</dt><dd>{Math.round(parts.depth)} / {PART_MAX.depth}</dd>
               </dl>
               <p className="muted mt-1.5 text-[11px]">
                 How ACCURATE the persona is lives elsewhere: behavioural similarity from blind tests, which shows no number until 5 are scored.

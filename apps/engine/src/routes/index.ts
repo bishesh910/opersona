@@ -143,13 +143,13 @@ routes.post('/clones/:id/learning/retry-extractions', async (c) => {
  *  persona already believes) and `recent` (the user's last answers, verbatim
  *  heads) give it continuity: reference, don't re-ask. */
 routes.post('/clones/:id/interview/next', async (c) => {
-  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string() }));
+  const body = await parse(c, z.object({ orgId: z.string(), userId: z.string(), deepen: z.boolean().optional() }));
   const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
   if (!clone) return c.json({ error: 'clone not found' }, 404);
   const { nextQuestionFor } = await import('../interview/service.js');
   const { knownDigest } = await import('../interview/state.js');
   const { interviewAnswers } = await import('@opersona/db');
-  const next = await nextQuestionFor(body.orgId, clone.id);
+  const next = await nextQuestionFor(body.orgId, clone.id, { deepen: body.deepen });
   const [known, recent] = await Promise.all([
     knownDigest(clone.id, 1800).catch(() => ''),
     db.select({ question: interviewAnswers.questionText, answer: interviewAnswers.text, at: interviewAnswers.createdAt })
@@ -170,12 +170,13 @@ routes.post('/clones/:id/interview/submit-thread', async (c) => {
     orgId: z.string(), userId: z.string().optional(), questionId: z.string().uuid(),
     userText: z.string().max(20_000),
     dialogue: z.array(z.object({ role: z.string().max(20), text: z.string().max(4000) })).max(24).optional(),
+    deepen: z.boolean().optional(),
   }));
   const [clone] = await db.select({ id: clones.id }).from(clones).where(and(eq(clones.id, c.req.param('id')), eq(clones.orgId, body.orgId))).limit(1);
   if (!clone) return c.json({ error: 'clone not found' }, 404);
   const { submitThread } = await import('../interview/service.js');
   try {
-    const out = await submitThread({ orgId: body.orgId, cloneId: clone.id, questionId: body.questionId, userText: body.userText, dialogue: body.dialogue });
+    const out = await submitThread({ orgId: body.orgId, cloneId: clone.id, questionId: body.questionId, userText: body.userText, dialogue: body.dialogue, deepen: body.deepen });
     // Honesty about what happens next: extraction needs a rail. 'none' means the
     // answer is banked but waits for the user's bridge machine to wake up.
     const { bridgeFor } = await import('../bridge/hub.js');

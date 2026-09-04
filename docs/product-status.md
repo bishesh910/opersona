@@ -60,6 +60,12 @@ phase plan:
   miss), corrected, and the very next simulation led with the corrected rule.
 - Playwright smoke (public surfaces, auth gates, redirects, 404) passes
   against the live site.
+- **The interview is ten questions, then Ready** (2026-09-04): one designated
+  opener per life area (any other opener in the area stands in if it was
+  skipped); once every area has one real answer the server serves nothing more
+  unless `deepen` is asked for. The build meter is re-based so one sitting can
+  reach 100 (connector 20 · first answer 10 · core 40 · patterns 10 · blind
+  tests 15 · depth 5). End-to-end DB test walks a fresh clone through all ten.
 - **The interview never digs twice** (thread rules, 2026-09-03): a follow-up is
   linked to the answer it grew from, only the strongest one per answer is kept,
   it is held back for two turns, served once (its siblings retire), and an

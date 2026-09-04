@@ -52,32 +52,41 @@ const INTERVIEWER_BRIEF = `HOW TO CONDUCT THIS (you are the interviewer now — 
 - If they share something heavy or unresolved, be a person FIRST — name the weight simply ("that's a lot to carry") and stay on that thread; never change the subject away from something raw. If they ask what YOU think they should do, be honest that their persona is still learning them, then ask what each option would actually mean for them.
 - When the thread has a concrete story plus the reason underneath, call submit_interview_answer with the question_id, their words VERBATIM (their phrasing is what their persona learns from — never paraphrase), and the exchange. Then flow into the next question it returns.
 - The interview learns EVERYTHING by itself: submit_interview_answer captures the answers, and every 5th one is automatically mined for reasoning patterns too. Never call learn_from_this_chat on an interview session, and never suggest it — there is nothing extra to save.
-- After ~3 completed questions, offer a pause — answering these is genuinely tiring. NEVER phrase it as an ending or a "good spot to stop" (there is no finish line; that wording reads as "the interview is complete"). Frame it as: keep going if you have the energy, or pick this up another time — it resumes exactly where you left off.
+- LENGTH: the core interview is ten questions and should feel like fifteen minutes, not a project. One or two sentences of story plus the why is a complete answer — submit it; do not mine for more. Probe at most ONCE in core mode. Never offer a pause in core mode (it is short and numbered; the count is the pacing). In deeper sessions, stop after three questions and say they can pick it up any time — never phrase that as an ending or a "good spot to stop".
 - ONLY the served question is the question: it carries the id that makes answers saveable. NEVER invent your own interview question — improvised ones cannot be submitted and their answers are lost. If a tool result has no question in it, say so and show the menu instead.
 - RETURNING USERS: the interview always RESUMES server-side — never say "let's start over", never re-explain the process. Greet with ONE light line (their progress % + "picking up where we left off"), then straight into the question. Their earlier answers are PRIVATE BACKGROUND: use them silently to avoid re-asking — never as a recap of what they shared.`;
 
 /** The interview payload — used by interview_me AND by opersona_me({choice:'interview'}),
  *  so a menu pick routes server-side instead of relying on the model switching tools. */
-async function interviewPayload(me: Me, clone: { id: string }) {
+async function interviewPayload(me: Me, clone: { id: string }, opts: { deepen?: boolean } = {}) {
   try {
     const r = await engineFetch<{
       question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null;
-      progress: { answered: number; categories: { label: string; coverage: number; justStarted: boolean }[] };
+      progress: { answered: number; categories: { label: string; coverage: number; justStarted: boolean }[]; core: { done: number; total: number; complete: boolean } };
       known: string | null;
       recent: { question: string; answer: string; when: string }[];
       repeat?: boolean;
-    }>(`/clones/${clone.id}/interview/next`, { body: { orgId: me.orgId, userId: me.userId } });
-    if (!r.question) return text('Nothing pending right now — new questions appear as the persona studies recent answers. Try again after the next few.');
+      ready?: boolean;
+    }>(`/clones/${clone.id}/interview/next`, { body: { orgId: me.orgId, userId: me.userId, deepen: !!opts.deepen } });
     const build = await buildProgress(me.userId, me.orgId, clone.id);
     const pct = build.pct;
-    const coverage = r.progress.answered > 0
-      ? `So far: ${r.progress.answered} answers · interview coverage ${build.coveragePct}% of the ten areas · overall build ${pct}% (the same number as the progress bar on their opersona.me nav).`
-      : 'This is early days — first answers teach it the most.';
+    if (!r.question && r.ready) {
+      return text([
+        `CORE INTERVIEW COMPLETE — their persona is Ready (build ${pct}%). Nothing more is required; there is no backlog and nothing they "should" finish.`,
+        'Tell them that in one warm line. Then offer, as a genuine option and not a nudge: they can go deeper any time — three more questions in a sitting, about who they are — by saying so (you would then call interview_me with deepen: true). If they decline or say nothing, leave it there.',
+      ].join('\n'));
+    }
+    if (!r.question) return text('Nothing pending right now — new questions appear as the persona studies recent answers. Try again after the next few.');
+    const core = r.progress.core;
+    const mode = opts.deepen ? 'DEEPEN' : 'CORE';
+    const coverage = mode === 'CORE'
+      ? `THE CORE INTERVIEW: ten questions in all, one per area of life, about fifteen minutes. This is question ${Math.min(core.done + 1, core.total)} of ${core.total} — say so ("question ${Math.min(core.done + 1, core.total)} of ${core.total}"), so they can see the end. Overall build ${pct}% (the same number as the progress bar on their opersona.me nav).`
+      : `GOING DEEPER (their choice; the core interview is complete and the persona is already Ready): serve THREE questions this sitting, then stop and say they can pick it up any time. ${r.progress.answered} answers so far · build ${pct}%.`;
     const returning = r.progress.answered > 0;
     const resume = returning ? [
       '',
       `RESUMING: picks up exactly where they left off (${r.progress.answered} answers banked) — answered questions never come back.`,
-      `GREET LIGHT, THEN THE QUESTION: one short upbeat line that INCLUDES THE NUMBER ${pct}% — e.g. "Welcome back — your opersona is at ${pct}% and we're picking up right where we left off." That figure matches the progress bar they see on opersona.me — say it verbatim, don't soften it into "building". Do NOT recap what they told you before — being handed a summary of your own personal disclosures feels invasive, not warm. Mention a past topic only if THEY bring it up first.`,
+      `GREET LIGHT, THEN THE QUESTION: one short upbeat line that INCLUDES THE NUMBER ${pct}% — e.g. "Welcome back — your opersona is at ${pct}%${mode === 'CORE' ? `, ${core.done} of ${core.total} areas done` : ''} — picking up right where we left off." That figure matches the progress bar they see on opersona.me — say it verbatim, don't soften it into "building". Do NOT recap what they told you before — being handed a summary of your own personal disclosures feels invasive, not warm. Mention a past topic only if THEY bring it up first.`,
       ...(r.recent?.length ? [
         'PRIVATE BACKGROUND — for your awareness only, so you never re-ask or contradict. Never recite, quote, or summarize any of this back to them:',
         ...r.recent.map((x) => `- asked: ${x.question} → they said: "${x.answer}"`),
@@ -119,8 +128,8 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
     'opersona_me',
     "THE front door — the 'opersona me' entry point AND its router. Call with no arguments when the user says 'opersona'/'opersona me' or asks what opersona can do: it returns their live status plus the option menu (present as a short numbered list, then WAIT for their pick). When they pick, call THIS SAME TOOL again with `choice` — the server routes it. If their first message already named a specific action, skip the menu: call with the matching choice (or the specific tool) directly.",
     {
-      choice: z.enum(['interview', 'persona', 'roster', 'memory', 'teach']).optional()
-        .describe("the user's pick: 'interview' = continue/start the interview · 'persona' = load their persona and answer as them · 'roster' = personas available to them · 'memory' = search persona memory · 'teach' = save lessons from this chat. Omit to show the menu."),
+      choice: z.enum(['interview', 'deepen', 'persona', 'roster', 'memory', 'teach']).optional()
+        .describe("the user's pick: 'interview' = start/continue the core interview (ten questions) · 'deepen' = optional deeper questions once the core is complete · 'persona' = load their persona and answer as them · 'roster' = personas available to them · 'memory' = search persona memory · 'teach' = save lessons from this chat. Omit to show the menu."),
     },
     async ({ choice }) => {
       const me = await resolveWorkspace(userId);
@@ -132,7 +141,12 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
           'Tell the user that, warmly and briefly.',
         ].join('\n'));
       }
-      if (choice === 'interview') return interviewPayload(me, clone);
+      if (choice === 'deepen') return interviewPayload(me, clone, { deepen: true });
+      if (choice === 'interview') {
+        // Picking "interview" once the core is done means "go deeper" — never "51st question".
+        const b = await buildProgress(me.userId, me.orgId, clone.id);
+        return interviewPayload(me, clone, { deepen: b.coreDone >= 10 });
+      }
       if (choice === 'persona') return personaPayload(me, clone);
       if (choice === 'roster') return text('Call list_my_roster for their workspace personas, or search_community { query } for public ones — then use_persona { slug } to adopt one for this chat.');
       if (choice === 'memory') return text("Ask what they want to look up if they haven't said, then call recall_memory { query } with it.");
@@ -144,7 +158,11 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
         ...(build.failedExtractions > 0 ? [`HEADS-UP (tell them): ${build.failedExtractions} of their interview answers couldn't be processed because no Claude was reachable (their bridge was offline). The answers are safe and retry automatically when their bridge machine is awake and connected — or an API key in Settings → Models removes the dependency.`] : []),
         '',
         `MENU — show these as a short numbered list (your own words, one line each, mention the ${build.pct}% somewhere) and wait for their choice:`,
-        `1. ${build.answered > 0 ? 'Continue the interview — teach it who you are (resumes exactly where you left off)' : 'Start the interview — the fastest way to teach it who you are'}`,
+        `1. ${build.coreDone >= 10
+          ? 'Go deeper — three more questions about who you are (optional: the core interview is complete and the persona is Ready)'
+          : build.answered > 0
+            ? `Continue the core interview — ten questions in all, ${build.coreDone} of 10 areas done, resumes where you left off`
+            : 'Start the core interview — ten questions, about fifteen minutes, and the persona is Ready'}`,
         '2. Talk as/with my persona — it answers as the user for the rest of this chat',
         "3. Use someone else's persona — a teammate or a community one",
         "4. Search my persona's memory — facts, decisions, past work",
@@ -152,7 +170,7 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
         '',
         'ROUTING their pick: call opersona_me again with choice = 1→"interview" · 2→"persona" · 3→"roster" · 4→"memory" · 5→"teach". Immediately, no re-confirmation. Never improvise the action yourself — in particular NEVER invent an interview question (only served questions can be saved).',
         '',
-        `If they ask what the ${build.pct}% means: it is a BUILD meter, not an accuracy score — connector added (one-time +20) + first interview answer (one-time +10) + interview coverage (${build.coveragePct}% of ten areas → ${Math.round(0.45 * build.coveragePct)}/45) + confirmed patterns (10, full at 3) + blind tests scored (15, full at 5). Accuracy is measured separately by blind tests at opersona.me/me/survey, which shows no number until 5 are scored.`,
+        `If they ask what the ${build.pct}% means: it is a BUILD meter, not an accuracy score — connector added (one-time +20) + first interview answer (one-time +10) + core interview (${build.coreDone} of 10 areas → ${build.coreDone * 4}/40) + confirmed patterns (10, full at 3) + blind tests scored (15, full at 5) + going deeper (5, optional). One sitting can reach 100. Accuracy is measured separately by blind tests at opersona.me/me/survey, which shows no number until 5 are scored.`,
         '',
         'Dashboard: https://opersona.me/me',
       ].join('\n'));
@@ -320,14 +338,14 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
 
   server.tool(
     'interview_me',
-    "Interview the user to BUILD their opersona, right here in this chat, with YOU conducting it. Fetches the next question from their persona's adaptive interview (10 life areas, contradiction probes included) plus instructions for running it conversationally. Call when the user asks to be interviewed, to 'teach my persona about me', to continue their interview, or picks Interview from the opersona_me menu. (A bare 'opersona me' with no specific ask is the menu, not this; to ACT AS their already-built persona instead, use my_persona.) Their answers are extracted server-side into evidence-backed memories, traits and rules they review at opersona.me.",
-    {},
-    async () => {
+    "Interview the user to BUILD their opersona, right here in this chat, with YOU conducting it. The CORE interview is ten questions — one real moment from each of ten areas of life, about fifteen minutes — and finishing it makes the persona Ready; nothing more is ever required. Fetches the next question plus instructions for running it conversationally. Call when the user asks to be interviewed, to 'teach my persona about me', to continue their interview, or picks Interview from the opersona_me menu. Pass deepen: true ONLY when the core is complete and the user has asked to go deeper (three optional questions per sitting; follow-ups and contradiction probes live here). (A bare 'opersona me' with no specific ask is the menu, not this; to ACT AS their already-built persona instead, use my_persona.) Their answers are extracted server-side into evidence-backed memories, traits and rules they review at opersona.me.",
+    { deepen: z.boolean().optional().describe('true = the user explicitly asked to go deeper after completing the core interview') },
+    async ({ deepen }) => {
       const me = await resolveWorkspace(userId);
       if (!me) return errText('Account not found.');
       const clone = await myPersona(me);
       if (!clone) return errText(NO_PERSONA);
-      return interviewPayload(me, clone);
+      return interviewPayload(me, clone, { deepen: !!deepen });
     },
   );
 
@@ -338,10 +356,11 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
       question_id: z.string().uuid().describe('the id from interview_me / the previous submit'),
       their_words: z.string().max(20_000).optional().describe("the user's own messages from this thread, verbatim, joined by newlines — never paraphrased, never yours. Omit when skipping."),
       skip: z.boolean().optional().describe("true = the user doesn't want this question (bored, too personal, feels repetitive) — retire it permanently and move to the next"),
+      deepen: z.boolean().optional().describe('pass through whatever mode this session is in: true only in a deeper session (interview_me was called with deepen: true)'),
       exchange: z.array(z.object({ role: z.enum(['user', 'interviewer']), text: z.string().max(4000) })).max(24).optional()
         .describe('the full back-and-forth in order (your questions included) so short answers stay interpretable'),
     },
-    async ({ question_id, their_words, skip, exchange }) => {
+    async ({ question_id, their_words, skip, exchange, deepen }) => {
       const me = await resolveWorkspace(userId);
       if (!me) return errText('Account not found.');
       const clone = await myPersona(me);
@@ -349,19 +368,28 @@ export function registerOpersonaTools(server: McpServer, userId: string): void {
       const userText = skip ? '' : (their_words ?? '').trim();
       if (!skip && !userText) return errText('their_words is required unless skip is true.');
       try {
-        const r = await engineFetch<{ answerId: string | null; question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null; progress: { answered: number }; rail?: 'bridge' | 'key' | 'none' }>(
-          `/clones/${clone.id}/interview/submit-thread`, { body: { orgId: me.orgId, questionId: question_id, userText, dialogue: skip ? undefined : exchange } });
-        const pace = !skip && r.progress.answered > 0 && r.progress.answered % 3 === 0
-          ? '\n\nPACING: that makes three this sitting — offer a pause. NEVER phrase it as an ending ("good spot to stop", "we\u2019re done") — the interview has no finish line and that wording reads as "completed". Acknowledge the real effort and frame it as a pause, e.g.: "These take real energy to answer — happy to keep going, or we can pick this up another time, exactly where we left off. One more, or call it here for today?"'
+        const r = await engineFetch<{ answerId: string | null; question: { id: string; categoryLabel: string; kind: string; text: string; hint: string | null } | null; progress: { answered: number; core: { done: number; total: number; complete: boolean } }; rail?: 'bridge' | 'key' | 'none'; ready?: boolean; justReady?: boolean }>(
+          `/clones/${clone.id}/interview/submit-thread`, { body: { orgId: me.orgId, questionId: question_id, userText, dialogue: skip ? undefined : exchange, deepen: !!deepen } });
+        const pace = deepen && !skip && r.progress.answered > 0 && r.progress.answered % 3 === 0
+          ? '\n\nPACING: that makes three this sitting — stop here. Say they can pick it up any time, exactly where they left off. NEVER phrase it as an ending ("good spot to stop", "we\u2019re done").'
           : '';
+        if (r.justReady || (r.ready && !r.question)) {
+          const build = await buildProgress(me.userId, me.orgId, clone.id);
+          return text([
+            `${skip ? 'Skipped.' : `Saved (answer ${r.progress.answered}).`} ${r.justReady ? 'THAT WAS THE LAST CORE QUESTION — ' : ''}the core interview is COMPLETE and their persona is Ready (build ${build.pct}%).`,
+            'Tell them plainly and warmly: done, nothing more required, the persona is usable now — say "my persona" in any chat, or test it blind at https://opersona.me/me/survey.',
+            'Going deeper is an option, not a next step: if they want three more questions some time, they just say so (interview_me with deepen: true). Do not push it.',
+          ].join('\n'));
+        }
         const head = skip
           ? 'Skipped — that question is retired and will not come back.'
           : r.rail === 'none'
             ? `Saved and banked (answer ${r.progress.answered}) — but their Claude rail is offline (bridge machine asleep, no API key), so the persona can't fold it in YET. Nothing is lost: it processes automatically the moment their bridge reconnects. Mention this briefly once per session, not every answer.`
             : `Saved — the persona is folding it in (answer ${r.progress.answered}).`;
         if (!r.question) return text(`${head} No more questions pending right now.${pace}`);
+        const count = !deepen ? ` (core question ${Math.min(r.progress.core.done + 1, r.progress.core.total)} of ${r.progress.core.total} — say the number)` : '';
         return text([
-          `${head} Flow naturally into the next one:`,
+          `${head} Flow naturally into the next one${count}:`,
           '',
           `NEXT QUESTION [id: ${r.question.id}] · area: ${r.question.categoryLabel}${r.question.kind === 'contradiction' ? ' · this one untangles something that didn’t quite add up' : r.question.kind === 'follow_up' ? ' · ONE deeper dig on something they said earlier — ask it once; if their earlier words already answer it, submit those words or skip, never re-ask' : ''}`,
           `"${r.question.text}"${r.question.hint ? `\n(${r.question.hint})` : ''}`,

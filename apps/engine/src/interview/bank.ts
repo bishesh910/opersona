@@ -229,3 +229,26 @@ export const BANK_BY_KEY: ReadonlyMap<string, BankQuestion> = new Map(BANK.map((
 export function bankFor(category: InterviewCategory): BankQuestion[] {
   return BANK.filter((b) => b.category === category);
 }
+
+/**
+ * THE CORE INTERVIEW — one question per life area, ten in all, about fifteen
+ * minutes. Finishing it makes the persona Ready; everything else in the bank
+ * is depth, served only when the person asks to go deeper. Chosen for yield
+ * per minute and gentleness: nobody is asked about regret or loss to get
+ * started. If a core question was skipped, any other question in that area
+ * can stand in for it (see service.ts) — an area counts as covered once it
+ * has one real answer, however it got there.
+ */
+export const CORE_KEYS: Record<InterviewCategory, string> = {
+  identity: 'identity.turning_points.2',              // the chapters of your life so far
+  values: 'values.named_values.1',                    // what you refuse to compromise on
+  decision_making: 'decision_making.information_gathering.1', // what you reach for first
+  relationships: 'relationships.conflict.1',          // your last real disagreement
+  work: 'work.craft_method.1',                        // how you actually do the thing you're good at
+  money: 'money.risk.1',                              // the biggest financial risk
+  emotional: 'emotional.joy.1',                       // the last time you felt properly light
+  ethics: 'ethics.hard_lines.1',                      // what you'd never do
+  social: 'social.social_battery.1',                  // after a long stretch with people
+  future: 'future.planning_horizon.1',                // how far ahead you really plan
+};
+export const CORE_TOTAL = Object.keys(CORE_KEYS).length;

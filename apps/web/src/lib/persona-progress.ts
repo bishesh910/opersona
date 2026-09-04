@@ -13,10 +13,13 @@ export async function buildProgress(userId: string, orgId: string, cloneId: stri
   const [consent] = await db.select({ id: authSchema.oauthConsent.id }).from(authSchema.oauthConsent)
     .where(eq(authSchema.oauthConsent.userId, userId)).limit(1);
   const connector = !!consent;
-  if (!cloneId) return { pct: connector ? 20 : 0, connector, answered: 0, coveragePct: 0, patterns: 0, scored: 0, bridgePaired: false, failedExtractions: 0 };
+  if (!cloneId) return { pct: connector ? 20 : 0, connector, answered: 0, coveragePct: 0, coreDone: 0, patterns: 0, scored: 0, bridgePaired: false, failedExtractions: 0 };
   const [[cov], [pat], [sc], [btok], [fx]] = await Promise.all([
-    db.select({ sum: sql<number>`coalesce(sum(${schema.interviewCoverage.coverage}), 0)`, answered: sql<number>`coalesce(sum(${schema.interviewCoverage.answered}), 0)::int` })
-      .from(schema.interviewCoverage).where(eq(schema.interviewCoverage.cloneId, cloneId)),
+    db.select({
+      sum: sql<number>`coalesce(sum(${schema.interviewCoverage.coverage}), 0)`,
+      answered: sql<number>`coalesce(sum(${schema.interviewCoverage.answered}), 0)::int`,
+      coreDone: sql<number>`count(*) filter (where ${schema.interviewCoverage.answered} > 0)::int`,
+    }).from(schema.interviewCoverage).where(eq(schema.interviewCoverage.cloneId, cloneId)),
     db.select({ n: sql<number>`count(*)::int` }).from(schema.reasoningPatterns)
       .where(and(eq(schema.reasoningPatterns.cloneId, cloneId), eq(schema.reasoningPatterns.status, 'confirmed'))),
     db.select({ n: sql<number>`count(*)::int` }).from(schema.predictionScenarios)
@@ -31,6 +34,7 @@ export async function buildProgress(userId: string, orgId: string, cloneId: stri
   const patterns = pat?.n ?? 0;
   const scored = sc?.n ?? 0;
   const coveragePct = Math.round(coverage * 100);
-  const { pct } = progressParts({ connector, answered, coveragePct: coverage * 100, patterns, scored });
-  return { pct, connector, answered, coveragePct, patterns, scored, bridgePaired: !!btok, failedExtractions: fx?.n ?? 0 };
+  const coreDone = cov?.coreDone ?? 0;
+  const { pct } = progressParts({ connector, answered, coreDone, patterns, scored });
+  return { pct, connector, answered, coveragePct, coreDone, patterns, scored, bridgePaired: !!btok, failedExtractions: fx?.n ?? 0 };
 }
