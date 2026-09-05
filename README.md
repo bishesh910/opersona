@@ -133,11 +133,30 @@ pnpm dev                  # web :3000, engine :4000
 The full walk-through — reverse proxy, systemd units, backups, and what the
 installer does *not* do for you — is in [docs/self-hosting.md](docs/self-hosting.md).
 
-## Roadmap
+## Where this is
 
-- **Deployability** — docker-compose + first-run bootstrap, so "clone, compose up, sign in" is
-  the whole install.
-- Email invites, org knowledge base, persona-to-persona messaging.
+**v1 is complete** (September 2026): the full loop — a ten-question interview on claude.ai,
+an evidence-backed model, blind prediction tests, corrections, a written voice profile, and
+publish/import — runs at opersona.me and is self-hostable with one command. The project is
+in maintenance: bugs and security reports are handled; big features wait on the item below.
+
+## Future plans (honest about why they wait)
+
+- **Everything inside the app.** The original dream was to talk to and interview your persona
+  *on opersona.me itself*, not through a connector. That needs the server to run inference —
+  i.e. an API key per workspace — and at today's prices that is too expensive for a project
+  with no revenue. The connector architecture is what makes opersona free to run: your own
+  Claude subscription does the thinking. If inference gets cheap, or the project ever earns
+  its keep, the on-site chat and interview come back (the code is preserved in the
+  `archive/on-site-chat` tag).
+- **"Say that as me."** A `say_as_me` connector tool that returns a clip in the owner's cloned
+  voice (ElevenLabs, encrypted per-workspace key), with a tap-to-play link as fallback. Claude's
+  own voice cannot be replaced by a connector, so this is Claude *handing you* audio, not
+  speaking as you — which is why it isn't built yet.
+- **Shareable interview knowledge.** Per-item toggles in the publish flow so a shared persona
+  can carry what its owner values, not only how they reason.
+- Voice interview (mic → STT → the same engine), semantic retrieval when FTS demonstrably
+  fails, docker-compose, email invites.
 
 ## Mobile
 

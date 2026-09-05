@@ -29,6 +29,16 @@ installs the background service from a real npm installation in
 imports could never resolve, so the service crash-looped), starts it, and
 reports whether it actually connected.
 
+## Project status: v1 complete, in maintenance (2026-09-04)
+
+The main goal — a persona that learns how a specific person thinks, proves
+it blind, and runs on that person's own Claude — is met and live. Work from
+here is bugs, security, and small honesty fixes. The two things the author
+wanted most and could not have are recorded in the README's *Future plans*:
+everything inside the app (needs server-side inference, i.e. paid API
+usage the project cannot afford), and a cloned voice (Claude's own voice
+cannot be replaced by a connector).
+
 ## Where we are
 
 The full central loop — **interview → model → predict → test → correct →

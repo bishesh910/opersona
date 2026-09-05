@@ -83,3 +83,17 @@ safe without watching anyone, and the honest self-hosted caveat about operator d
 No SaaS. opersona is a product you take home: run it on your machine, sign in with your Claude,
 own your data. That makes the installer the real remaining product surface — see the roadmap in
 the README.
+
+## Closing v1 (2026-09-04)
+
+Open-sourced under AGPL with the history scrubbed of anything personal; CI,
+templates and a contributing guide; a one-command installer served from the
+instance itself; the box split into isolated tenants (a second app now lives
+beside opersona with its own port, database and service); sudo, backups and
+GitHub hardened. The interview got two fixes that only real use could have
+found — it stopped digging into the same answer repeatedly, and it stopped
+being 75 questions long: ten questions make the persona Ready, depth is an
+invitation. The author's verdict: the main goal is accomplished. What did not
+happen, and why, is in the README's *Future plans* — in short, the all-in-app
+version needs paid inference, and that is the one thing this project was
+built to avoid.
